@@ -1,0 +1,57 @@
+# Development override — use with:
+#   docker compose -f docker-compose.yml -f docker-compose.dev.yml up
+#
+# Adds:
+#   - Source bind mounts for hot-reload (code changes reflected without rebuild)
+#   - uvicorn --reload for the AI service
+#   - Django runserver for the backend (faster than gunicorn for dev)
+#   - DJANGO_SETTINGS_MODULE=config.settings.development
+#   - Debug port exposure
+
+version: '3.8'
+
+services:
+  backend:
+    volumes:
+      - ./backend:/app                  # hot-reload: source changes reflected immediately
+      - backend_media:/app/media
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+      - DEBUG=True
+    command: >
+      sh -c "python manage.py migrate &&
+             python manage.py runserver 0.0.0.0:8000"
+
+  celery:
+    volumes:
+      - ./backend:/app
+    environment:
+      - DJANGO_SETTINGS_MODULE=config.settings.development
+    command: celery -A config worker -l debug
+
+  ai-service:
+    volumes:
+      - ./ai-service:/app               # hot-reload: source changes reflected immediately
+    command: >
+      uvicorn app.main:app
+        --host 0.0.0.0
+        --port 8005
+        --reload
+    ports:
+      - "8005:8005"                     # expose directly for local testing without nginx
+
+  frontend:
+    build:
+      context: ./frontend
+      target: development               # uses the dev stage in the frontend Dockerfile if present
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules               # anonymous volume so container node_modules aren't overwritten
+    ports:
+      - "5173:5173"                     # Vite dev server port
+    command: npm run dev -- --host 0.0.0.0
+
+  # No nginx in dev — Vite proxy handles /api and /ai routing
+  nginx:
+    profiles:
+      - production                      # only starts when --profile production is passed

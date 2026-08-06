@@ -1,0 +1,124 @@
+# ── Python ──────────────────────────────────────────────────────────────────
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.so
+*.egg
+*.egg-info/
+dist/
+build/
+.eggs/
+*.pyc
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# ── Virtual environments ─────────────────────────────────────────────────────
+venv/
+.venv/
+env/
+.env/
+backend/venv/
+backend/.venv/
+ai-service/venv/
+ai-service/.venv/
+
+# ── Secrets & environment ────────────────────────────────────────────────────
+# Never commit real .env files — use .env.example as the template
+.env
+backend/.env
+ai-service/.env
+*.env
+!.env.example
+
+# ── Django ───────────────────────────────────────────────────────────────────
+backend/db.sqlite3
+*.sqlite3
+backend/staticfiles/
+backend/media/
+backend/models/
+
+# ── Portable runtime (Electron desktop build) ────────────────────────────────
+backend/portable-python/
+frontend/portable-python/
+
+# ── Node / frontend ──────────────────────────────────────────────────────────
+node_modules/
+frontend/node_modules/
+frontend/dist/
+frontend/build/
+.npm/
+
+# ── Electron build artefacts ─────────────────────────────────────────────────
+frontend/release/
+electron/dist/
+
+# ── AI / ML artefacts ────────────────────────────────────────────────────────
+# Trained weights are large; keep only source-controlled starter weights
+ai-service/runs/
+*.pt
+!ai-service/yolo11n.pt
+yolo11n.pt
+# Training dataset images (large binary dataset, use DVC or external storage)
+ai-service/data/accident/train/
+ai-service/data/accident/valid/
+ai-service/data/accident/test/
+# Keep the data config and readme files (small text, useful for reproducibility)
+!ai-service/data/accident/data.yaml
+!ai-service/data/accident/README.dataset.txt
+!ai-service/data/accident/README.roboflow.txt
+# Model training output artefacts (charts, confusion matrices)
+ai-service/models/accident_detector/*.png
+ai-service/models/accident_detector/*.jpg
+ai-service/models/accident_detector/*.csv
+ai-service/models/accident_detector/weights/
+# Keep args.yaml (documents training config)
+!ai-service/models/accident_detector/args.yaml
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+ai-service/train_output.log
+ai-service/train_error.log
+stdout.txt
+stderr.txt
+
+# ── SSL certificates (generated locally, never commit) ───────────────────────
+ssl/
+*.crt
+*.key
+*.pem
+
+# ── OS / editor ──────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+.idea/
+*.swp
+*.swo
+.vscode/settings.json
+
+# ── Sample / test video files (large binaries, not source code) ──────────────
+*.mp4
+*.avi
+*.mkv
+*.mov
+# Exception: if you intentionally version a small fixture, use git add -f
+sample_*.mp4
+smoke_*.mp4
+test_stream.py
+
+# ── Workspace / Obsidian vault ───────────────────────────────────────────────
+workspace/
+
+# ── Test / benchmark output ──────────────────────────────────────────────────
+test_report.json
+test_data/
+benchmark/results_*.csv
+htmlcov/
+coverage.xml
+.coverage
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+# docker-compose.override.yml is intentionally untracked (local dev overrides)
+docker-compose.override.yml

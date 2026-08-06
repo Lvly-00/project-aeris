@@ -1,0 +1,16 @@
+# Convenience shim for local development.
+# For production use: pip install -r requirements/production.txt
+# For development use: pip install -r requirements/development.txt
+-r requirements/development.txt
+
+# AI service dependencies — shared venv with backend for Electron desktop build
+# (see electron/main.cjs). Not installed in Docker — ai-service has its own image.
+opencv-python>=4.10,<5.0
+ultralytics>=8.3,<9.0
+torch>=2.5,<3.0
+torchvision>=0.20,<1.0
+numpy>=1.26
+fastapi>=0.115,<1.0
+uvicorn>=0.34,<1.0
+python-multipart>=0.0.9
+psutil>=6.0,<8.0

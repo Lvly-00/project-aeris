@@ -1,0 +1,6 @@
+train: C:/Users/HP/Documents/Code/Incident/ai-service/data/accident/train/images
+val: C:/Users/HP/Documents/Code/Incident/ai-service/data/accident/valid/images
+test: C:/Users/HP/Documents/Code/Incident/ai-service/data/accident/test/images
+
+nc: 2
+names: ['vehicle_accident', 'accident']

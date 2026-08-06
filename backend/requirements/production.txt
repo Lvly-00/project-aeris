@@ -1,0 +1,28 @@
+# Production requirements — exact pins for reproducible installs.
+# Regenerate with:
+#   pip freeze | grep -E "^(Django|djangorestframework|...)==" > production.txt
+# Run pip-audit before each release to check for known vulnerabilities.
+#
+# Install: pip install -r requirements/production.txt
+
+Django==5.2.16
+djangorestframework==3.17.1
+djangorestframework-simplejwt==5.5.1
+django-cors-headers==4.9.0
+django-filter==24.3
+channels==4.3.2
+channels-redis==4.2.0
+daphne==4.2.2
+mysqlclient==2.2.8
+redis==5.3.1
+celery==5.6.3
+Pillow==12.3.0
+reportlab==4.5.1
+openpyxl==3.1.5
+drf-spectacular==0.30.0
+gunicorn==23.0.0
+python-decouple==3.8
+requests==2.34.2
+psutil==7.2.2
+# Database URL support (optional production convenience)
+# dj-database-url==2.3.0

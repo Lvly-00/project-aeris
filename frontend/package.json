@@ -1,0 +1,48 @@
+{
+  "name": "aeris-cctv",
+  "private": true,
+  "version": "1.0.0",
+  "type": "module",
+  "main": "electron/main.cjs",
+  "scripts": {
+    "dev": "vite",
+    "dev:desktop": "concurrently -k -n \"vite,electron\" -c \"cyan,green\" \"vite\" \"wait-on http://localhost:5173 && electron .\"",
+    "build": "tsc -b && vite build",
+    "build:desktop": "tsc -b && vite build && electron-builder --config electron-builder.yml",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "electron": "electron ."
+  },
+  "dependencies": {
+    "@mantine/charts": "^7.16.3",
+    "@mantine/core": "^7.16.3",
+    "@mantine/dates": "^7.16.3",
+    "@mantine/form": "^7.17.8",
+    "@mantine/hooks": "^7.16.3",
+    "@mantine/notifications": "^7.16.3",
+    "@tanstack/react-query": "^5.62.8",
+    "@tanstack/react-table": "^8.20.6",
+    "axios": "^1.7.9",
+    "dayjs": "^1.11.13",
+    "leaflet": "^1.9.4",
+    "lucide-react": "^1.23.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-leaflet": "^4.2.1",
+    "react-router-dom": "^7.1.1",
+    "recharts": "^2.15.0",
+    "recharts-scale": "^0.4.5"
+  },
+  "devDependencies": {
+    "@types/leaflet": "^1.9.15",
+    "@types/react": "^18.3.18",
+    "@types/react-dom": "^18.3.5",
+    "@vitejs/plugin-react": "^4.3.4",
+    "concurrently": "^10.0.3",
+    "electron": "^43.1.0",
+    "electron-builder": "^26.15.3",
+    "typescript": "~5.6.2",
+    "vite": "^6.0.5",
+    "wait-on": "^9.0.10"
+  }
+}

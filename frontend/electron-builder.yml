@@ -1,0 +1,76 @@
+appId: com.aeris.cctv
+productName: Aeris
+copyright: Copyright © 2026
+
+directories:
+  output: release
+  buildResources: build
+
+files:
+  - dist/**/*
+  - electron/**/*
+  - package.json
+
+electronDist: node_modules/electron/dist
+
+extraResources:
+  - from: ../backend
+    to: backend
+    filter:
+      - "**/*"
+      - "!**/__pycache__/**"
+      - "!venv/Lib/site-packages/pip/**"
+      - "!venv/Lib/site-packages/setuptools/**"
+      - "!venv/Lib/site-packages/wheel/**"
+      - "!venv/Scripts/pip*"
+      - "!venv/Scripts/*.exe.manifest"
+      - "!portable-python/**"
+      - "!**/*.pyc"
+      - "!.env"
+  - from: ../ai-service
+    to: ai-service
+    filter:
+      - "**/*"
+      - "!**/__pycache__/**"
+      - "!*.pyc"
+      - "!venv/**"
+  - from: dist
+    to: frontend
+    filter:
+      - "**/*"
+  - from: ../backend/portable-python
+    to: portable-python
+    filter:
+      - "**/*"
+
+win:
+  target:
+    - target: nsis
+      arch:
+        - x64
+
+nsis:
+  oneClick: false
+  allowToChangeInstallationDirectory: true
+  installerSidebar: null
+
+mac:
+  target:
+    - target: dmg
+      arch:
+        - x64
+        - arm64
+
+linux:
+  target:
+    - target: AppImage
+      arch:
+        - x64
+    - target: deb
+      arch:
+        - x64
+  category: Utility
+  icon: build/
+
+extraMetadata:
+  main: electron/main.cjs

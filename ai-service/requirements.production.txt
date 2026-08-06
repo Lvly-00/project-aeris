@@ -1,0 +1,18 @@
+# AI service production requirements — exact pins for reproducible builds.
+# Regenerate with: pip freeze > requirements.production.txt (inside the venv)
+# Run pip-audit before each release to check for known vulnerabilities.
+#
+# Install: pip install -r requirements.production.txt
+
+opencv-python==4.13.0.92
+ultralytics==8.4.103
+torch==2.13.0
+torchvision==0.28.0
+numpy==2.5.1
+requests==2.34.2
+Pillow==12.3.0
+fastapi==0.139.2
+uvicorn==0.51.0
+python-multipart==0.0.32
+python-decouple==3.8
+psutil==7.2.2
