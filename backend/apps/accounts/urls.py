@@ -3,6 +3,7 @@ from rest_framework.routers import DefaultRouter
 from . import views
 
 router = DefaultRouter()
+# Registering with empty string means the base is /api/accounts/
 router.register("", views.UserViewSet, basename="user")
 
 urlpatterns = [

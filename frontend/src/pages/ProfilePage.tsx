@@ -1,136 +1,96 @@
 import React from 'react';
 import {
-  Container,
-  Grid,
-  Paper,
-  Text,
-  Title,
-  Avatar,
-  Divider,
-  Stack,
-  Group,
-  TextInput,
-  PasswordInput,
-  Button,
-  Switch,
-  Select,
-  ActionIcon,
-  rem,
+  Container, Grid, Paper, Text, Title, Avatar, Divider,
+  Stack, Group, TextInput, PasswordInput, Button, Switch,
+  Select, ActionIcon, rem
 } from '@mantine/core';
-import {
-  ChevronLeft,
-  User,
-  Mail,
-  Lock,
-  Bell,
-  ShieldCheck,
-  Languages,
-} from 'lucide-react';
+import { ChevronLeft, User, Mail, Lock, Bell, ShieldCheck, Languages, Phone } from 'lucide-react';
+
+// Mock data based on the Django Serializer response
+const user = {
+  username: "ADMIN 01",
+  full_name: "Michael De Cruz",
+  email: "michaeldcuz@gmail.com",
+  role: "Admin",
+  role_display: "Barangay Official",
+  phone_number: "09123456789"
+};
 
 export default function ProfilePage() {
   const orangeColor = '#FF5C00';
 
   return (
-    <Container size="lg" py="xl" bg="#f8f9fa" style={{ minHeight: '100vh' }}>
-      {/* Header Section */}
+    <Container size="lg" py="xl" bg="#fcfcfc" style={{ minHeight: '100vh' }}>
+      {/* Header */}
       <Group justify="flex-start" mb="md">
-        <ActionIcon variant="subtle" color="gray">
-          <ChevronLeft size={20} />
-        </ActionIcon>
+        <ActionIcon variant="subtle" color="gray"><ChevronLeft size={20} /></ActionIcon>
         <Stack gap={0}>
-          <Title order={4} style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>
-            Profile
-          </Title>
-          <Text size="xs" c="dimmed">
-            Manage your personal details and how others see you.
-          </Text>
+          <Title order={4} style={{ textTransform: 'uppercase', letterSpacing: '1px' }}>Profile</Title>
+          <Text size="xs" c="dimmed">Manage your personal details and how others see you.</Text>
         </Stack>
       </Group>
 
       <Divider mb="xl" />
 
       <Grid gutter="xl">
-        {/* Left Column: Avatar and Role */}
+        {/* Left Column: Profile Summary */}
         <Grid.Col span={{ base: 12, md: 3.5 }}>
-          <Paper withBorder radius="md" p="xl" style={{ height: '100%' }}>
+          <Paper withBorder radius="md" p="xl">
             <Stack align="center" gap="xs">
               <Avatar
-                src="https://i.imgflip.com/4/39t1o9.jpg" // Mike Wazowski placeholder
+                src="https://i.imgflip.com/4/39t1o9.jpg"
                 size={140}
                 radius={100}
                 style={{ border: `3px solid ${orangeColor}` }}
               />
               <Title order={4} mt="md" c={orangeColor}>
-                ADMIN 01
+                {user.username}
               </Title>
-              <Text size="sm" c="dimmed">
-                Barangay Official
-              </Text>
+              <Text size="sm" c="dimmed">{user.role_display}</Text>
 
               <Divider w="100%" my="lg" />
 
               <Stack gap={0} w="100%">
-                <Text size="xs" fw={700} c="dimmed" style={{ textTransform: 'uppercase' }}>
-                  Role
-                </Text>
-                <Text fw={700} c={orangeColor} size="sm">
-                  ADMIN
-                </Text>
+                <Text size="xs" fw={700} c="dimmed" style={{ textTransform: 'uppercase' }}>Role</Text>
+                <Text fw={700} c={orangeColor} size="sm">{user.role.toUpperCase()}</Text>
               </Stack>
             </Stack>
           </Paper>
         </Grid.Col>
 
-        {/* Right Column: Information and Preferences */}
+        {/* Right Column: Forms and Preferences */}
         <Grid.Col span={{ base: 12, md: 8.5 }}>
           <Stack gap="xl">
-            {/* Personal Information Card */}
+            {/* Personal Info Card */}
             <Paper withBorder radius="md" p="xl">
               <Group justify="space-between" align="flex-start" mb="lg">
-                <Stack gap={0}>
-                  <Title order={5} style={{ textTransform: 'uppercase' }}>
-                    Personal Information
-                  </Title>
-                  <Text size="xs" c="dimmed">
-                    Manage registrar attributes, contact emails, and secure account access settings.
-                  </Text>
+                <Stack gap={2}>
+                  <Title order={5} style={{ textTransform: 'uppercase' }}>Personal Information</Title>
+                  <Text size="xs" c="dimmed">Manage registrar attributes and account access.</Text>
                 </Stack>
-                <Button color="orange" radius="md" size="xs">
-                  EDIT PROFILE
-                </Button>
+                <Button color="orange" radius="md" size="xs">EDIT PROFILE</Button>
               </Group>
 
               <Stack gap="md">
                 <TextInput
                   label="NAME"
-                  placeholder="ADMIN"
-                  defaultValue="ADMIN"
-                  leftSection={<User size={18} color={orangeColor} />}
-                  styles={{
-                    label: { fontSize: rem(10), fontWeight: 700, marginBottom: 5 },
-                    input: { color: orangeColor, fontWeight: 600 },
-                  }}
+                  defaultValue={user.full_name}
+                  leftSection={<User size={16} color={orangeColor} />}
+                  styles={{ label: { fontSize: 10, fontWeight: 700, marginBottom: 4 }, input: { color: orangeColor, fontWeight: 600 }}}
                 />
 
                 <Group grow>
                   <TextInput
                     label="EMAIL"
-                    placeholder="michaeldcuz@gmail.com"
-                    defaultValue="michaeldcuz@gmail.com"
-                    leftSection={<Mail size={18} color={orangeColor} />}
-                    styles={{
-                      label: { fontSize: rem(10), fontWeight: 700, marginBottom: 5 },
-                      input: { color: orangeColor, fontWeight: 600 },
-                    }}
+                    defaultValue={user.email}
+                    leftSection={<Mail size={16} color={orangeColor} />}
+                    styles={{ label: { fontSize: 10, fontWeight: 700, marginBottom: 4 }, input: { color: orangeColor, fontWeight: 600 }}}
                   />
                   <PasswordInput
                     label="PASSWORD"
                     defaultValue="password123"
-                    leftSection={<Lock size={18} color={orangeColor} />}
-                    styles={{
-                      label: { fontSize: rem(10), fontWeight: 700, marginBottom: 5 },
-                      input: { color: orangeColor },
-                    }}
+                    leftSection={<Lock size={16} color={orangeColor} />}
+                    styles={{ label: { fontSize: 10, fontWeight: 700, marginBottom: 4 }}}
                   />
                 </Group>
               </Stack>
@@ -138,16 +98,13 @@ export default function ProfilePage() {
 
             {/* Preferences Card */}
             <Paper withBorder radius="md" p="xl">
-              <Stack gap={0} mb="xl">
+              <Stack gap={2} mb="xl">
                 <Title order={5}>Preferences</Title>
-                <Text size="xs" c="dimmed">
-                  Verifies user credentials for secure system access.
-                </Text>
+                <Text size="xs" c="dimmed">Verifies user credentials for secure system access.</Text>
               </Stack>
 
               <Stack gap="lg">
-                {/* Notification Toggle */}
-                <Group justify="space-between" wrap="nowrap">
+                <Group justify="space-between">
                   <Group gap="md">
                     <Bell size={20} color={orangeColor} />
                     <Stack gap={0}>
@@ -158,8 +115,7 @@ export default function ProfilePage() {
                   <Switch color="orange" defaultChecked />
                 </Group>
 
-                {/* 2FA Toggle */}
-                <Group justify="space-between" wrap="nowrap">
+                <Group justify="space-between">
                   <Group gap="md">
                     <ShieldCheck size={20} color={orangeColor} />
                     <Stack gap={0}>
@@ -172,8 +128,7 @@ export default function ProfilePage() {
 
                 <Divider />
 
-                {/* Language Select */}
-                <Group justify="space-between" align="center">
+                <Group justify="space-between">
                   <Group gap="md">
                     <Languages size={20} color={orangeColor} />
                     <Stack gap={0}>
@@ -182,10 +137,10 @@ export default function ProfilePage() {
                     </Stack>
                   </Group>
                   <Select
-                    data={['English', 'Spanish', 'Filipino']}
+                    data={['English', 'Filipino']}
                     defaultValue="English"
                     size="sm"
-                    style={{ width: 200 }}
+                    w={150}
                   />
                 </Group>
               </Stack>

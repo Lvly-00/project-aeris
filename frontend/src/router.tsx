@@ -1,6 +1,8 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { LoadingOverlay } from '@mantine/core';
+import { SudoProtectedRoute } from './components/common/SudoProtectedRoute';
+
 
 import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
@@ -49,8 +51,8 @@ export function AppRouter() {
         <Route index element={<Navigate to="/cameras" replace />} />
         <Route path="cameras" element={<CameraMonitoringPage />} />
         <Route path="audit" element={<AuditLogPage />} />
-        <Route path="settings" element={<SettingsPage />} />
         <Route path="accounts" element={<AccountCreationPage />} />
+        <Route path="settings" element={<SettingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
 
 

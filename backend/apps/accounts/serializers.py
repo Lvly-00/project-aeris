@@ -7,14 +7,23 @@ logger = logging.getLogger(__name__)
 
 
 class UserSerializer(serializers.ModelSerializer):
+    # Added these to support the Profile UI
+    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    full_name = serializers.SerializerMethodField()
+
     class Meta:
         model = User
         fields = [
-            "id", "username", "email", "first_name", "last_name",
-            "role", "phone_number", "barangay_zone", "is_active",
-            "date_joined",
+            "id", "username", "email", "first_name", "last_name", "full_name",
+            "role", "role_display", "phone_number", "barangay_zone", 
+            "is_active", "date_joined",
         ]
-        read_only_fields = ["id", "is_active", "date_joined"]
+        read_only_fields = ["id", "is_active", "date_joined", "role_display"]
+
+    def get_full_name(self, obj):
+        # Returns "Juan Dela Cruz" or just the username if names are empty
+        full_name = f"{obj.first_name} {obj.last_name}".strip()
+        return full_name or obj.username
 
 
 class RegisterSerializer(serializers.ModelSerializer):
@@ -52,6 +61,26 @@ class RegisterSerializer(serializers.ModelSerializer):
         logger.info("Created user %s with role %s", user.username, user.role)
         return user
 
+
+
+class VerifyPasswordSerializer(serializers.Serializer):
+    password = serializers.CharField(write_only=True)
+
+    def validate(self, attrs):
+        request = self.context.get('request')
+        user = request.user
+
+        # Debugging: This will print to your Django terminal
+        print(f"Verifying password for user: {user}") 
+
+        if not user or user.is_anonymous:
+            raise serializers.ValidationError("Session expired. Please log in again.")
+
+        if not user.check_password(attrs.get('password')):
+            # Logic: user.check_password hashes the input and compares it to the DB
+            raise serializers.ValidationError("Incorrect password.")
+            
+        return attrs
 
 class LoginSerializer(serializers.Serializer):
     username = serializers.CharField()

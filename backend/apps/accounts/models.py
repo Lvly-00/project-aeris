@@ -3,17 +3,16 @@ from django.db import models
 from django.db.models.signals import post_save
 from django.dispatch import receiver
 
-
 class User(AbstractUser):
     class Role(models.TextChoices):
         ADMIN = "Admin", "Admin"
         OPERATOR = "Operator", "Operator"
-        VIEWER = "Viewer", "Viewer"
-        BARANGAY_OFFICIAL = "Barangay_Official", "Barangay Official"
-        BARANGAY_TANOD = "Barangay_Tanod", "Barangay Tanod"
+        TANOD = "Tanod", "Barangay Tanod"
 
     role = models.CharField(
-        max_length=20, choices=Role.choices, default=Role.VIEWER
+        max_length=20, 
+        choices=Role.choices, 
+        default=Role.TANOD  # Changed default since Viewer is gone
     )
     phone_number = models.CharField(max_length=20, blank=True, default="")
     barangay_zone = models.ForeignKey(
@@ -31,20 +30,19 @@ class User(AbstractUser):
     def __str__(self) -> str:
         return self.get_full_name() or self.username
 
+    # Simplified helper methods
     def is_admin(self) -> bool:
         return self.role == self.Role.ADMIN
 
     def is_operator(self) -> bool:
-        return self.role in (self.Role.ADMIN, self.Role.OPERATOR)
+        return self.role == self.Role.OPERATOR
 
-    def is_barangay_official(self) -> bool:
-        return self.role == self.Role.BARANGAY_OFFICIAL
-
-    def is_barangay_tanod(self) -> bool:
-        return self.role == self.Role.BARANGAY_TANOD
+    def is_tanod(self) -> bool:
+        return self.role == self.Role.TANOD
 
     def can_verify(self) -> bool:
-        return self.role in (self.Role.ADMIN, self.Role.OPERATOR, self.Role.BARANGAY_OFFICIAL)
+        # Assuming Admins and Operators can verify
+        return self.role in (self.Role.ADMIN, self.Role.OPERATOR)
 
     def can_dispatch(self) -> bool:
         return self.role in (self.Role.ADMIN, self.Role.OPERATOR)
@@ -53,17 +51,12 @@ class User(AbstractUser):
 @receiver(post_save, sender=User)
 def create_dispatcher_for_tanod(sender, instance, created, **kwargs):
     from apps.dispatch.models import Dispatcher
-    if created and instance.role in (
-        User.Role.BARANGAY_TANOD, User.Role.BARANGAY_OFFICIAL
-    ):
-        dispatcher_type_map = {
-            User.Role.BARANGAY_TANOD: Dispatcher.DispatcherType.BARANGAY_TANOD,
-            User.Role.BARANGAY_OFFICIAL: Dispatcher.DispatcherType.BARANGAY_OFFICIAL,
-        }
+    # Signal now only triggers for Tanod
+    if created and instance.role == User.Role.TANOD:
         Dispatcher.objects.get_or_create(
             user=instance,
             defaults={
-                "dispatcher_type": dispatcher_type_map[instance.role],
+                "dispatcher_type": Dispatcher.DispatcherType.BARANGAY_TANOD,
                 "phone_number": instance.phone_number,
             },
         )

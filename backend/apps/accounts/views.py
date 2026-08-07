@@ -1,17 +1,20 @@
 import logging
-from rest_framework import generics, permissions, status
+from django.contrib.auth import get_user_model
+from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.viewsets import GenericViewSet
-from django.contrib.auth import get_user_model
-
-from apps.accounts.permissions import IsAdmin, IsAdminOrReadOnly
-from .serializers import UserSerializer, RegisterSerializer, LoginSerializer
+from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import RefreshToken
+
+from .serializers import (
+    UserSerializer, 
+    RegisterSerializer, 
+    LoginSerializer, 
+    VerifyPasswordSerializer
+)
 
 User = get_user_model()
 logger = logging.getLogger(__name__)
-
 
 class RegisterView(generics.CreateAPIView):
     queryset = User.objects.all()
@@ -27,7 +30,6 @@ class RegisterView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED,
         )
 
-
 class UserDetailView(generics.RetrieveUpdateAPIView):
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -36,11 +38,11 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
     def get_object(self):
         return self.request.user
 
-
-class UserViewSet(GenericViewSet):
+class UserViewSet(viewsets.GenericViewSet):
     queryset = User.objects.all()
     serializer_class = UserSerializer
-    permission_classes = [IsAdminOrReadOnly]
+    authentication_classes = [JWTAuthentication] 
+    permission_classes = [permissions.IsAuthenticated]
 
     def list(self, request):
         qs = self.get_queryset()
@@ -76,6 +78,7 @@ class UserViewSet(GenericViewSet):
             return Response({"error": "Cannot delete yourself"}, status=400)
         user.is_active = False
         user.save()
+        
         from apps.audit.models import AuditLog
         AuditLog.objects.create(
             user=request.user,
@@ -84,14 +87,15 @@ class UserViewSet(GenericViewSet):
             resource_id=user.id,
             details={"deactivated_user": user.username},
         )
-        return Response(status=204)
+        return Response(status=status.HTTP_204_NO_CONTENT)
 
-    @action(detail=False, methods=["post"], url_path="login", permission_classes=[permissions.AllowAny])
+    @action(detail=False, methods=["POST"], url_path="login", permission_classes=[permissions.AllowAny])
     def login(self, request):
         serializer = LoginSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.validated_data["user"]
         refresh = RefreshToken.for_user(user)
+        
         from apps.audit.models import AuditLog
         AuditLog.objects.create(
             user=user,
@@ -105,7 +109,7 @@ class UserViewSet(GenericViewSet):
             "user": UserSerializer(user).data,
         })
 
-    @action(detail=False, methods=["post"], url_path="logout")
+    @action(detail=False, methods=["POST"], url_path="logout")
     def logout(self, request):
         from apps.audit.models import AuditLog
         AuditLog.objects.create(
@@ -115,11 +119,22 @@ class UserViewSet(GenericViewSet):
         )
         return Response({"detail": "Logged out successfully"})
 
-    @action(detail=False, methods=["get"], url_path="dispatchers")
+    @action(detail=False, methods=["GET"], url_path="dispatchers")
     def dispatchers(self, request):
         users = User.objects.filter(
-            role__in=[User.Role.BARANGAY_TANOD, User.Role.BARANGAY_OFFICIAL],
+            role__in=[User.Role.TANOD, User.Role.ADMIN, User.Role.OPERATOR],
             is_active=True,
         )
         serializer = self.get_serializer(users, many=True)
         return Response(serializer.data)
+
+    @action(detail=False, methods=["POST"], url_path="verify-password")
+    def verify_password(self, request):
+        serializer = VerifyPasswordSerializer(
+            data=request.data, 
+            context={'request': request}
+        )
+        if not serializer.is_valid():
+            return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
+            
+        return Response({"detail": "Password verified successfully"}, status=status.HTTP_200_OK)

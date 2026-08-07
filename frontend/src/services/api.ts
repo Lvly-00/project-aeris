@@ -48,7 +48,11 @@ api.interceptors.response.use(
 
 export const authAPI = {
   login: (data: { username: string; password: string }) =>
-    api.post('/auth/token/', data),
+    api.post('/accounts/login/', data),
+  logout: () =>
+    api.post('/accounts/logout/'),
+  verifyPassword: (password: string) =>
+    api.post('/accounts/verify-password/', { password }),
   refresh: (refresh: string) =>
     api.post('/auth/token/refresh/', { refresh }),
   register: (data: any) =>
