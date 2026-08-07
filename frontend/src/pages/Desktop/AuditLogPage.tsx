@@ -5,9 +5,9 @@ import {
 } from '@mantine/core';
 import { History } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { auditAPI } from '../services/api';
-import type { AuditLog } from '../types';
-import { AUDIT_ACTION_LABELS } from '../utils/constants';
+import { auditAPI } from '../../services/api';
+import type { AuditLog } from '../../types';
+import { AUDIT_ACTION_LABELS } from '../../utils/constants';
 
 const ACTION_OPTIONS = Object.entries(AUDIT_ACTION_LABELS).map(([value, label]) => ({ value, label }));
 

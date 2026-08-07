@@ -115,12 +115,12 @@ export default function ReportsPage() {
     <Box p="md">
       <Group justify="space-between" mb="lg">
         <Title order={3}>Reports</Title>
-        <Button
+        {/* <Button
           leftSection={<Plus size={16} />}
           onClick={() => setGenerateModalOpen(true)}
         >
           Generate Report
-        </Button>
+        </Button> */}
       </Group>
 
       <SimpleGrid cols={{ base: 1, sm: 2, md: 3, lg: 4 }} spacing="md">

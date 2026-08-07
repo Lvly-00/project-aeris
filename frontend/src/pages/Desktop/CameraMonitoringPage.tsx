@@ -13,17 +13,17 @@ import {
   MoreVertical, MapPin, Video, LayoutGrid, Phone, PhoneCall, Copy, Monitor,
 } from 'lucide-react';
 
-import { camerasAPI, zonesAPI, incidentsAPI, contactsAPI } from '../services/api';
-import { formatRelativeTime } from '../utils/helpers';
-import type { EmergencyContact } from '../types';
+import { camerasAPI, zonesAPI, incidentsAPI, contactsAPI } from '../../services/api';
+import { formatRelativeTime } from '../../utils/helpers';
+import type { EmergencyContact } from '../../types';
 
-import { CameraFeed } from '../components/Camera/CameraFeed';
-import { CameraGrid } from '../components/Camera/CameraGrid';
-import { RTSPCameraFeed } from '../components/Camera/RTSPCameraFeed';
-import { RtspCanvas } from '../components/Camera/RTSPCameraFeed';
-import { FpsOverlay, useFps } from '../components/Camera/FpsOverlay';
-import { DetectionOverlay } from '../components/Camera/DetectionOverlay';
-import type { IncidentDetectedData } from '../components/Camera/DetectionOverlay';
+import { CameraFeed } from '../../components/Camera/CameraFeed';
+import { CameraGrid } from '../../components/Camera/CameraGrid';
+import { RTSPCameraFeed } from '../../components/Camera/RTSPCameraFeed';
+import { RtspCanvas } from '../../components/Camera/RTSPCameraFeed';
+import { FpsOverlay, useFps } from '../../components/Camera/FpsOverlay';
+import { DetectionOverlay } from '../../components/Camera/DetectionOverlay';
+import type { IncidentDetectedData } from '../../components/Camera/DetectionOverlay';
 
 // ── FullscreenVideo ───────────────────────────────────────────────────────────
 // Kept in this file — only used by the fullscreen modal, not reused elsewhere.
