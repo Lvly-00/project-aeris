@@ -28,17 +28,17 @@ api.interceptors.response.use(
     // If 401 and not already retrying
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
-      
+
       try {
         const refresh = localStorage.getItem('refresh_token');
         if (!refresh) throw new Error("No refresh token");
 
         // Use axios.post (not api.post) to avoid the interceptor
         const response = await axios.post('/api/auth/token/refresh/', { refresh });
-        
+
         const newAccess = response.data.access;
         localStorage.setItem('access_token', newAccess);
-        
+
         // Retry the original request with the new token
         originalRequest.headers.Authorization = `Bearer ${newAccess}`;
         return api(originalRequest);
@@ -63,13 +63,17 @@ export const authAPI = {
   refresh: (refresh: string) =>
     api.post('/auth/token/refresh/', { refresh }),
   register: (data: any) =>
-    api.post('/auth/register/', data),
+    api.post('/accounts/register/', data),
   getProfile: () =>
     api.get('/accounts/me/'),
   updateProfile: (data: any) =>
     api.patch('/accounts/me/', data),
   getUsers: () =>
     api.get('/accounts/'),
+  updateUser: (id: number, data: any) =>
+    api.patch(`/accounts/${id}/`, data),
+  deleteUser: (id: number) =>
+    api.delete(`/accounts/${id}/`),
 };
 
 export const camerasAPI = {
@@ -183,8 +187,7 @@ export const aiConfigAPI = {
   update: (data: any) => api.patch('/ai-config/settings/', data),
 };
 
-// AI service client — moved to aiApi.ts.
-// Re-exported here for backward compatibility with any existing imports.
+
 export { aiAPI, aiHttp } from './aiApi';
 
 export default api;
