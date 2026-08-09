@@ -43,9 +43,9 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await login(values.username, values.password);
-      navigate('/cameras');
-    } catch (err: any) {
+      await login(values); 
+    navigate('/cameras');
+  } catch (err: any) {
       setError(err.response?.data?.detail || 'Invalid credentials. Please try again.');
     } finally {
       setLoading(false);
@@ -57,13 +57,12 @@ export default function LoginPage() {
       style={{
         height: '100vh',
         width: '100vw',
-        // Update the URL below to your actual background image path
         backgroundImage: `url('/loginBG.png')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         display: 'flex',
         alignItems: 'center',
-        paddingLeft: '10%', // Offset to the left like the image
+        paddingLeft: '10%', 
       }}
     >
       <Paper

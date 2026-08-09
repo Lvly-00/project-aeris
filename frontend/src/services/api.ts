@@ -24,22 +24,29 @@ api.interceptors.response.use(
   (response) => response,
   async (error) => {
     const originalRequest = error.config;
+
+    // If 401 and not already retrying
     if (error.response?.status === 401 && !originalRequest._retry) {
       originalRequest._retry = true;
+      
       try {
         const refresh = localStorage.getItem('refresh_token');
-        if (refresh) {
-          const response = await axios.post(`${API_BASE_URL}/auth/token/refresh/`, {
-            refresh,
-          });
-          localStorage.setItem('access_token', response.data.access);
-          originalRequest.headers.Authorization = `Bearer ${response.data.access}`;
-          return api(originalRequest);
-        }
-      } catch {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
+        if (!refresh) throw new Error("No refresh token");
+
+        // Use axios.post (not api.post) to avoid the interceptor
+        const response = await axios.post('/api/auth/token/refresh/', { refresh });
+        
+        const newAccess = response.data.access;
+        localStorage.setItem('access_token', newAccess);
+        
+        // Retry the original request with the new token
+        originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+        return api(originalRequest);
+      } catch (refreshErr) {
+        // If refresh fails, the session is dead. Clear everything.
+        localStorage.clear();
         window.location.href = '/login';
+        return Promise.reject(refreshErr);
       }
     }
     return Promise.reject(error);
