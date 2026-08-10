@@ -9,7 +9,7 @@ interface AuthContextType {
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   viewMode: 'Admin' | 'Operator';
-  setViewMode: (mode: 'Admin' | 'Operator') => void; // Changed from toggle
+  setViewMode: (mode: 'Admin' | 'Operator') => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -18,13 +18,22 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   
-  // Default to Operator for safety, or Admin if you prefer
-  const [viewMode, setViewModeState] = useState<'Admin' | 'Operator'>('Operator');
+  // Initialize from localStorage so refresh doesn't kick you out of Admin mode
+  const [viewMode, setViewModeState] = useState<'Admin' | 'Operator'>(() => {
+    return (localStorage.getItem('viewMode') as 'Admin' | 'Operator') || 'Operator';
+  });
+
+  const setViewMode = (mode: 'Admin' | 'Operator') => {
+    setViewModeState(mode);
+    localStorage.setItem('viewMode', mode);
+  };
 
   const logout = useCallback(async () => {
-    try { await authAPI.logout(); } finally {
+    try { await authAPI.logout(); } catch (e) { console.error(e); }
+    finally {
       localStorage.clear();
       setUser(null);
+      setViewModeState('Operator');
       window.location.href = '/login';
     }
   }, []);
@@ -41,18 +50,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [logout]);
 
-  const setViewMode = (mode: 'Admin' | 'Operator') => {
-    setViewModeState(mode);
-    localStorage.setItem('viewMode', mode);
-  };
-
   const login = async (data: any) => {
     const response = await authAPI.login(data);
     localStorage.setItem('access_token', response.data.access);
     localStorage.setItem('refresh_token', response.data.refresh);
     setUser(response.data.user);
-    // On login, start as Operator to force use of the switch
-    setViewMode('Operator');
+    setViewMode('Operator'); // Always start as Operator for safety
   };
 
   return (

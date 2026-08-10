@@ -10,7 +10,6 @@ export default function DesktopLayout() {
   const location = useLocation();
   const { user, logout, viewMode, setViewMode } = useAuth();
 
-  // Local state for the password verification modal
   const [sudoModalOpened, setSudoModalOpened] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
@@ -20,11 +19,10 @@ export default function DesktopLayout() {
 
   const handleModeToggle = (checked: boolean) => {
     if (checked) {
-      // User is trying to switch TO Admin Mode
       setSudoModalOpened(true);
     } else {
-      // User is switching back to Operator Mode (no password needed)
       setViewMode('Operator');
+      // If we are on an Admin-only page, move to a safe page immediately
       if (location.pathname === '/audit' || location.pathname === '/accounts') {
         navigate('/cameras');
       }
@@ -36,19 +34,11 @@ export default function DesktopLayout() {
     setError('');
     try {
       await authAPI.verifyPassword(password);
-
-      // If we reach here, it's successful
       setViewMode('Admin');
       setSudoModalOpened(false);
       setPassword('');
     } catch (err: any) {
-      // Look for the error message returned by the Serializer
-      const serverError = err.response?.data?.password?.[0] ||
-        err.response?.data?.non_field_errors?.[0] ||
-        err.response?.data?.detail ||
-        "Verification failed";
-
-      setError(serverError);
+      setError("Verification failed. Please check your password.");
     } finally {
       setLoading(false);
     }
@@ -64,14 +54,8 @@ export default function DesktopLayout() {
 
   return (
     <Box style={{ minHeight: '100vh', backgroundColor: '#f8f9fa', display: 'flex', flexDirection: 'column' }}>
-
-      {/* SUDO VERIFICATION MODAL */}
-      <Modal
-        opened={sudoModalOpened}
-        onClose={() => setSudoModalOpened(false)}
-        title="Admin Verification"
-        centered
-      >
+      
+      <Modal opened={sudoModalOpened} onClose={() => setSudoModalOpened(false)} title="Admin Verification" centered>
         <Stack>
           <Text size="sm">Please enter your password to enable Admin Mode.</Text>
           <PasswordInput
@@ -90,7 +74,6 @@ export default function DesktopLayout() {
 
       <Box component="header" style={{ height: 64, backgroundColor: 'white', borderBottom: '1px solid #e9ecef', paddingInline: 24 }}>
         <Group justify="space-between" h="100%" maw={1400} mx="auto">
-
           <Group gap={30}>
             <img src="/icon.png" alt="logo" style={{ height: 32 }} />
 
@@ -111,20 +94,17 @@ export default function DesktopLayout() {
           </Group>
 
           <Group component="nav" gap={40}>
-            {filteredNav.map((item) => {
-              const isActive = location.pathname.startsWith(item.path);
-              return (
-                <Link key={item.path} to={item.path} style={{
-                  textDecoration: 'none',
-                  color: isActive ? '#FF6B00' : '#495057',
-                  fontWeight: 600, fontSize: 14,
-                  borderBottom: isActive ? '2px solid #FF6B00' : 'none',
-                  paddingBottom: 4
-                }}>
-                  {item.label}
-                </Link>
-              );
-            })}
+            {filteredNav.map((item) => (
+              <Link key={item.path} to={item.path} style={{
+                textDecoration: 'none',
+                color: location.pathname.startsWith(item.path) ? '#FF6B00' : '#495057',
+                fontWeight: 600, fontSize: 14,
+                borderBottom: location.pathname.startsWith(item.path) ? '2px solid #FF6B00' : 'none',
+                paddingBottom: 4
+              }}>
+                {item.label}
+              </Link>
+            ))}
           </Group>
 
           <Menu position="bottom-end" withArrow>

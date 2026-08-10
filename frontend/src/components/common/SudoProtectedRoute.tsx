@@ -1,57 +1,23 @@
-import { useState } from 'react';
-import { Modal, PasswordInput, Button, Stack, Text, Group } from '@mantine/core';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
-import { authAPI } from '../../services/api';
-import { useNavigate } from 'react-router-dom';
+import { LoadingOverlay } from '@mantine/core';
 
 export function SudoProtectedRoute({ children }: { children: React.ReactNode }) {
-  const [verified, setVerified] = useState(false);
-  const [opened, setOpened] = useState(true);
-  const [password, setPassword] = useState('');
-  const [error, setError] = useState('');
-  const [loading, setLoading] = useState(false);
-  
-  const navigate = useNavigate();
+  const { user, viewMode, loading, isAuthenticated } = useAuth();
+  const location = useLocation();
 
-  const handleVerify = async () => {
-    setLoading(true);
-    setError('');
-    try {
-      await authAPI.verifyPassword(password);
-      setVerified(true);
-      setOpened(false);
-    } catch (err) {
-      setError('Incorrect password. Access denied.');
-    } finally {
-      setLoading(false);
-    }
-  };
+  if (loading) return <LoadingOverlay visible />;
 
-  if (verified) return <>{children}</>;
+  // 1. Not logged in?
+  if (!isAuthenticated) {
+    return <Navigate to="/login" state={{ from: location }} replace />;
+  }
 
-  return (
-    <Modal 
-      opened={opened} 
-      onClose={() => navigate(-1)} 
-      title="Security Verification" 
-      centered 
-      closeOnClickOutside={false}
-    >
-      <Stack>
-        <Text size="sm">Sensitive Area: Please re-enter your password to continue.</Text>
-        <PasswordInput
-          label="Confirm Password"
-          placeholder="Your password"
-          value={password}
-          onChange={(e) => setPassword(e.currentTarget.value)}
-          error={error}
-          onKeyDown={(e) => e.key === 'Enter' && handleVerify()}
-        />
-        <Group justify="flex-end">
-          <Button variant="subtle" onClick={() => navigate(-1)}>Cancel</Button>
-          <Button color="orange" onClick={handleVerify} loading={loading}>Verify</Button>
-        </Group>
-      </Stack>
-    </Modal>
-  );
+  // 2. Not an Admin OR in Operator Mode? 
+  // This is the fix: if session resets viewMode to Operator, this triggers immediately.
+  if (user?.role !== 'Admin' || viewMode !== 'Admin') {
+    return <Navigate to="/unauthorized" replace />;
+  }
+
+  return <>{children}</>;
 }

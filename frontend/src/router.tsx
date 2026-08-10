@@ -1,21 +1,23 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from './hooks/useAuth';
 import { LoadingOverlay } from '@mantine/core';
+
+// Layouts & Guards
+import DesktopLayout from './components/DesktopLayout';
 import { SudoProtectedRoute } from './components/common/SudoProtectedRoute';
+import UnauthorizedPage from './pages/Errors/UnauthorizedPage';
 
-
+// Shared Pages
 import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
+import SettingsPage from './pages/SettingsPage';
 
-// Desktop 
-import DesktopLayout from './components/DesktopLayout';
+// Desktop Pages
 import CameraMonitoringPage from './pages/Desktop/CameraMonitoringPage';
 import AuditLogPage from './pages/Desktop/AuditLogPage';
-import SettingsPage from './pages/SettingsPage';
-import AccountCreationPage from './pages/Desktop/AccountCreationPage'
+import AccountCreationPage from './pages/Desktop/AccountCreationPage';
 
-
-//Mobile | PWA
+// Mobile / PWA Pages
 import DashboardPage from './pages/DashboardPage';
 import IncidentsPage from './pages/IncidentsPage';
 import IncidentDetailPage from './pages/IncidentDetailPage';
@@ -25,38 +27,69 @@ import ReportsPage from './pages/ReportsPage';
 import NotificationsPage from './pages/NotificationsPage';
 import DispatchPage from './pages/DispatchPage';
 
-function ProtectedRoute({ children }: { children: React.ReactNode }) {
+/**
+ * Basic Auth Guard: 
+ * Ensures a user is logged in before allowing access to any app route.
+ */
+function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
-  if (loading) return <LoadingOverlay visible />;
+  
+  if (loading) return <LoadingOverlay visible zIndex={1000} overlayProps={{ blur: 2 }} />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
+  
   return <>{children}</>;
 }
 
 export function AppRouter() {
   const { isAuthenticated, loading } = useAuth();
-  if (loading) return <LoadingOverlay visible />;
+
+  if (loading) return <LoadingOverlay visible zIndex={1000} overlayProps={{ blur: 2 }} />;
 
   return (
     <Routes>
-      <Route path="/login" element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} />
+      {/* PUBLIC / AUTH ROUTES */}
+      <Route 
+        path="/login" 
+        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} 
+      />
+      <Route path="/unauthorized" element={<UnauthorizedPage />} />
+
+      {/* PRIVATE APP ROUTES (Wrapped in DesktopLayout) */}
       <Route
         path="/"
         element={
-          <ProtectedRoute>
+          <AuthGuard>
             <DesktopLayout />
-          </ProtectedRoute>
+          </AuthGuard>
         }
       >
-        // Desktop
+        {/* Default Redirect */}
         <Route index element={<Navigate to="/cameras" replace />} />
+
+        {/* SHARED DESKTOP ROUTES */}
         <Route path="cameras" element={<CameraMonitoringPage />} />
-        <Route path="audit" element={<AuditLogPage />} />
-        <Route path="accounts" element={<AccountCreationPage />} />
         <Route path="settings" element={<SettingsPage />} />
         <Route path="profile" element={<ProfilePage />} />
 
+        {/* ADMIN-ONLY ROUTES (Sudo Protected) */}
+        <Route 
+          path="accounts" 
+          element={
+            <SudoProtectedRoute>
+              <AccountCreationPage />
+            </SudoProtectedRoute>
+          } 
+        />
+        <Route 
+          path="audit" 
+          element={
+            <SudoProtectedRoute>
+              <AuditLogPage />
+            </SudoProtectedRoute>
+          } 
+        />
 
-        // Mobile | PWA
+        {/* MOBILE / PWA ROUTES (Also inside Layout) */}
         <Route path="dashboard" element={<DashboardPage />} />
         <Route path="incidents" element={<IncidentsPage />} />
         <Route path="incidents/:id" element={<IncidentDetailPage />} />
@@ -65,8 +98,9 @@ export function AppRouter() {
         <Route path="reports" element={<ReportsPage />} />
         <Route path="notifications" element={<NotificationsPage />} />
         <Route path="dispatch" element={<DispatchPage />} />
-
       </Route>
+
+      {/* FALLBACK */}
       <Route path="*" element={<Navigate to="/" replace />} />
     </Routes>
   );
