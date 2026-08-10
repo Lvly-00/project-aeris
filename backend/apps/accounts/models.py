@@ -22,6 +22,17 @@ class User(AbstractUser):
         blank=True,
         related_name="users",
     )
+    
+    two_factor_enabled = models.BooleanField(default=False)
+    receive_notifications = models.BooleanField(default=True)
+    preferred_language = models.CharField(
+        max_length=10, 
+        default='English', 
+        choices=[('English', 'English'), ('Filipino', 'Filipino')]
+    )
+    profile_picture = models.ImageField(upload_to='profiles/', null=True, blank=True)
+
+
 
     class Meta:
         verbose_name = "User"

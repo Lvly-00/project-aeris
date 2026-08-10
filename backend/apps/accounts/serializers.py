@@ -14,16 +14,37 @@ class UserSerializer(serializers.ModelSerializer):
     class Meta:
         model = User
         fields = [
-            "id", "username", "email", "first_name", "last_name", "full_name",
+            "id", "username", "email", "first_name", "last_name", "full_name", "password" , 
             "role", "role_display", "phone_number", "barangay_zone", 
-            "is_active", "date_joined",
+            "is_active", "date_joined",'profile_picture', 
+            "two_factor_enabled", "preferred_language"
         ]
         read_only_fields = ["id", "is_active", "date_joined", "role_display"]
+        extra_kwargs = {
+            'password': {'write_only': True, 'required': False} 
+        }
+
+
 
     def get_full_name(self, obj):
         # Returns "Juan Dela Cruz" or just the username if names are empty
         full_name = f"{obj.first_name} {obj.last_name}".strip()
         return full_name or obj.username
+    
+    def update(self, instance, validated_data):
+        # 1. Catch the password and hash it properly
+        password = validated_data.pop('password', None)
+        
+        # 2. Update all other fields automatically
+        for attr, value in validated_data.items():
+            setattr(instance, attr, value)
+
+        # 3. If a password was provided, use set_password to HASH it
+        if password:
+            instance.set_password(password)
+
+        instance.save()
+        return instance
 
 
 class RegisterSerializer(serializers.ModelSerializer):

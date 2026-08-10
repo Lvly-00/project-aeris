@@ -67,7 +67,9 @@ export const authAPI = {
   getProfile: () =>
     api.get('/accounts/me/'),
   updateProfile: (data: any) =>
-    api.patch('/accounts/me/', data),
+    api.patch('/accounts/me/', data, {
+      headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
+    }),
   getUsers: () =>
     api.get('/accounts/'),
   updateUser: (id: number, data: any) =>
