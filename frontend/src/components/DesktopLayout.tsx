@@ -4,6 +4,8 @@ import { LogOut, Settings, User, History, Camera, PlusSquare, ShieldCheck, Shiel
 import { useAuth } from '../hooks/useAuth';
 import { authAPI } from '../services/api';
 import { Avatar, Box, Group, Menu, Text, UnstyledButton, Switch, Badge, Modal, PasswordInput, Button, Stack } from '@mantine/core';
+import { useMediaQuery } from '@mantine/hooks';
+
 
 export default function DesktopLayout() {
   const navigate = useNavigate();
@@ -14,6 +16,11 @@ export default function DesktopLayout() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  const isDesktop = useMediaQuery('(min-width: 768px)');
+
+  // Logic to determine if a link should look disabled
+  const isAdminLocked = isDesktop && user?.role === 'Admin' && viewMode === 'Operator';
 
   const activeRole = user?.role === 'Admin' ? viewMode : user?.role;
 
@@ -54,7 +61,7 @@ export default function DesktopLayout() {
 
   return (
     <Box style={{ minHeight: '100vh', backgroundColor: '#f8f9fa', display: 'flex', flexDirection: 'column' }}>
-      
+
       <Modal opened={sudoModalOpened} onClose={() => setSudoModalOpened(false)} title="Admin Verification" centered>
         <Stack>
           <Text size="sm">Please enter your password to enable Admin Mode.</Text>
@@ -121,8 +128,21 @@ export default function DesktopLayout() {
               </UnstyledButton>
             </Menu.Target>
             <Menu.Dropdown miw={200}>
-              <Menu.Item leftSection={<User size={14} />} onClick={() => navigate('/profile')}>Profile</Menu.Item>
-              <Menu.Item leftSection={<Settings size={14} />} onClick={() => navigate('/settings')}>Settings</Menu.Item>
+              <Menu.Item
+                leftSection={<User size={14} />}
+                onClick={() => navigate('/profile')}
+                disabled={isAdminLocked} // Disabled only on desktop in operator mode
+              >
+                Profile {isAdminLocked && '(Locked)'}
+              </Menu.Item>
+
+              <Menu.Item
+                leftSection={<Settings size={14} />}
+                onClick={() => navigate('/settings')}
+                disabled={isAdminLocked}
+              >
+                Settings {isAdminLocked && '(Locked)'}
+              </Menu.Item>
               <Menu.Divider />
               <Menu.Item leftSection={<LogOut size={14} />} color="red" onClick={logout}>Logout</Menu.Item>
             </Menu.Dropdown>

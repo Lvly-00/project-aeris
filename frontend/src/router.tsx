@@ -33,10 +33,10 @@ import DispatchPage from './pages/DispatchPage';
  */
 function AuthGuard({ children }: { children: React.ReactNode }) {
   const { isAuthenticated, loading } = useAuth();
-  
+
   if (loading) return <LoadingOverlay visible zIndex={1000} overlayProps={{ blur: 2 }} />;
   if (!isAuthenticated) return <Navigate to="/login" replace />;
-  
+
   return <>{children}</>;
 }
 
@@ -48,9 +48,9 @@ export function AppRouter() {
   return (
     <Routes>
       {/* PUBLIC / AUTH ROUTES */}
-      <Route 
-        path="/login" 
-        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />} 
+      <Route
+        path="/login"
+        element={isAuthenticated ? <Navigate to="/" replace /> : <LoginPage />}
       />
       <Route path="/unauthorized" element={<UnauthorizedPage />} />
 
@@ -68,25 +68,27 @@ export function AppRouter() {
 
         {/* SHARED DESKTOP ROUTES */}
         <Route path="cameras" element={<CameraMonitoringPage />} />
-        <Route path="settings" element={<SettingsPage />} />
-        <Route path="profile" element={<ProfilePage />} />
+        <Route path="settings" element={<SudoProtectedRoute><SettingsPage /></SudoProtectedRoute>} />
+        <Route path="profile" element={<SudoProtectedRoute><ProfilePage /></SudoProtectedRoute>} />
+
+
 
         {/* ADMIN-ONLY ROUTES (Sudo Protected) */}
-        <Route 
-          path="accounts" 
+        <Route
+          path="accounts"
           element={
             <SudoProtectedRoute>
               <AccountCreationPage />
             </SudoProtectedRoute>
-          } 
+          }
         />
-        <Route 
-          path="audit" 
+        <Route
+          path="audit"
           element={
             <SudoProtectedRoute>
               <AuditLogPage />
             </SudoProtectedRoute>
-          } 
+          }
         />
 
         {/* MOBILE / PWA ROUTES (Also inside Layout) */}
