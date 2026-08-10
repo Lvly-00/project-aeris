@@ -187,7 +187,8 @@ export const aiConfigAPI = {
   update: (data: any) => api.patch('/ai-config/settings/', data),
 };
 
-
+// AI service client — moved to aiApi.ts.
+// Re-exported here for backward compatibility with any existing imports.
 export { aiAPI, aiHttp } from './aiApi';
 
 export default api;
