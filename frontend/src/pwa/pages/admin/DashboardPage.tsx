@@ -1,7 +1,53 @@
+import React from 'react';
+import { Users, Video, ShieldAlert, FileWarning, FileText, Flame, Car, UsersRound } from 'lucide-react';
+import { StatCard } from '../../components/Dashboard/StatCard';
+import { Banner } from '../../components/Dashboard/Banner';
+import { ConfidenceIndex } from '../../components/Dashboard/ConfidenceIndex';
+import { IncidentSummary } from '../../components/Dashboard/IncidentSummary';
+import { SimpleGrid, Container, Stack, Box } from '@mantine/core';
+
+
+
 export default function DashboardPage() {
   return (
-    <div>
-      <h1>Example Page</h1>
-    </div>
+    <Container size="sm" py="md"> {/* Using size="sm" to keep it mobile-looking */}
+      <Stack gap="md">
+        <Banner />
+
+        {/* 2-Column Grid for Stats as seen in Image */}
+        <SimpleGrid cols={2} spacing="md">
+          <StatCard
+            label="Total Users"
+            value="10"
+            description="Manage and monitor all registered users."
+            icon={<Users size={32} color="#f15a24" />}
+          />
+          <StatCard
+            label="Total Cameras"
+            value="10"
+            description="Manage and monitor all registered cameras."
+            icon={<Video size={32} color="#f15a24" />}
+          />
+          <StatCard
+            label="Total Tanods"
+            value="10"
+            description="Manage and monitor all registered tanods."
+            icon={<ShieldAlert size={32} color="#f15a24" />}
+          />
+          <StatCard
+            label="Total Reports"
+            value="10"
+            description="Manage and monitor all registered reports."
+            icon={<FileWarning size={32} color="#f15a24" />}
+          />
+        </SimpleGrid>
+
+        {/* Bottom charts stacking on mobile */}
+        <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+          {/* <ConfidenceIndex /> */}
+          <IncidentSummary />
+        </SimpleGrid>
+      </Stack>
+    </Container>
   );
 }
