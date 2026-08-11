@@ -29,8 +29,8 @@ import {
   FileType2,
   FileSpreadsheet,
 } from 'lucide-react';
-import { reportsAPI } from '../services/api';
-import { formatDate, formatRelativeTime } from '../utils/helpers';
+import { reportsAPI } from '../../shared/services/api';
+import { formatDate, formatRelativeTime } from '../../shared/utils/helpers';
 
 export default function ReportsPage() {
   const queryClient = useQueryClient();

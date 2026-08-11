@@ -1,8 +1,8 @@
 import { useState } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { LogOut, Settings, User, History, Camera, PlusSquare, ShieldCheck, ShieldAlert, ChevronDown } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
-import { authAPI } from '../services/api';
+import { useAuth } from '../../../shared/hooks/useAuth';
+import { authAPI } from '../../../shared/services/api';
 import { Avatar, Box, Group, Menu, Text, UnstyledButton, Switch, Badge, Modal, PasswordInput, Button, Stack } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 

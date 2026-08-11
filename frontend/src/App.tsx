@@ -1,6 +1,6 @@
-import { AuthProvider, useAuth } from './hooks/useAuth';
-import { AppRouter } from './router';
-import { useWebSocket } from './hooks/useWebSocket';
+import { AuthProvider, useAuth } from './shared/hooks/useAuth';
+import { AppRouter } from './desktop/router';
+import { useWebSocket } from './shared/hooks/useWebSocket';
 import { ErrorBoundary } from './components/common/ErrorBoundary';
 
 function WebSocketInit() {

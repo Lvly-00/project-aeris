@@ -5,7 +5,7 @@ import {
   Select, ActionIcon, Box, LoadingOverlay, rem, FileButton, Tooltip
 } from '@mantine/core';
 import { ChevronLeft, User as UserIcon, Mail, Lock, Bell, ShieldCheck, Languages, Camera, Key, CheckCircle2 } from 'lucide-react';
-import { authAPI } from '../services/api';
+import { authAPI } from '../../shared/services/api';
 
 // --- Updated PageHeader Component ---
 interface PageHeaderProps {

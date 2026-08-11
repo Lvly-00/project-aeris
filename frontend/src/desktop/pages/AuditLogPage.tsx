@@ -7,9 +7,9 @@ import {
 import { useDebouncedValue } from '@mantine/hooks';
 import { Search, RefreshCw, FilterX, Info } from 'lucide-react';
 import { useQuery } from '@tanstack/react-query';
-import { auditAPI } from '../../services/api';
-import { PageHeader } from '../../components/Layout/PageHeader'; 
-import type { AuditLog, AuditAction, PaginatedResponse } from '../../types';
+import { auditAPI } from '../../shared/services/api';
+import { PageHeader } from '../components/Layout/PageHeader'; 
+import type { AuditLog, AuditAction, PaginatedResponse } from '../../shared/types';
 
 // Helper to format Date Range for API
 const getDateRange = (key: string | null) => {

@@ -1,5 +1,5 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
-import { useAuth } from './hooks/useAuth';
+import { useAuth } from '../shared/hooks/useAuth';
 import { LoadingOverlay } from '@mantine/core';
 
 // Layouts & Guards
@@ -13,9 +13,9 @@ import ProfilePage from './pages/ProfilePage';
 import SettingsPage from './pages/SettingsPage';
 
 // Desktop Pages
-import CameraMonitoringPage from './pages/Desktop/CameraMonitoringPage';
-import AuditLogPage from './pages/Desktop/AuditLogPage';
-import AccountCreationPage from './pages/Desktop/AccountCreationPage';
+import CameraMonitoringPage from './pages/CameraMonitoringPage';
+import AuditLogPage from './pages/AuditLogPage';
+import AccountCreationPage from './pages/AccountCreationPage';
 
 // Mobile / PWA Pages
 import DashboardPage from './pages/DashboardPage';

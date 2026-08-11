@@ -38,7 +38,7 @@ import {
   PhoneCall,
   Pencil,
 } from 'lucide-react';
-import { aiAPI, zonesAPI, contactsAPI } from '../services/api';
+import { aiAPI, zonesAPI, contactsAPI } from '../../shared/services/api';
 
 const INCIDENT_TYPES = [
   'Fire', 'Smoke', 'Vehicle_Accident',

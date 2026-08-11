@@ -19,7 +19,7 @@ import {
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { ShieldCheck, Info, Eye, EyeOff } from 'lucide-react';
-import { useAuth } from '../hooks/useAuth';
+import { useAuth } from '../../shared/hooks/useAuth';
 
 export default function LoginPage() {
   const navigate = useNavigate();

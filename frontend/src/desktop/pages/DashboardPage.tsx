@@ -15,10 +15,10 @@ import {
   PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, CartesianGrid,
   Tooltip as RechartsTooltip, ResponsiveContainer, AreaChart, Area,
 } from 'recharts';
-import { incidentsAPI, camerasAPI, notificationsAPI, recommendationsAPI, analyticsAPI, dispatchAPI } from '../services/api';
-import { formatRelativeTime, formatConfidence, formatDuration } from '../utils/helpers';
-import { INCIDENT_COLORS, SEVERITY_COLORS, STATUS_COLORS, DISPATCH_STATUS_COLORS } from '../utils/constants';
-import type { Incident, Dispatch } from '../types';
+import { incidentsAPI, camerasAPI, notificationsAPI, recommendationsAPI, analyticsAPI, dispatchAPI } from '../../shared/services/api';
+import { formatRelativeTime, formatConfidence, formatDuration } from '../../shared/utils/helpers';
+import { INCIDENT_COLORS, SEVERITY_COLORS, STATUS_COLORS, DISPATCH_STATUS_COLORS } from '../../shared/utils/constants';
+import type { Incident, Dispatch } from '../../shared/types';
 
 function GlassCard({ children, color, onClick, style }: any) {
   return (

@@ -36,9 +36,9 @@ import {
   Shield,
   RefreshCcw,
 } from 'lucide-react';
-import { recommendationsAPI } from '../services/api';
-import { formatRelativeTime, formatConfidence } from '../utils/helpers';
-import { PRIORITY_COLORS, SEVERITY_COLORS, INCIDENT_COLORS } from '../utils/constants';
+import { recommendationsAPI } from '../../shared/services/api';
+import { formatRelativeTime, formatConfidence } from '../../shared/utils/helpers';
+import { PRIORITY_COLORS, SEVERITY_COLORS, INCIDENT_COLORS } from '../../shared/utils/constants';
 
 const responderIcons: Record<string, React.ReactNode> = {
   Barangay_Tanod: <Users size={16} />,

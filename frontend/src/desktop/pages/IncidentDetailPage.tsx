@@ -15,13 +15,13 @@ import {
   RefreshCcw, ArrowRight, MapPin, Clock, ListChecks,
   X, Phone, PhoneCall, Copy,
 } from 'lucide-react';
-import { incidentsAPI, recommendationsAPI, camerasAPI, contactsAPI } from '../services/api';
-import { formatDate, formatRelativeTime, formatConfidence, formatDuration } from '../utils/helpers';
+import { incidentsAPI, recommendationsAPI, camerasAPI, contactsAPI } from '../../shared/services/api';
+import { formatDate, formatRelativeTime, formatConfidence, formatDuration } from '../../shared/utils/helpers';
 import {
   INCIDENT_TYPES, SEVERITY_LEVELS, INCIDENT_STATUSES,
   INCIDENT_COLORS, SEVERITY_COLORS, STATUS_COLORS, PRIORITY_COLORS,
-} from '../utils/constants';
-import type { Incident, Recommendation, Camera, EmergencyContact } from '../types';
+} from '../../shared/utils/constants';
+import type { Incident, Recommendation, Camera, EmergencyContact } from '../../shared/types';
 
 const STATUS_ORDER = ['Detected', 'Pending_Verification', 'Verified', 'Dispatched', 'Responding', 'Resolved', 'Archived'];
 

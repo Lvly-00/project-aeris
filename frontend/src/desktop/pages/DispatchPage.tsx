@@ -10,12 +10,12 @@ import {
   Clock, UserCheck, Navigation, Eye, Circle,
 } from 'lucide-react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
-import { dispatchAPI, incidentsAPI } from '../services/api';
-import type { Dispatch, Dispatcher, Incident, IncidentTimelineEntry } from '../types';
+import { dispatchAPI, incidentsAPI } from '../../shared/services/api';
+import type { Dispatch, Dispatcher, Incident, IncidentTimelineEntry } from '../../shared/types';
 import {
   DISPATCH_STATUS_COLORS, PRIORITY_COLORS, STATUS_COLORS,
   DISPATCH_STATUSES, INCIDENT_TYPES,
-} from '../utils/constants';
+} from '../../shared/utils/constants';
 
 export default function DispatchPage() {
   const [activeTab, setActiveTab] = useState<string | null>('dispatches');

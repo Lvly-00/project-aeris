@@ -36,8 +36,8 @@ import {
   TrendingUp,
   TriangleAlert,
 } from 'lucide-react';
-import { analyticsAPI } from '../services/api';
-import { INCIDENT_COLORS, SEVERITY_COLORS, STATUS_COLORS } from '../utils/constants';
+import { analyticsAPI } from '../../shared/services/api';
+import { INCIDENT_COLORS, SEVERITY_COLORS, STATUS_COLORS } from '../../shared/utils/constants';
 
 const COLORS = ['#FF4444', '#FF8800', '#44AAFF', '#44CC44', '#CC44FF', '#FFAA00', '#88AA44', '#AA8844'];
 

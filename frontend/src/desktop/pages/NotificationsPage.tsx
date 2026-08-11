@@ -31,9 +31,9 @@ import {
   MailOpen,
   Filter,
 } from 'lucide-react';
-import { notificationsAPI } from '../services/api';
-import { formatRelativeTime } from '../utils/helpers';
-import { PRIORITY_COLORS } from '../utils/constants';
+import { notificationsAPI } from '../../shared/services/api';
+import { formatRelativeTime } from '../../shared/utils/helpers';
+import { PRIORITY_COLORS } from '../../shared/utils/constants';
 
 export default function NotificationsPage() {
   const navigate = useNavigate();

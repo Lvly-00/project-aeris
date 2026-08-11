@@ -14,10 +14,10 @@ import {
   Search, Filter, ArrowUpDown, Image as IconPhoto,
   RefreshCcw, ArrowRight, MapPin, Clock,
 } from 'lucide-react';
-import { incidentsAPI } from '../services/api';
-import { formatDate, formatRelativeTime, formatConfidence } from '../utils/helpers';
-import { INCIDENT_TYPES, SEVERITY_LEVELS, INCIDENT_STATUSES, INCIDENT_COLORS, SEVERITY_COLORS, STATUS_COLORS } from '../utils/constants';
-import type { Incident } from '../types';
+import { incidentsAPI } from '../../shared/services/api';
+import { formatDate, formatRelativeTime, formatConfidence } from '../../shared/utils/helpers';
+import { INCIDENT_TYPES, SEVERITY_LEVELS, INCIDENT_STATUSES, INCIDENT_COLORS, SEVERITY_COLORS, STATUS_COLORS } from '../../shared/utils/constants';
+import type { Incident } from '../../shared/types';
 
 const PAGE_SIZE = 15;
 

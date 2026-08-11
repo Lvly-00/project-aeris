@@ -5,10 +5,10 @@ import {
     Pagination, Center 
 } from '@mantine/core';
 import { Plus, Search, Edit2, MoreVertical } from 'lucide-react';
-import { PageHeader } from '../../components/Layout/PageHeader';
-import { authAPI, zonesAPI } from '../../services/api';
-import { UserFormModal } from '../../components/common/UserFormModal';
-import { DeleteUserModal } from '../../components/common/DeleteUserModal';
+import { PageHeader } from '../components/Layout/PageHeader';
+import { authAPI, zonesAPI } from '../../shared/services/api';
+import { UserFormModal } from '../components/common/UserFormModal';
+import { DeleteUserModal } from '../components/common/DeleteUserModal';
 
 export default function UserManagement() {
     // Data State

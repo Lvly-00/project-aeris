@@ -4,14 +4,14 @@ import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { Plus, Camera, Phone } from 'lucide-react';
 
-import { camerasAPI, contactsAPI } from '../../services/api';
-import { PageHeader } from '../../components/Layout/PageHeader'; // Assuming this path
-import { CameraToolbar } from '../../components/Camera/CameraToolbar';
-import { CameraCard } from '../../components/Camera/CameraCard';
-import { CameraGrid } from '../../components/Camera/CameraGrid';
-import { CameraFormModal } from '../../components/Camera/CameraFormModal';
+import { camerasAPI, contactsAPI } from '../../shared/services/api';
+import { PageHeader } from '../components/Layout/PageHeader'; // Assuming this path
+import { CameraToolbar } from '../components/Camera/CameraToolbar';
+import { CameraCard } from '../components/Camera/CameraCard';
+import { CameraGrid } from '../components/Camera/CameraGrid';
+import { CameraFormModal } from '../components/Camera/CameraFormModal';
 // import { IncidentAlertModal } from '../../components/Camera/IncidentAlertModal'; 
-import type { IncidentDetectedData } from '../../components/Camera/DetectionOverlay';
+import type { IncidentDetectedData } from '../components/Camera/DetectionOverlay';
 
 export default function CameraMonitoringPage() {
   const queryClient = useQueryClient();
