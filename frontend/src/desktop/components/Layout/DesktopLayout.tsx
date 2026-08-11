@@ -52,9 +52,9 @@ export default function DesktopLayout() {
   };
 
   const navItems = [
-    { label: 'Camera', icon: Camera, path: '/cameras', roles: ['Admin', 'Operator', 'Tanod'] },
-    { label: 'Account', icon: PlusSquare, path: '/accounts', roles: ['Admin'] },
-    { label: 'Audit', icon: History, path: '/audit', roles: ['Admin'] },
+    { label: 'Camera', icon: Camera, path: '/desktop/cameras', roles: ['Admin', 'Operator', 'Tanod'] },
+    { label: 'Account', icon: PlusSquare, path: '/desktop/accounts', roles: ['Admin'] },
+    { label: 'Audit', icon: History, path: '/desktop/audit', roles: ['Admin'] },
   ];
 
   const filteredNav = navItems.filter(item => item.roles.includes(activeRole || ''));
@@ -130,7 +130,7 @@ export default function DesktopLayout() {
             <Menu.Dropdown miw={200}>
               <Menu.Item
                 leftSection={<User size={14} />}
-                onClick={() => navigate('/profile')}
+                onClick={() => navigate('/desktop/profile')}
                 disabled={isAdminLocked} // Disabled only on desktop in operator mode
               >
                 Profile {isAdminLocked && '(Locked)'}
@@ -138,7 +138,7 @@ export default function DesktopLayout() {
 
               <Menu.Item
                 leftSection={<Settings size={14} />}
-                onClick={() => navigate('/settings')}
+                onClick={() => navigate('/desktop/settings')}
                 disabled={isAdminLocked}
               >
                 Settings {isAdminLocked && '(Locked)'}
