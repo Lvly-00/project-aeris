@@ -1,7 +1,7 @@
 import { AuthProvider, useAuth } from './shared/hooks/useAuth';
-import { AppRouter } from './desktop/router';
+import AppRouter  from './router';
 import { useWebSocket } from './shared/hooks/useWebSocket';
-import { ErrorBoundary } from './components/common/ErrorBoundary';
+import { ErrorBoundary } from '../src/desktop/components/common/ErrorBoundary';
 
 function WebSocketInit() {
   const { isAuthenticated } = useAuth();

@@ -6,8 +6,8 @@
  */
 import { useRef, useCallback, useEffect } from 'react';
 import { Box } from '@mantine/core';
-import { aiAPI } from '../../services/aiApi';
-import { incidentsAPI } from '../../services/api';
+import { aiAPI } from '../../../shared/services/aiApi';
+import { incidentsAPI } from '../../../shared/services/api';
 
 export const SEVERITY_COLORS: Record<string, string> = {
   Fire: '#FF0000',

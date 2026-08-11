@@ -43,10 +43,13 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await login(values); 
-    navigate('/cameras');
-  } catch (err: any) {
-      setError(err.response?.data?.detail || 'Invalid credentials. Please try again.');
+      await login(values);
+      navigate('/desktop/cameras', { replace: true });
+    } catch (err: any) {
+      setError(
+        err.response?.data?.detail ||
+        'Invalid credentials. Please try again.'
+      );
     } finally {
       setLoading(false);
     }
@@ -62,7 +65,7 @@ export default function LoginPage() {
         backgroundPosition: 'center',
         display: 'flex',
         alignItems: 'center',
-        paddingLeft: '10%', 
+        paddingLeft: '10%',
       }}
     >
       <Paper
@@ -79,11 +82,11 @@ export default function LoginPage() {
         <Stack gap="xl">
           {/* LOGO AREA */}
           <Center flex={1} style={{ flexDirection: 'column' }}>
-            <Image 
-                src="/icon.png" // Update with your Aeris logo path
-                alt="Aeris Logo" 
-                w={180} 
-                mb="md" 
+            <Image
+              src="/icon.png" // Update with your Aeris logo path
+              alt="Aeris Logo"
+              w={180}
+              mb="md"
             />
             <Text ta="center" c="dimmed" fz="sm" fw={500} style={{ maxWidth: 300, lineHeight: 1.4 }}>
               Sign in to access the AI-Assisted Barangay CCTV Incident Monitoring & Decision Support System.
@@ -118,11 +121,11 @@ export default function LoginPage() {
               />
 
               <Group justify="space-between">
-                <Checkbox 
-                    label="Remember Me" 
-                    size="xs" 
-                    color="#FF6B00" 
-                    {...form.getInputProps('remember', { type: 'checkbox' })}
+                <Checkbox
+                  label="Remember Me"
+                  size="xs"
+                  color="#FF6B00"
+                  {...form.getInputProps('remember', { type: 'checkbox' })}
                 />
                 <Anchor href="#" size="xs" fw={600} c="#FF6B00">
                   Forgot Password?

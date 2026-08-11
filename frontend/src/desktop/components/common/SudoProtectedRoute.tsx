@@ -1,5 +1,5 @@
 import { Navigate, useLocation } from 'react-router-dom';
-import { useAuth } from '../../hooks/useAuth';
+import { useAuth } from '../../../shared/hooks/useAuth';
 import { LoadingOverlay } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
 

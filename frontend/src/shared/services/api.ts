@@ -22,33 +22,106 @@ api.interceptors.request.use(
 
 api.interceptors.response.use(
   (response) => response,
+
   async (error) => {
     const originalRequest = error.config;
 
-    // If 401 and not already retrying
-    if (error.response?.status === 401 && !originalRequest._retry) {
+    const isLoginRequest =
+      originalRequest?.url?.includes('/accounts/login/');
+
+    const isRefreshRequest =
+      originalRequest?.url?.includes('/auth/token/refresh/');
+
+    /**
+     * Login failed:
+     *
+     * 401 from /accounts/login/ means
+     * incorrect username/password.
+     *
+     * DO NOT refresh.
+     * DO NOT redirect.
+     *
+     * Let LoginPage handle the error.
+     */
+    if (isLoginRequest) {
+      return Promise.reject(error);
+    }
+
+    /**
+     * Refresh request itself failed.
+     * The session is no longer valid.
+     */
+    if (
+      error.response?.status === 401 &&
+      isRefreshRequest
+    ) {
+      localStorage.removeItem('access_token');
+      localStorage.removeItem('refresh_token');
+      localStorage.removeItem('viewMode');
+
+      const isPwa =
+        window.location.pathname.startsWith('/pwa');
+
+      window.location.href = isPwa
+        ? '/pwa/login'
+        : '/desktop/login';
+
+      return Promise.reject(error);
+    }
+
+    /**
+     * Normal authenticated request returned 401.
+     * Try refreshing the access token.
+     */
+    if (
+      error.response?.status === 401 &&
+      !originalRequest._retry
+    ) {
       originalRequest._retry = true;
 
       try {
-        const refresh = localStorage.getItem('refresh_token');
-        if (!refresh) throw new Error("No refresh token");
+        const refresh =
+          localStorage.getItem('refresh_token');
 
-        // Use axios.post (not api.post) to avoid the interceptor
-        const response = await axios.post('/api/auth/token/refresh/', { refresh });
+        if (!refresh) {
+          throw new Error('No refresh token');
+        }
+
+        // Use plain axios to avoid interceptor loop.
+        const response = await axios.post(
+          '/api/auth/token/refresh/',
+          {
+            refresh,
+          }
+        );
 
         const newAccess = response.data.access;
-        localStorage.setItem('access_token', newAccess);
 
-        // Retry the original request with the new token
-        originalRequest.headers.Authorization = `Bearer ${newAccess}`;
+        localStorage.setItem(
+          'access_token',
+          newAccess
+        );
+
+        originalRequest.headers.Authorization =
+          `Bearer ${newAccess}`;
+
         return api(originalRequest);
-      } catch (refreshErr) {
-        // If refresh fails, the session is dead. Clear everything.
-        localStorage.clear();
-        window.location.href = '/login';
-        return Promise.reject(refreshErr);
+      } catch (refreshError) {
+        localStorage.removeItem('access_token');
+        localStorage.removeItem('refresh_token');
+        localStorage.removeItem('viewMode');
+
+        const isPwa =
+          window.location.pathname.startsWith('/pwa');
+
+        window.location.href = isPwa
+          ? '/pwa/login'
+          : '/desktop/login';
+
+        return Promise.reject(refreshError);
       }
     }
+
     return Promise.reject(error);
   }
 );
