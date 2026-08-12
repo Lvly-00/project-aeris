@@ -1,9 +1,11 @@
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
-import { MantineProvider, createTheme } from '@mantine/core';
+import { MantineProvider, createTheme, ColorSchemeScript } from '@mantine/core';
 import { BrowserRouter } from 'react-router-dom';
 import App from './App';
+
+// Styles
 import '@mantine/core/styles.css';
 import '@mantine/dates/styles.css';
 import '@mantine/charts/styles.css';
@@ -19,8 +21,9 @@ const queryClient = new QueryClient({
 });
 
 const theme = createTheme({
-  primaryColor: 'red',
+  primaryColor: 'orange',
   colors: {
+    // Customizing the dark scale
     dark: [
       '#C1C2C5',
       '#A6A7AB',
@@ -29,7 +32,7 @@ const theme = createTheme({
       '#373A40',
       '#2C2E33',
       '#25262B',
-      '#1A1B1E',
+      '#1A1B1E', // This is usually the body background in dark mode
       '#141517',
       '#101113',
     ],
@@ -43,6 +46,8 @@ const theme = createTheme({
 
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
+    {/* ColorSchemeScript must be before MantineProvider */}
+    <ColorSchemeScript defaultColorScheme="light" />
     <QueryClientProvider client={queryClient}>
       <MantineProvider theme={theme} defaultColorScheme="light">
         <BrowserRouter>

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useMemo } from 'react';
-import { 
-    Stack, Button, Paper, Tabs, Text, rem, TextInput, Group, 
-    Table, ScrollArea, Avatar, Box, Badge, ActionIcon, Menu, 
-    Pagination, Center 
+import {
+    Stack, Button, Paper, Tabs, Text, TextInput, Group,
+    Table, ScrollArea, Avatar, Box, Badge, ActionIcon, Menu,
+    Pagination, Center, useMantineTheme
 } from '@mantine/core';
 import { Plus, Search, Edit2, MoreVertical } from 'lucide-react';
 import { PageHeader } from '../components/Layout/PageHeader';
@@ -11,28 +11,21 @@ import { UserFormModal } from '../components/common/UserFormModal';
 import { DeleteUserModal } from '../components/common/DeleteUserModal';
 
 export default function UserManagement() {
-    // Data State
+    const theme = useMantineTheme();
     const [users, setUsers] = useState<any[]>([]);
     const [zones, setZones] = useState<{ value: string; label: string }[]>([]);
     const [loading, setLoading] = useState(false);
-    
-    // Filter & Pagination State
     const [activeTab, setActiveTab] = useState<string | null>('all-users');
     const [searchQuery, setSearchQuery] = useState('');
     const [activePage, setActivePage] = useState(1);
     const itemsPerPage = 10;
 
-    // Modal State
     const [formOpened, setFormOpened] = useState(false);
     const [deleteOpened, setDeleteOpened] = useState(false);
     const [selectedUser, setSelectedUser] = useState<any>(null);
 
     useEffect(() => { loadData(); }, []);
-
-    // Reset pagination when searching or switching tabs
-    useEffect(() => {
-        setActivePage(1);
-    }, [searchQuery, activeTab]);
+    useEffect(() => { setActivePage(1); }, [searchQuery, activeTab]);
 
     const loadData = async () => {
         try {
@@ -43,40 +36,30 @@ export default function UserManagement() {
         } catch (error) { console.error(error); }
     };
 
-    // SEARCH & FILTER LOGIC
     const filteredUsers = useMemo(() => {
         return users.filter((user) => {
             const matchesTab = activeTab === 'all-users' || user.role === activeTab;
             const searchLower = searchQuery.toLowerCase();
-            const matchesSearch = 
+            return matchesTab && (
                 user.username.toLowerCase().includes(searchLower) ||
                 (user.full_name || '').toLowerCase().includes(searchLower) ||
-                (user.email || '').toLowerCase().includes(searchLower);
-            
-            return matchesTab && matchesSearch;
+                (user.email || '').toLowerCase().includes(searchLower)
+            );
         });
     }, [users, activeTab, searchQuery]);
 
-    // PAGINATION LOGIC
     const totalPages = Math.ceil(filteredUsers.length / itemsPerPage);
-    const paginatedUsers = filteredUsers.slice(
-        (activePage - 1) * itemsPerPage,
-        activePage * itemsPerPage
-    );
+    const paginatedUsers = filteredUsers.slice((activePage - 1) * itemsPerPage, activePage * itemsPerPage);
 
     const handleCreateOrUpdate = async (values: any) => {
         setLoading(true);
         try {
-            if (selectedUser) {
-                await authAPI.updateUser(selectedUser.id, values);
-            } else {
-                await authAPI.register(values);
-            }
+            if (selectedUser) await authAPI.updateUser(selectedUser.id, values);
+            else await authAPI.register(values);
             setFormOpened(false);
             loadData();
-        } catch (error: any) {
-            console.error(error);
-        } finally { setLoading(false); }
+        } catch (error: any) { console.error(error); }
+        finally { setLoading(false); }
     };
 
     const handleDelete = async () => {
@@ -95,10 +78,10 @@ export default function UserManagement() {
                 title="User Management"
                 subtitle="Manage user roles and zone assignments."
                 actions={
-                    <Button 
-                        leftSection={<Plus size={18} />} 
-                        color="#FF6B00" 
-                        radius="md" 
+                    <Button
+                        leftSection={<Plus size={18} />}
+                        color="orange"
+                        radius="md"
                         onClick={() => { setSelectedUser(null); setFormOpened(true); }}
                     >
                         ADD NEW USER
@@ -107,25 +90,30 @@ export default function UserManagement() {
             />
 
             <UserFormModal
-                opened={formOpened}
-                onClose={() => setFormOpened(false)}
-                onSubmit={handleCreateOrUpdate}
-                initialValues={selectedUser}
-                zones={zones}
-                loading={loading}
-                isEdit={!!selectedUser}
+                opened={formOpened} onClose={() => setFormOpened(false)}
+                onSubmit={handleCreateOrUpdate} initialValues={selectedUser}
+                zones={zones} loading={loading} isEdit={!!selectedUser}
             />
 
             <DeleteUserModal
-                opened={deleteOpened}
-                onClose={() => setDeleteOpened(false)}
-                onConfirm={handleDelete}
-                userName={selectedUser?.username || ''}
+                opened={deleteOpened} onClose={() => setDeleteOpened(false)}
+                onConfirm={handleDelete} userName={selectedUser?.username || ''}
                 loading={loading}
             />
 
-            <Paper radius="md" withBorder bg="white" shadow="xs">
-                <Tabs value={activeTab} onChange={setActiveTab} variant="outline" styles={tabStyles}>
+            <Paper radius="md" withBorder bg="var(--mantine-color-body)" shadow="xs">
+                <Tabs value={activeTab} onChange={setActiveTab} variant="outline"
+                    styles={{
+                        tab: {
+                            padding: '16px 24px',
+                            fontWeight: 600,
+                            '&[data-active="true"]': {
+                                color: 'var(--mantine-color-orange-filled)',
+                                borderColor: 'var(--mantine-color-orange-filled)'
+                            }
+                        }
+                    }}
+                >
                     <Tabs.List>
                         <Tabs.Tab value="all-users">All Users</Tabs.Tab>
                         <Tabs.Tab value="Admin">Admins</Tabs.Tab>
@@ -135,10 +123,10 @@ export default function UserManagement() {
                 </Tabs>
 
                 <Group p="md">
-                    <TextInput 
-                        placeholder="Search by name, username or email..." 
-                        leftSection={<Search size={16} />} 
-                        style={{ flex: 1, maxWidth: 400 }} 
+                    <TextInput
+                        placeholder="Search by name, username or email..."
+                        leftSection={<Search size={16} />}
+                        style={{ flex: 1, maxWidth: 400 }}
                         radius="md"
                         value={searchQuery}
                         onChange={(e) => setSearchQuery(e.currentTarget.value)}
@@ -147,7 +135,7 @@ export default function UserManagement() {
 
                 <ScrollArea>
                     <Table verticalSpacing="md" horizontalSpacing="md">
-                        <Table.Thead bg="gray.0">
+                        <Table.Thead bg="var(--mantine-color-default-hover)">
                             <Table.Tr>
                                 <Table.Th>Name</Table.Th>
                                 <Table.Th>Username</Table.Th>
@@ -180,11 +168,7 @@ export default function UserManagement() {
                                         </Table.Td>
                                         <Table.Td>
                                             <Group justify="flex-end" gap={4}>
-                                                <ActionIcon 
-                                                    variant="subtle" 
-                                                    color="gray"
-                                                    onClick={() => { setSelectedUser(user); setFormOpened(true); }}
-                                                >
+                                                <ActionIcon variant="subtle" color="gray" onClick={() => { setSelectedUser(user); setFormOpened(true); }}>
                                                     <Edit2 size={16} />
                                                 </ActionIcon>
                                                 <Menu position="bottom-end" withinPortal>
@@ -192,10 +176,7 @@ export default function UserManagement() {
                                                         <ActionIcon variant="subtle" color="gray"><MoreVertical size={16} /></ActionIcon>
                                                     </Menu.Target>
                                                     <Menu.Dropdown>
-                                                        <Menu.Item 
-                                                            onClick={() => { setSelectedUser(user); setDeleteOpened(true); }} 
-                                                            color="red"
-                                                        >
+                                                        <Menu.Item onClick={() => { setSelectedUser(user); setDeleteOpened(true); }} color="red">
                                                             Delete User
                                                         </Menu.Item>
                                                     </Menu.Dropdown>
@@ -205,40 +186,18 @@ export default function UserManagement() {
                                     </Table.Tr>
                                 ))
                             ) : (
-                                <Table.Tr>
-                                    <Table.Td colSpan={5}>
-                                        <Center py="xl">
-                                            <Text c="dimmed">No users found matching your criteria.</Text>
-                                        </Center>
-                                    </Table.Td>
-                                </Table.Tr>
+                                <Table.Tr><Table.Td colSpan={5}><Center py="xl"><Text c="dimmed">No users found.</Text></Center></Table.Td></Table.Tr>
                             )}
                         </Table.Tbody>
                     </Table>
                 </ScrollArea>
 
-                {/* PAGINATION UI */}
                 {totalPages > 1 && (
-                    <Group justify="center" py="md" style={{ borderTop: '1px solid #eee' }}>
-                        <Pagination 
-                            total={totalPages} 
-                            value={activePage} 
-                            onChange={setActivePage} 
-                            color="#FF6B00" 
-                            radius="md" 
-                            withEdges
-                        />
+                    <Group justify="center" py="md" style={{ borderTop: '1px solid var(--mantine-color-default-border)' }}>
+                        <Pagination total={totalPages} value={activePage} onChange={setActivePage} color="orange" radius="md" withEdges />
                     </Group>
                 )}
             </Paper>
         </Stack>
     );
 }
-
-const tabStyles = {
-    tab: {
-        padding: '16px 24px',
-        fontWeight: 600,
-        '&[data-active="true"]': { color: '#FF6B00', borderColor: '#FF6B00' }
-    }
-};

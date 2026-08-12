@@ -1,4 +1,7 @@
-import { Modal, Stack, TextInput, Select, Group, Button, Text, FileButton } from '@mantine/core';
+import {
+  Modal, Stack, TextInput, Select, Group, Button,
+  Text, FileButton, Box, useMantineTheme
+} from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useEffect } from 'react';
 import { FolderOpen } from 'lucide-react';
@@ -12,6 +15,8 @@ interface CameraFormModalProps {
 }
 
 export function CameraFormModal({ opened, onClose, onSubmit, initialValues, loading }: CameraFormModalProps) {
+  const theme = useMantineTheme();
+
   const form = useForm({
     initialValues: {
       name: '',
@@ -33,16 +38,26 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
     }
   }, [initialValues, opened]);
 
-  // Handle local file selection for MP4 testing
   const handleFileSelect = (file: File | null) => {
     if (file) {
-      // In a real Electron app, you'd get the full path. 
-      // For web/testing, we'll use the file name or create an object URL.
       form.setFieldValue('rtsp_url', file.name);
-      
-      // If your backend/player needs the actual data:
-      // const url = URL.createObjectURL(file);
-      // form.setFieldValue('rtsp_url', url);
+    }
+  };
+
+  // Theme-aware styles for inputs
+  const inputStyles = {
+    label: {
+      fontWeight: 700,
+      marginBottom: 8,
+      fontSize: '14px',
+      color: 'var(--mantine-color-text)'
+    },
+    input: {
+      borderRadius: '8px',
+      height: '45px',
+      fontSize: '14px',
+      backgroundColor: 'var(--mantine-color-body)',
+      borderColor: 'var(--mantine-color-default-border)'
     }
   };
 
@@ -50,14 +65,24 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
     <Modal
       opened={opened}
       onClose={onClose}
-      title={<Text fw={700} size="lg" style={{ color: '#000' }}>{initialValues ? "Edit Camera" : "Add Camera"}</Text>}
+      title={
+        <Text fw={700} size="lg">
+          {initialValues ? "Edit Camera" : "Add Camera"}
+        </Text>
+      }
       centered
       size="lg"
       padding="xl"
       radius="md"
       styles={{
-        header: { borderBottom: '1px solid #e9ecef', marginBottom: '20px', paddingBottom: '15px' },
-        close: { color: '#adb5bd', zoom: 1.5 }
+        header: {
+          borderBottom: '1px solid var(--mantine-color-default-border)',
+          marginBottom: '20px',
+          paddingBottom: '15px'
+        },
+        content: {
+          backgroundColor: 'var(--mantine-color-body)',
+        }
       }}
     >
       <form onSubmit={form.onSubmit(onSubmit)}>
@@ -70,30 +95,34 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
           />
 
           <Box>
-            <Text fw={700} size="sm" mb={8}>Source URL / Path *</Text>
+            <Text fw={700} size="sm" mb={8} c="var(--mantine-color-text)">
+              Source URL / Path *
+            </Text>
+
             {form.values.stream_type === 'MP4' && (
-               <Text fw={600} color="#868e96" mb={4} size="xs">Local file path for testing</Text>
+              <Text fw={600} c="dimmed" mb={4} size="xs">
+                Local file path for testing
+              </Text>
             )}
-            
+
             <Group gap="xs" align="flex-start" wrap="nowrap">
               <TextInput
                 placeholder={form.values.stream_type === 'MP4' ? "Select a file..." : "rtsp://..."}
                 {...form.getInputProps('rtsp_url')}
-                styles={{ 
+                styles={{
                   root: { flex: 1 },
-                  input: inputStyles.input 
+                  input: inputStyles.input
                 }}
               />
-              
+
               {form.values.stream_type === 'MP4' && (
                 <FileButton onChange={handleFileSelect} accept="video/mp4">
                   {(props) => (
-                    <Button 
-                      {...props} 
-                      variant="outline" 
-                      color="gray" 
-                      height={45} 
-                      style={{ border: '1px solid #adb5bd', height: '45px' }}
+                    <Button
+                      {...props}
+                      variant="outline"
+                      color="gray"
+                      style={{ height: '45px', borderColor: 'var(--mantine-color-default-border)' }}
                       leftSection={<FolderOpen size={18} />}
                     >
                       Locate File
@@ -125,10 +154,21 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
           />
 
           <Group justify="flex-end" mt="xl" gap="md">
-            <Button variant="outline" color="gray" onClick={onClose} px="xl" style={{ borderColor: '#adb5bd', color: '#495057' }}>
+            <Button
+              variant="subtle"
+              color="gray"
+              onClick={onClose}
+              px="xl"
+            >
               Cancel
             </Button>
-            <Button type="submit" bg="#ff5700" px="xl" loading={loading} fw={700}>
+            <Button
+              type="submit"
+              color="orange"
+              px="xl"
+              loading={loading}
+              fw={700}
+            >
               {initialValues ? "Update Camera" : "Add Camera"}
             </Button>
           </Group>
@@ -137,11 +177,3 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
     </Modal>
   );
 }
-
-const inputStyles = {
-  label: { fontWeight: 700, marginBottom: 8, fontSize: '14px', color: '#000' },
-  input: { borderRadius: '8px', height: '45px', border: '1px solid #adb5bd', fontSize: '14px' }
-};
-
-// Simple Box import needed for the layout
-import { Box } from '@mantine/core';
