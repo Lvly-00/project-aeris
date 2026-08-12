@@ -124,7 +124,7 @@ export default function HistoryPage() {
                         <IncidentCard
                             key={incident.id}
                             incident={incident}
-                            onClick={(item) => navigate(`/pwa/incidents/${item.id}`)}
+                            onClick={(item) => navigate(`/pwa/admin/incidents/${item.id}`)}
                         />
                     ))
                 )}

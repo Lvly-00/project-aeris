@@ -468,7 +468,7 @@ export default function IncidentsPage() {
               >
                 <IncidentCard
                   incident={incident}
-                  onClick={(item) => navigate(`/pwa/incidents/${item.id}`)}
+                  onClick={(item) => navigate(`/pwa/admin/incidents/${item.id}`)}
                 />
               </Box>
             </Group>

@@ -9,13 +9,11 @@ import { authAPI, notificationsAPI } from '../../../shared/services/api';
 import { NotificationsModal } from '../NotificationsModal';
 
 const navData = [
-    { icon: Home, label: 'Dashboard', path: '/pwa/dashboard' },
-    { icon: ShieldAlert, label: 'Incidents', path: '/pwa/incidents' },
-    { icon: ClipboardList, label: 'History', path: '/pwa/history' },
-    { icon: User, label: 'Profile', path: '/pwa/profile', isAvatar: true },
+    { icon: ShieldAlert, label: 'Messages', path: '/pwa/tanod/messages' },
+    { icon: User, label: 'Profile', path: '/pwa/tanod/profile', isAvatar: true },
 ];
 
-export function PwaLayout() {
+export function TanodLayout() {
     const navigate = useNavigate();
     const location = useLocation();
     const theme = useMantineTheme();
