@@ -125,7 +125,7 @@ export default function PwaRouter() {
 
                 <Route
                     path="profile"
-                    element={<ProfilePage hideHeader />}
+                    element={<ProfilePage />}
                 />
             </Route>
 

@@ -14,26 +14,18 @@ class Incident(models.Model):
         HIGH = "High", "High"
         CRITICAL = "Critical", "Critical"
 
+    # UPDATED STATUS LIST
     class Status(models.TextChoices):
         DETECTED = "Detected", "Detected"
-        PENDING_VERIFICATION = "Pending_Verification", "Pending Verification"
         VERIFIED = "Verified", "Verified"
-        DISPATCHED = "Dispatched", "Dispatched"
-        RESPONDING = "Responding", "Responding"
+        DISPATCHED = "Dispatched", "Dispatched" # Changed from 'Dispatch' to 'Dispatched' for consistency
         RESOLVED = "Resolved", "Resolved"
-        ARCHIVED = "Archived", "Archived"
         DISMISSED = "Dismissed", "Dismissed"
-        FALSE_POSITIVE = "False_Positive", "False Positive"
 
-    incident_type = models.CharField(
-        max_length=30, choices=IncidentType.choices
-    )
-    severity = models.CharField(
-        max_length=10, choices=Severity.choices, default=Severity.MEDIUM
-    )
-    status = models.CharField(
-        max_length=20, choices=Status.choices, default=Status.DETECTED
-    )
+    incident_type = models.CharField(max_length=30, choices=IncidentType.choices)
+    severity = models.CharField(max_length=10, choices=Severity.choices, default=Severity.MEDIUM)
+    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DETECTED)
+    
     camera = models.ForeignKey(
         "cameras.Camera",
         on_delete=models.SET_NULL,

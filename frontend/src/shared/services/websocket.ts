@@ -1,19 +1,13 @@
-/**
- * WebSocket service — connection lifecycle, reconnect, and ping logic.
- *
- * This module owns the raw WebSocket management. useWebSocket.ts is a
- * thin React hook that calls this service and wires it to React Query.
- */
 import type { QueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { playAlertSound } from '../utils/sounds';
 
-const WS_BASE = 'ws://localhost:8000/ws/incidents/';
+// 1. Use relative path so Vite's proxy handles the upgrade automatically
+const WS_PATH = '/ws/incidents/';
 
 export interface WSMessage {
   action?: string;
-  incident_type?: string;
-  severity?: string;
+  payload?: any; // The backend sends the incident data inside 'payload'
   priority?: string;
   title?: string;
   message?: string;
@@ -35,10 +29,13 @@ export class WebSocketService {
 
   connect(): void {
     const token = localStorage.getItem('access_token');
-    if (!token) return;
+    if (!token || this.ws) return;
 
     try {
-      const socket = new WebSocket(`${WS_BASE}?token=${token}`);
+      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+      // Connect to window.location.host (Vite port 5173) 
+      // Vite forwards this to 8000 because of your vite.config.ts proxy
+      const socket = new WebSocket(`${protocol}://${window.location.host}${WS_PATH}?token=${token}`);
       this.ws = socket;
 
       socket.onopen = () => {
@@ -51,15 +48,15 @@ export class WebSocketService {
           const data: WSMessage = JSON.parse(event.data);
           this.handleMessage(data);
           this.options.onMessage?.(data);
-        } catch {
-          // ignore parse errors
+        } catch (e) {
+          console.error('[WS] Parse error', e);
         }
       };
 
       socket.onclose = (event) => {
-        console.log('[WS] Disconnected:', event.code);
         this.stopPing();
         if (this.running && event.code !== 4001) {
+          console.log('[WS] Disconnected, retrying in 5s...');
           this.reconnectTimer = setTimeout(() => this.connect(), 5000);
         }
       };
@@ -67,10 +64,8 @@ export class WebSocketService {
       socket.onerror = () => {
         socket.close();
       };
-    } catch {
-      if (this.running) {
-        this.reconnectTimer = setTimeout(() => this.connect(), 5000);
-      }
+    } catch (err) {
+      console.error('[WS] Connection failed', err);
     }
   }
 
@@ -78,11 +73,24 @@ export class WebSocketService {
     this.running = false;
     this.stopPing();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    if (this.ws) this.ws.close();
-    this.ws = null;
+    
+    if (this.ws) {
+      // FIX: Prevent "closed before established" error
+      // Only close if it's actually open. If it's still connecting, remove handlers.
+      if (this.ws.readyState === WebSocket.OPEN) {
+        this.ws.close();
+      } else {
+        this.ws.onmessage = null;
+        this.ws.onopen = null;
+        this.ws.onerror = null;
+        this.ws.close(); // Browser will handle closing the connecting socket silently
+      }
+      this.ws = null;
+    }
   }
 
   start(): void {
+    if (this.running) return;
     this.running = true;
     this.connect();
   }
@@ -113,36 +121,27 @@ export class WebSocketService {
 
     if (action === 'pong') return;
 
-    if (data.incident_type || action === 'incident_created' || action === 'incident_update') {
+    // Triggered by your Simulate button (incident_created) or status change (incident_update)
+    if (action === 'incident_created' || action === 'incident_update') {
+      // Invalidating triggers an immediate re-fetch in IncidentsPage.tsx
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
-      queryClient.invalidateQueries({ queryKey: ['incident-summary'] });
     }
 
     if (action === 'notification_new') {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['unread-notifications'] });
-      queryClient.invalidateQueries({ queryKey: ['recent-notifications'] });
       if (data.priority) playAlertSound(data.priority);
       if (data.title) {
         notifications.show({
           title: data.title,
           message: data.message || '',
-          color:
-            data.priority === 'Critical'
-              ? 'red'
-              : data.priority === 'High'
-              ? 'orange'
-              : 'blue',
-          autoClose: 8000,
+          color: data.priority === 'Critical' ? 'red' : 'orange',
         });
       }
     }
 
-    if (action === 'dispatch_update' || data.dispatch) {
+    if (action === 'dispatch_update') {
       queryClient.invalidateQueries({ queryKey: ['dispatches'] });
-      queryClient.invalidateQueries({ queryKey: ['dispatchers'] });
-      queryClient.invalidateQueries({ queryKey: ['incidents-pending'] });
     }
   }
 }

@@ -1,9 +1,10 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Box, SimpleGrid, Paper, Text, Button, Stack } from '@mantine/core';
+import { Box, SimpleGrid, Paper, Text, Button, Stack, Group } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { Plus, Camera, Phone } from 'lucide-react';
 
+import { SimulateIncidentBtn } from '../components/Camera/SimulateIncidentBtn';
 import { camerasAPI, contactsAPI } from '../../shared/services/api';
 import { PageHeader } from '../components/Layout/PageHeader'; // Assuming this path
 import { CameraToolbar } from '../components/Camera/CameraToolbar';
@@ -18,7 +19,7 @@ export default function CameraMonitoringPage() {
   const [layout, setLayout] = useState<'grid' | 'cctv-2x2' | 'cctv-3x3' | 'cctv-4x4'>(
     () => (localStorage.getItem('camera-layout') as any) || 'grid'
   );
-  
+
   const [modalOpen, setModalOpen] = useState(false);
   const [editingCamera, setEditingCamera] = useState<any>(null);
   const [fullscreenCamera, setFullscreenCamera] = useState<any>(null);
@@ -61,10 +62,10 @@ export default function CameraMonitoringPage() {
       setModalOpen(false);
       setEditingCamera(null);
     } catch (error: any) {
-      notifications.show({ 
-        title: 'Error', 
-        message: error.response?.data?.detail || 'Operation failed', 
-        color: 'red' 
+      notifications.show({
+        title: 'Error',
+        message: error.response?.data?.detail || 'Operation failed',
+        color: 'red'
       });
     }
   };
@@ -76,27 +77,28 @@ export default function CameraMonitoringPage() {
   return (
     <Box p="md">
       {/* 1. Brand Header */}
-      <PageHeader 
+      <PageHeader
         title="CCTV CAMERAS"
         subtitle="Pumili ng alinmang kamera upang masuri ang kasalukuyang pangyayari."
         actions={
-          <Button 
-            bg="#ff5700" // The specific orange from your image
-            size="md"
-            leftSection={<Plus size={20} strokeWidth={3} />}
-            onClick={() => { setEditingCamera(null); setModalOpen(true); }}
-            style={{ fontWeight: 700 }}
-          >
-            Add Camera
-          </Button>
+          <Group>
+            <SimulateIncidentBtn cameras={cameras} />
+            <Button
+              bg="#ff5700"
+              leftSection={<Plus size={20} strokeWidth={3} />}
+              onClick={() => { setEditingCamera(null); setModalOpen(true); }}
+            >
+              Add Camera
+            </Button>
+          </Group>
         }
       />
 
       {/* 2. Toolbar (Count & Layout Selector) */}
-      <CameraToolbar 
-        count={cameras.length} 
-        layout={layout} 
-        onLayoutChange={(val) => setLayout(val as any)} 
+      <CameraToolbar
+        count={cameras.length}
+        layout={layout}
+        onLayoutChange={(val) => setLayout(val as any)}
       />
 
       {/* 3. Main View Area */}
@@ -113,7 +115,7 @@ export default function CameraMonitoringPage() {
           {layout === 'grid' ? (
             <SimpleGrid cols={{ base: 1, sm: 2, lg: 3, xl: 4 }} spacing="md">
               {cameras.map((camera: any) => (
-                <CameraCard 
+                <CameraCard
                   key={camera.id}
                   camera={camera}
                   onFullscreen={setFullscreenCamera}
@@ -123,8 +125,8 @@ export default function CameraMonitoringPage() {
               ))}
             </SimpleGrid>
           ) : (
-            <CameraGrid 
-              cameras={cameras} 
+            <CameraGrid
+              cameras={cameras}
               layout={layout}
               onIncidentDetected={handleIncidentDetected}
               onFullscreen={setFullscreenCamera}
@@ -136,7 +138,7 @@ export default function CameraMonitoringPage() {
       )}
 
       {/* 4. Modals */}
-      <CameraFormModal 
+      <CameraFormModal
         opened={modalOpen}
         onClose={() => { setModalOpen(false); setEditingCamera(null); }}
         onSubmit={handleFormSubmit}

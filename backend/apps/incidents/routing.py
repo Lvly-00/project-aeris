@@ -1,6 +1,11 @@
 from django.urls import re_path
-from . import consumers
+
+from .consumers import IncidentConsumer
+
 
 websocket_urlpatterns = [
-    re_path(r"ws/incidents/$", consumers.IncidentConsumer.as_asgi()),
+    re_path(
+        r"ws/incidents/$",
+        IncidentConsumer.as_asgi(),
+    ),
 ]
