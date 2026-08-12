@@ -1,18 +1,63 @@
-import { Paper, Group, Stack, Text, Box, Progress, rem, useMantineTheme } from '@mantine/core';
-import { Flame, Car, ChevronRight } from 'lucide-react';
+import { Paper, Group, Stack, Text, Box, Progress, Badge, rem, useMantineTheme } from '@mantine/core';
+import { Flame, Car, CloudFog, ChevronRight } from 'lucide-react';
 import { Incident } from '../../../shared/types/index';
+import { STATUS_COLORS, SEVERITY_COLORS } from '../../../shared/utils/constants';
+import { formatRelativeTime } from '../../../shared/utils/helpers';
 
 interface IncidentCardProps {
     incident: Incident;
     onClick?: (incident: Incident) => void;
 }
 
+const SEVERITY_BADGE: Record<string, string> = {
+    Low: 'gray',
+    Medium: 'yellow',
+    High: 'orange',
+    Critical: 'red',
+};
+
+const STATUS_BADGE: Record<string, string> = {
+    Detected: 'red',
+    Pending_Verification: 'yellow',
+    Verified: 'orange',
+    Dispatched: 'blue',
+    Responding: 'cyan',
+    Resolved: 'green',
+    Archived: 'gray',
+    Dismissed: 'gray',
+    False_Positive: 'brown',
+};
+
+const STATUS_LABEL: Record<string, string> = {
+    Detected: 'Detected',
+    Pending_Verification: 'Pending Verification',
+    Verified: 'Verified',
+    Dispatched: 'Dispatched',
+    Responding: 'Responding',
+    Resolved: 'Resolved',
+    Archived: 'Archived',
+    Dismissed: 'Dismissed',
+    False_Positive: 'False Positive',
+};
+
+const TYPE_LABEL: Record<string, string> = {
+    Fire: 'Fire Incident',
+    Smoke: 'Smoke Detected',
+    Vehicle_Accident: 'Vehicular Accident',
+};
+
+const TYPE_ICON: Record<string, any> = {
+    Fire: Flame,
+    Smoke: CloudFog,
+    Vehicle_Accident: Car,
+};
+
 export const IncidentCard = ({ incident, onClick }: IncidentCardProps) => {
     const theme = useMantineTheme();
 
-    const isFire = incident.incident_type === 'Fire';
-    const color = isFire ? 'red' : 'orange';
-    const Icon = isFire ? Flame : Car;
+    const Icon = TYPE_ICON[incident.incident_type] || Car;
+    const color = incident.incident_type === 'Fire' ? 'red' : 'orange';
+    const accentColor = STATUS_COLORS[incident.status] || SEVERITY_COLORS[incident.severity] || '#888';
 
     return (
         <Paper
@@ -21,8 +66,8 @@ export const IncidentCard = ({ incident, onClick }: IncidentCardProps) => {
             radius="md"
             onClick={() => onClick?.(incident)}
             style={{
-                cursor: 'pointer',
-                borderLeft: `${rem(5)} solid var(--mantine-color-${color}-6)`,
+                cursor: onClick ? 'pointer' : 'default',
+                borderLeft: `${rem(5)} solid ${accentColor}`,
             }}
         >
             <Group align="flex-start" wrap="nowrap" gap="md">
@@ -46,17 +91,40 @@ export const IncidentCard = ({ incident, onClick }: IncidentCardProps) => {
                 {/* Info Section */}
                 <Stack gap={0} style={{ flex: 1 }}>
                     <Group justify="space-between" align="flex-start">
-                        <Box>
+                        <Box style={{ flex: 1, minWidth: 0 }}>
                             <Text fw={700} size="lg" style={{ lineHeight: 1.2 }}>
-                                {isFire ? 'Fire Incident' : 'Vehicular Accident'}
+                                {TYPE_LABEL[incident.incident_type] || incident.incident_type?.replace(/_/g, ' ')}
                             </Text>
                             <Text size="sm" c="dimmed">
-                                INC-2026-{incident.id.toString().padStart(6, '0')}
+                                INC-2026-{String(incident.id).padStart(6, '0')}
                             </Text>
                         </Box>
-                        <Text size="xs" c="dimmed" fw={500} mt={4}>
-                            {isFire ? '12 hrs ago' : '1 min ago'}
+                        <Text size="xs" c="dimmed" fw={500} mt={2} style={{ whiteSpace: 'nowrap' }}>
+                            {formatRelativeTime(incident.detected_at)}
                         </Text>
+                    </Group>
+
+                    <Group gap={6} mt={8}>
+                        <Badge
+                            size="sm"
+                            variant="light"
+                            color={STATUS_BADGE[incident.status] || 'gray'}
+                            styles={{ label: { fontWeight: 700 } }}
+                        >
+                            {STATUS_LABEL[incident.status] || incident.status}
+                        </Badge>
+                        <Badge
+                            size="sm"
+                            variant="filled"
+                            color={SEVERITY_BADGE[incident.severity] || 'gray'}
+                        >
+                            {incident.severity}
+                        </Badge>
+                        {incident.camera_name && (
+                            <Text size="xs" c="dimmed" style={{ marginLeft: 'auto' }} truncate>
+                                {incident.camera_name}
+                            </Text>
+                        )}
                     </Group>
 
                     {/* AI Confidence Section */}
@@ -76,7 +144,7 @@ export const IncidentCard = ({ incident, onClick }: IncidentCardProps) => {
                                 <Text fw={700} size="md">
                                     {Math.round(incident.confidence_score * 100)}%
                                 </Text>
-                                <ChevronRight size={20} color={theme.colors.gray[5]} strokeWidth={3} />
+                                {onClick && <ChevronRight size={20} color={theme.colors.gray[5]} strokeWidth={3} />}
                             </Group>
                         </Group>
                     </Box>

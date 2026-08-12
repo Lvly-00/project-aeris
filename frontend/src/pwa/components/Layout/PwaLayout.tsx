@@ -6,6 +6,7 @@ import {
 import { Bell, Home, ShieldAlert, ClipboardList, User } from 'lucide-react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { authAPI, notificationsAPI } from '../../../shared/services/api';
+import { NotificationsModal } from '../NotificationsModal';
 
 const navData = [
     { icon: Home, label: 'Dashboard', path: '/pwa/dashboard' },
@@ -21,6 +22,7 @@ export function PwaLayout() {
 
     const [user, setUser] = useState<any>(null);
     const [unreadCount, setUnreadCount] = useState(0);
+    const [notifOpen, setNotifOpen] = useState(false);
 
     // Use theme colors instead of hardcoded hex
     const activeColor = 'var(--mantine-color-orange-filled)';
@@ -44,6 +46,63 @@ export function PwaLayout() {
         fetchShellData();
     }, []);
 
+    /*
+     * Keep the header unread badge live: bump the count as
+     * notification_new events arrive over the WebSocket.
+     */
+    useEffect(() => {
+        const token = localStorage.getItem('access_token');
+        if (!token) return;
+
+        const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
+        const wsUrl = `${wsProtocol}://${window.location.host}/ws/incidents/?token=${token}`;
+
+        const ws = new WebSocket(wsUrl);
+        let disposed = false;
+
+        ws.onopen = () => {
+            if (disposed) {
+                ws.close();
+                return;
+            }
+        };
+
+        ws.onmessage = (event) => {
+            try {
+                if (disposed) return;
+
+                const data = JSON.parse(event.data);
+
+                if (data.action === 'notification_new') {
+                    setUnreadCount((prev) => prev + 1);
+                }
+            } catch {
+                /* ignore */
+            }
+        };
+
+        ws.onerror = () => {
+            /* silent */
+        };
+
+        ws.onclose = () => {
+            /* silent */
+        };
+
+        return () => {
+            disposed = true;
+
+            if (ws.readyState === WebSocket.OPEN) {
+                ws.close();
+            } else {
+                ws.onopen = null;
+                ws.onmessage = null;
+                ws.onerror = null;
+                ws.onclose = null;
+            }
+        };
+    }, []);
+
     return (
         <AppShell
             header={{ height: isProfilePage ? 0 : 70 }}
@@ -65,7 +124,7 @@ export function PwaLayout() {
                                     variant="transparent"
                                     color="gray"
                                     size="lg"
-                                    onClick={() => navigate('/pwa/notifications')}
+                                    onClick={() => setNotifOpen(true)}
                                 >
                                     <Bell size={28} strokeWidth={1.5} />
                                 </ActionIcon>
@@ -119,6 +178,12 @@ export function PwaLayout() {
                     })}
                 </Group>
             </AppShell.Footer>
+
+            <NotificationsModal
+                opened={notifOpen}
+                onClose={() => setNotifOpen(false)}
+                onUnreadChange={setUnreadCount}
+            />
         </AppShell>
     );
 }

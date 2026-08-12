@@ -11,6 +11,8 @@ from rest_framework.permissions import IsAuthenticated
 
 from apps.cameras.models import Camera
 from apps.dispatch.models import IncidentTimeline
+from apps.notifications.models import Notification
+from apps.notifications.serializers import NotificationSerializer
 from .filters import IncidentFilter
 from .models import Incident
 from .serializers import (
@@ -37,6 +39,43 @@ def broadcast_incident(event_type, incident_data):
         )
     except Exception as e:
         logger.error(f"WebSocket Broadcast Failed: {e}")
+
+def broadcast_notification(notification):
+    try:
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "incidents",
+            {
+                "type": "notification_new",
+                "payload": NotificationSerializer(notification).data,
+            },
+        )
+    except Exception as e:
+        logger.error(f"WebSocket Notification Broadcast Failed: {e}")
+
+def create_incident_notification(incident):
+    """
+    Create an Alert notification for a detected incident and
+    push it in real-time to all connected clients.
+    """
+    priority = (
+        "High" if incident.confidence_score >= 0.8 else "Medium"
+    )
+
+    notification = Notification.objects.create(
+        incident=incident,
+        title=f"{incident.incident_type} Detected",
+        message=(
+            incident.description
+            or f"{incident.incident_type} detected"
+        ),
+        notification_type=Notification.NotificationType.ALERT,
+        priority=priority,
+    )
+
+    broadcast_notification(notification)
+
+    return notification
 
 class IncidentViewSet(viewsets.ModelViewSet):
     queryset = Incident.objects.select_related(
@@ -72,6 +111,8 @@ class IncidentViewSet(viewsets.ModelViewSet):
             "incident_created",
             data,
         )
+
+        create_incident_notification(incident)
         
     @action(
     detail=False,
@@ -133,6 +174,8 @@ class IncidentViewSet(viewsets.ModelViewSet):
             "incident_created",
             data
         )
+
+        create_incident_notification(incident)
 
         return Response(
             data,

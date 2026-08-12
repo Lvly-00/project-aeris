@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import {
   Container,
   Title,
@@ -28,6 +29,7 @@ import { IncidentCard } from '../../components/commons/IncidentCard';
 import { incidentsAPI } from '../../../shared/services/api';
 
 export default function IncidentsPage() {
+  const navigate = useNavigate();
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [loading, setLoading] = useState(true);
   const [selectMode, setSelectMode] = useState(false);
@@ -82,7 +84,10 @@ export default function IncidentsPage() {
     try {
       setLoading(true);
 
-      const res = await incidentsAPI.list();
+      const res = await incidentsAPI.list({
+        status__in: 'Detected,Pending_Verification,Verified,Dispatched,Responding',
+        ordering: '-detected_at',
+      });
 
       const data = res.data.results || res.data;
 
@@ -239,6 +244,22 @@ export default function IncidentsPage() {
          */
         else if (data.action === 'incident_update') {
           setIncidents((prev) => {
+            /*
+             * Resolved/dismissed incidents leave the
+             * active list and go to the History page.
+             */
+            if (
+              data.payload.status === 'Resolved' ||
+              data.payload.status === 'Dismissed'
+            ) {
+              return sortLatestFirst(
+                prev.filter(
+                  (incident) =>
+                    incident.id !== data.payload.id
+                )
+              );
+            }
+
             const updated = prev.map((incident) =>
               incident.id === data.payload.id
                 ? data.payload
@@ -447,6 +468,7 @@ export default function IncidentsPage() {
               >
                 <IncidentCard
                   incident={incident}
+                  onClick={(item) => navigate(`/pwa/incidents/${item.id}`)}
                 />
               </Box>
             </Group>
