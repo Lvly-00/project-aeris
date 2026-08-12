@@ -10,10 +10,13 @@ interface StatCardProps {
 
 export const StatCard = ({ label, value, description, icon }: StatCardProps) => {
     return (
-        <Paper withBorder p="sm" radius="md" bg="white">
+        <Paper
+            withBorder
+            p="sm"
+            radius="md"
+            bg="var(--mantine-color-body)"
+        >
             <Stack gap="md">
-
-                {/* Icon + Statistic */}
                 <Group
                     justify="center"
                     align="center"
@@ -21,10 +24,10 @@ export const StatCard = ({ label, value, description, icon }: StatCardProps) => 
                     gap="md"
                 >
                     <ThemeIcon
-                        size={30}
+                        size={45}
                         radius="xl"
                         variant="light"
-                        color="orange.1"
+                        color="orange"
                     >
                         {icon}
                     </ThemeIcon>
@@ -43,13 +46,13 @@ export const StatCard = ({ label, value, description, icon }: StatCardProps) => 
                             fz={30}
                             fw={700}
                             style={{ lineHeight: 1 }}
+                            c="var(--mantine-color-text)"
                         >
                             {value}
                         </Text>
                     </Stack>
                 </Group>
 
-                {/* Description */}
                 <Text
                     size="sm"
                     c="dimmed"
@@ -60,7 +63,6 @@ export const StatCard = ({ label, value, description, icon }: StatCardProps) => 
                 >
                     {description}
                 </Text>
-
             </Stack>
         </Paper>
     );

@@ -1,4 +1,4 @@
-import { Paper, Text, RingProgress, Center, Stack, Group, ColorSwatch } from '@mantine/core';
+import { Paper, Text, RingProgress, Center, Stack, Group, ColorSwatch, useMantineTheme } from '@mantine/core';
 
 const legendData = [
     { label: 'Fire', color: '#e60000', count: 6 },
@@ -7,10 +7,16 @@ const legendData = [
 
 export const IncidentSummary = () => {
     return (
-        <Paper withBorder p="md" radius="md" h="100%" bg="white">
+        <Paper
+            withBorder
+            p="md"
+            radius="md"
+            h="100%"
+            bg="var(--mantine-color-body)" // Adapts to theme
+        >
             <Stack gap="md" align="center">
                 {/* --- Header --- */}
-                <Text ta="center" fw={700} fz="sm" tt="uppercase" c="dark.3">
+                <Text ta="center" fw={700} fz="sm" tt="uppercase" c="dimmed">
                     Incident Summary
                 </Text>
 
@@ -25,7 +31,12 @@ export const IncidentSummary = () => {
                             { value: 20, color: '#e60000', tooltip: 'Fire' },
                         ]}
                         label={
-                            <Text fw={800} ta="center" size="32px" c="dark.4">
+                            <Text
+                                fw={800}
+                                ta="center"
+                                size="32px"
+                                c="var(--mantine-color-text)" // Adaptive text
+                            >
                                 60%
                             </Text>
                         }
@@ -42,7 +53,7 @@ export const IncidentSummary = () => {
                                     {item.label}
                                 </Text>
                             </Group>
-                            <Text size="xs" fw={700} c="dark.4">
+                            <Text size="xs" fw={700} c="var(--mantine-color-text)">
                                 {item.count}
                             </Text>
                         </Group>
