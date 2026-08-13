@@ -1,4 +1,6 @@
-import React from 'react';
+import React, { useEffect } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
     Container,
     Paper,
@@ -9,16 +11,32 @@ import {
     ActionIcon,
     Divider,
     Box,
+    Center,
+    Loader,
+    Badge,
     rem,
     useMantineTheme,
+    useMantineColorScheme,
 } from '@mantine/core';
 import {
     ChevronLeft,
-    Flame,
     MapPin,
-    UserSquare2,
-    LucideIcon
+    Flame,
+    Car,
+    CloudFog,
+    ShieldAlert,
+    Hash,
+    Clock,
+    Activity,
+    AlignLeft,
+    Gauge,
+    Camera,
+    LucideIcon,
 } from 'lucide-react';
+import { dispatchMessagesAPI } from '../../../shared/services/api';
+import { formatDate, formatConfidence } from '../../../shared/utils/helpers';
+import { SEVERITY_COLORS, STATUS_COLORS } from '../../../shared/utils/constants';
+import type { DispatchMessage, IncidentType } from '../../../shared/types';
 
 interface DetailRowProps {
     icon: LucideIcon;
@@ -37,7 +55,7 @@ const DetailRow = ({ icon: Icon, label, value, iconColor }: DetailRowProps) => {
                     display: 'flex',
                     alignItems: 'center',
                     justifyContent: 'center',
-                    width: rem(40)
+                    width: rem(40),
                 }}
             >
                 <Icon
@@ -58,15 +76,77 @@ const DetailRow = ({ icon: Icon, label, value, iconColor }: DetailRowProps) => {
     );
 };
 
+function getIncidentIcon(type: IncidentType) {
+    switch (type) {
+        case 'Fire':
+            return Flame;
+        case 'Smoke':
+            return CloudFog;
+        case 'Vehicle_Accident':
+            return Car;
+        default:
+            return Flame;
+    }
+}
+
+function formatIncidentId(id: number): string {
+    return `INC-2026-${String(id).padStart(6, '0')}`;
+}
+
 export default function DispatchMessagePage() {
     const theme = useMantineTheme();
+    const { colorScheme } = useMantineColorScheme();
+    const navigate = useNavigate();
+    const queryClient = useQueryClient();
+    const { id } = useParams<{ id: string }>();
+    const messageId = Number(id);
+
+    const { data, isLoading } = useQuery({
+        queryKey: ['dispatch-message', messageId],
+        queryFn: () => dispatchMessagesAPI.get(messageId),
+        enabled: !!messageId,
+    });
+
+    const message: DispatchMessage | undefined = data?.data;
+
+    const markReadMutation = useMutation({
+        mutationFn: () => dispatchMessagesAPI.markRead(messageId),
+        onSuccess: () => {
+            queryClient.invalidateQueries({ queryKey: ['dispatch-messages'] });
+            queryClient.invalidateQueries({ queryKey: ['dispatch-message', messageId] });
+        },
+    });
+
+    useEffect(() => {
+        if (message && !message.is_read) {
+            markReadMutation.mutate();
+        }
+    }, [message?.id, message?.is_read]);
+
+    if (isLoading || !message) {
+        return (
+            <Container size="sm" py="xl">
+                <Center py="xl">
+                    <Loader color="orange" size="lg" />
+                </Center>
+            </Container>
+        );
+    }
+
+    const incident = message.incident_data;
+    const IncidentTypeIcon = getIncidentIcon(incident.incident_type);
 
     return (
         <Container size="sm" py="md">
             {/* Navigation Header */}
             <Stack gap="xs" mb="lg">
                 <Group justify="space-between" align="center">
-                    <ActionIcon variant="subtle" color="gray" size="lg">
+                    <ActionIcon
+                        variant="subtle"
+                        color="gray"
+                        size="lg"
+                        onClick={() => navigate('/pwa/tanod/messages')}
+                    >
                         <ChevronLeft size={24} />
                     </ActionIcon>
                     <Title order={3} style={{ flex: 1, textAlign: 'center', marginRight: rem(40) }}>
@@ -75,7 +155,7 @@ export default function DispatchMessagePage() {
                 </Group>
                 <Divider />
                 <Text ta="center" c="dimmed" size="sm" fw={500} mt="xs">
-                    9:32 AM | May 25, 2026
+                    {formatDate(message.created_at)}
                 </Text>
             </Stack>
 
@@ -85,10 +165,10 @@ export default function DispatchMessagePage() {
                 radius="lg"
                 mb="xl"
                 style={{
-                    backgroundColor: theme.colorScheme === 'dark'
+                    backgroundColor: colorScheme === 'dark'
                         ? theme.colors.dark[6]
-                        : '#FFF5F2', // Custom light peach/orange background
-                    border: theme.colorScheme === 'dark' ? `1px solid ${theme.colors.dark[4]}` : 'none'
+                        : '#FFF5F2',
+                    border: colorScheme === 'dark' ? `1px solid ${theme.colors.dark[4]}` : 'none',
                 }}
             >
                 <Group mb="xl">
@@ -97,23 +177,28 @@ export default function DispatchMessagePage() {
                         p={8}
                         radius="md"
                         style={{
-                            backgroundColor: theme.colorScheme === 'dark' ? theme.colors.dark[8] : 'white'
+                            backgroundColor: colorScheme === 'dark' ? theme.colors.dark[8] : 'white',
                         }}
                     >
-                        <Flame size={32} color={theme.colors.orange[6]} fill={theme.colors.orange[6]} />
+                        <IncidentTypeIcon
+                            size={32}
+                            color={theme.colors.orange[6]}
+                            fill={theme.colors.orange[6]}
+                        />
                     </Paper>
-                    <Title order={2} fw={700} style={{ letterSpacing: rem(1) }}>
-                        AERIS DISPATCH
-                    </Title>
+                    <Stack gap={2}>
+                        <Title order={2} fw={700} style={{ letterSpacing: rem(1) }}>
+                            {message.title.toUpperCase()}
+                        </Title>
+                        <Badge color="orange" variant="light" size="sm">
+                            {incident.incident_type.replace(/_/g, ' ')} · {incident.severity}
+                        </Badge>
+                    </Stack>
                 </Group>
 
                 <Stack gap="lg">
                     <Text size="lg" lh={1.5} fw={400}>
-                        A house <Text component="span" c="orange.6" fw={700}>fire</Text> has been reported at Barangay San Isidro.
-                    </Text>
-
-                    <Text size="lg" lh={1.5} fw={400}>
-                        All available Barangay Tanods are ordered to proceed immediately to the Barangay Hall for briefing and to respond to the incident.
+                        {message.body}
                     </Text>
                 </Stack>
             </Paper>
@@ -124,21 +209,65 @@ export default function DispatchMessagePage() {
                 <DetailRow
                     icon={MapPin}
                     label="Location"
-                    value="Barangay San Isidro"
+                    value={incident.zone_name || incident.camera_name || 'Unknown location'}
                 />
 
                 <Divider />
                 <DetailRow
-                    icon={Flame}
+                    icon={IncidentTypeIcon}
                     label="Incident Type"
-                    value="Fire"
+                    value={incident.incident_type.replace(/_/g, ' ')}
                 />
 
                 <Divider />
                 <DetailRow
-                    icon={UserSquare2}
+                    icon={ShieldAlert}
+                    label="Severity"
+                    value={incident.severity}
+                    iconColor={SEVERITY_COLORS[incident.severity] || theme.colors.orange[6]}
+                />
+
+                <Divider />
+                <DetailRow
+                    icon={Hash}
                     label="Incident No."
-                    value="INC-2026-000123"
+                    value={formatIncidentId(incident.id)}
+                />
+
+                <Divider />
+                <DetailRow
+                    icon={Activity}
+                    label="Status"
+                    value={incident.status.replace(/_/g, ' ')}
+                    iconColor={STATUS_COLORS[incident.status] || theme.colors.orange[6]}
+                />
+
+                <Divider />
+                <DetailRow
+                    icon={Clock}
+                    label="Reported Time"
+                    value={formatDate(incident.detected_at)}
+                />
+
+                <Divider />
+                <DetailRow
+                    icon={Camera}
+                    label="Camera"
+                    value={incident.camera_name || 'N/A'}
+                />
+
+                <Divider />
+                <DetailRow
+                    icon={Gauge}
+                    label="Confidence"
+                    value={formatConfidence(incident.confidence_score)}
+                />
+
+                <Divider />
+                <DetailRow
+                    icon={AlignLeft}
+                    label="Description"
+                    value={incident.description || 'N/A'}
                 />
             </Stack>
         </Container>

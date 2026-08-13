@@ -2,6 +2,7 @@ import logging
 from datetime import datetime
 from django.utils import timezone
 from django.db import transaction
+from django.db.models import Q
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
 from rest_framework import viewsets, status
@@ -9,13 +10,15 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
+from apps.accounts.models import User
 from apps.accounts.permissions import CanDispatch
 from .filters import DispatchFilter
-from .models import Dispatcher, Dispatch, IncidentTimeline
+from .models import Dispatcher, Dispatch, DispatchMessage, IncidentTimeline
 from .serializers import (
     DispatcherSerializer,
     DispatchSerializer,
     DispatchStatusSerializer,
+    DispatchMessageSerializer,
     IncidentTimelineSerializer,
 )
 
@@ -31,6 +34,17 @@ def broadcast_dispatch(action_type, dispatch_data):
         )
     except Exception as e:
         logger.warning("Failed to broadcast dispatch: %s", e)
+
+
+def broadcast_message(message):
+    try:
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "incidents",
+            {"type": "message_new", "payload": DispatchMessageSerializer(message).data},
+        )
+    except Exception as e:
+        logger.warning("Failed to broadcast dispatch message: %s", e)
 
 
 class DispatcherViewSet(viewsets.ModelViewSet):
@@ -173,3 +187,28 @@ class IncidentTimelineViewSet(viewsets.ReadOnlyModelViewSet):
         if incident_id:
             qs = qs.filter(incident_id=incident_id)
         return qs
+
+
+class DispatchMessageViewSet(viewsets.ReadOnlyModelViewSet):
+    serializer_class = DispatchMessageSerializer
+    permission_classes = [IsAuthenticated]
+
+    def get_queryset(self):
+        qs = DispatchMessage.objects.select_related(
+            "incident",
+            "incident__camera",
+            "incident__zone",
+            "recipient",
+        ).order_by("-created_at")
+        user = self.request.user
+        if user.role == User.Role.TANOD:
+            qs = qs.filter(Q(recipient__isnull=True) | Q(recipient=user))
+        return qs
+
+    @action(detail=True, methods=["post"], url_path="mark-read")
+    def mark_read(self, request, pk=None) -> Response:
+        message = self.get_object()
+        message.is_read = True
+        message.read_at = timezone.now()
+        message.save()
+        return Response(self.get_serializer(message).data)

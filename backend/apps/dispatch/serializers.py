@@ -1,5 +1,6 @@
 from rest_framework import serializers
-from .models import Dispatcher, Dispatch, IncidentTimeline
+from apps.incidents.serializers import IncidentSerializer
+from .models import Dispatcher, Dispatch, DispatchMessage, IncidentTimeline
 
 
 class DispatcherSerializer(serializers.ModelSerializer):
@@ -58,6 +59,18 @@ class DispatchSerializer(serializers.ModelSerializer):
 class DispatchStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=Dispatch.Status.choices)
     notes = serializers.CharField(required=False, allow_blank=True)
+
+
+class DispatchMessageSerializer(serializers.ModelSerializer):
+    incident_data = IncidentSerializer(source="incident", read_only=True)
+
+    class Meta:
+        model = DispatchMessage
+        fields = [
+            "id", "incident", "incident_data", "title", "body",
+            "recipient", "is_read", "read_at", "created_at",
+        ]
+        read_only_fields = ["id", "created_at", "read_at"]
 
 
 class IncidentTimelineSerializer(serializers.ModelSerializer):

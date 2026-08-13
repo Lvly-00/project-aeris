@@ -283,6 +283,18 @@ export interface IncidentTimelineEntry {
   created_at: string;
 }
 
+export interface DispatchMessage {
+  id: number;
+  incident: number;
+  incident_data: Incident;
+  title: string;
+  body: string;
+  recipient: number | null;
+  is_read: boolean;
+  read_at: string | null;
+  created_at: string;
+}
+
 // Audit types
 export type AuditAction =
   | 'Login' | 'Logout' | 'Incident_Created' | 'Incident_Verified'

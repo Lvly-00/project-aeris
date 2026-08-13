@@ -252,6 +252,12 @@ export const dispatchAPI = {
     api.get('/dispatch/timeline/', { params: { incident: incidentId } }),
 };
 
+export const dispatchMessagesAPI = {
+  list: (params?: any) => api.get('/dispatch/messages/', { params }),
+  get: (id: number) => api.get(`/dispatch/messages/${id}/`),
+  markRead: (id: number) => api.post(`/dispatch/messages/${id}/mark-read/`),
+};
+
 export const auditAPI = {
   list: (params?: any) => api.get('/audit/', { params }),
   recent: () => api.get('/audit/recent/'),

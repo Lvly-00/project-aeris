@@ -9,8 +9,11 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
+from apps.accounts.models import User
 from apps.cameras.models import Camera
-from apps.dispatch.models import IncidentTimeline
+from apps.dispatch.models import DispatchMessage, IncidentTimeline
+from apps.dispatch.serializers import DispatchMessageSerializer
+from apps.dispatch.views import broadcast_message
 from apps.notifications.models import Notification
 from apps.notifications.serializers import NotificationSerializer
 from .filters import IncidentFilter
@@ -41,12 +44,19 @@ def broadcast_incident(event_type, incident_data):
         logger.error(f"WebSocket Broadcast Failed: {e}")
 
 def broadcast_notification(notification):
+    """
+    Push a notification to the user it is addressed to. Every notification
+    has a recipient, so it is sent to that user's private group
+    (user_{id}) — admins and tanods never receive each other's toasts.
+    """
     try:
         channel_layer = get_channel_layer()
+        recipient_id = getattr(notification, "recipient_id", None)
+        group = f"user_{recipient_id}" if recipient_id else "incidents"
         async_to_sync(channel_layer.group_send)(
-            "incidents",
+            group,
             {
-                "type": "notification_new",
+                "type": "user_notification_new",
                 "payload": NotificationSerializer(notification).data,
             },
         )
@@ -55,27 +65,96 @@ def broadcast_notification(notification):
 
 def create_incident_notification(incident):
     """
-    Create an Alert notification for a detected incident and
-    push it in real-time to all connected clients.
+    Create an Alert notification for a detected incident and push it
+    in real-time to all connected clients. Notifications are sent per
+    admin/operator user (role-specific) so tanods only receive dispatch
+    notifications — not the admin's incident alerts.
     """
     priority = (
         "High" if incident.confidence_score >= 0.8 else "Medium"
     )
 
-    notification = Notification.objects.create(
-        incident=incident,
-        title=f"{incident.incident_type} Detected",
-        message=(
-            incident.description
-            or f"{incident.incident_type} detected"
-        ),
-        notification_type=Notification.NotificationType.ALERT,
-        priority=priority,
-    )
+    for recipient in User.objects.filter(
+        role__in=[User.Role.ADMIN, User.Role.OPERATOR]
+    ):
+        notification = Notification.objects.create(
+            incident=incident,
+            recipient=recipient,
+            title=f"{incident.incident_type} Detected",
+            message=(
+                incident.description
+                or f"{incident.incident_type} detected"
+            ),
+            notification_type=Notification.NotificationType.ALERT,
+            priority=priority,
+        )
 
-    broadcast_notification(notification)
+        broadcast_notification(notification)
 
     return notification
+
+
+def incident_location(incident):
+    """Human readable location for an incident."""
+    if incident.zone:
+        return str(incident.zone)
+    if incident.camera and incident.camera.location_name:
+        return incident.camera.location_name
+    if incident.location_lat is not None:
+        return f"{incident.location_lat:.4f}, {incident.location_lng:.4f}"
+    return "Unknown location"
+
+
+def incident_label(incident):
+    return incident.incident_type.replace("_", " ")
+
+
+def create_dispatch_message_and_notifications(incident, user):
+    """
+    Called when an incident is dispatched:
+    - broadcasts a DispatchMessage to all tanods (realtime message inbox)
+    - creates dispatch notifications for tanods only (admins keep the
+      "Detected" alerts; dispatch notifications are tanod-only)
+    """
+    location = incident_location(incident)
+    incident_no = f"INC-2026-{str(incident.id).zfill(6)}"
+    label = incident_label(incident)
+    priority = (
+        Notification.Priority.HIGH
+        if incident.severity in ("High", "Critical")
+        else Notification.Priority.MEDIUM
+    )
+
+    # 1) Dispatch message broadcast to all tanods
+    message = DispatchMessage.objects.create(
+        incident=incident,
+        title=f"{label.title()} Dispatch",
+        body=(
+            f"A {label} incident has been reported at {location} "
+            f"(Incident No. {incident_no}). All available Barangay Tanods "
+            "are ordered to proceed immediately to the barangay hall for "
+            "briefing and to respond to the incident."
+        ),
+        recipient=None,
+    )
+    broadcast_message(message)
+
+    # 2) Dispatch notifications — tanod users only
+    tanod_users = User.objects.filter(role=User.Role.TANOD)
+    for tanod in tanod_users:
+        tanod_notification = Notification.objects.create(
+            incident=incident,
+            recipient=tanod,
+            title=f"New Dispatch: {label.title()}",
+            message=(
+                f"You have been dispatched to a {label} incident at {location}. "
+                "Proceed to the barangay hall for briefing and respond immediately."
+            ),
+            notification_type=Notification.NotificationType.INFO,
+            priority=priority,
+        )
+        broadcast_notification(tanod_notification)
+
 
 class IncidentViewSet(viewsets.ModelViewSet):
     queryset = Incident.objects.select_related(
@@ -227,6 +306,11 @@ class IncidentViewSet(viewsets.ModelViewSet):
             incident.review_notes = (incident.review_notes + "\n" + notes).strip()
 
         incident.save()
+
+        # Automatically send a dispatch message + role-specific notifications
+        # to the tanods when the incident is dispatched by the admin.
+        if new_status == Incident.Status.DISPATCHED:
+            create_dispatch_message_and_notifications(incident, user)
 
         # Broadcast Update to Phone App
         result = IncidentSerializer(

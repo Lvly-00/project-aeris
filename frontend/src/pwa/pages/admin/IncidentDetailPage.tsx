@@ -205,7 +205,8 @@ export default function IncidentDetailPage() {
    * Dismissed incidents show a red Detected -> Dismissed timeline,
    * everything else shows the full active flow.
    */
-  const timelineSteps = isDismissed
+  type TimelineStep = { label: string; color?: string; done?: boolean };
+  const timelineSteps: TimelineStep[] = isDismissed
     ? [
       { label: 'Detected', color: 'red' },
       { label: 'Dismissed', color: 'red' },

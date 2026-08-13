@@ -10,6 +10,7 @@ class IncidentConsumer(AsyncJsonWebsocketConsumer):
 
     async def connect(self):
         self.incident_group = "incidents"
+        self.user_group = None
 
         # JWT/auth middleware should populate this
         self.user = self.scope.get("user")
@@ -26,6 +27,14 @@ class IncidentConsumer(AsyncJsonWebsocketConsumer):
 
         await self.channel_layer.group_add(
             self.incident_group,
+            self.channel_name,
+        )
+
+        # Per-user group so role-specific notifications only reach
+        # the user they are addressed to (admin vs tanod never mix).
+        self.user_group = f"user_{self.user.id}"
+        await self.channel_layer.group_add(
+            self.user_group,
             self.channel_name,
         )
 
@@ -52,6 +61,12 @@ class IncidentConsumer(AsyncJsonWebsocketConsumer):
         if hasattr(self, "incident_group"):
             await self.channel_layer.group_discard(
                 self.incident_group,
+                self.channel_name,
+            )
+
+        if self.user_group:
+            await self.channel_layer.group_discard(
+                self.user_group,
                 self.channel_name,
             )
 
@@ -82,6 +97,19 @@ class IncidentConsumer(AsyncJsonWebsocketConsumer):
     async def notification_new(self, event):
         await self.send_json({
             "action": "notification_new",
+            "payload": event["payload"],
+        })
+
+    async def user_notification_new(self, event):
+        # Delivered only to the user group the notification is addressed to.
+        await self.send_json({
+            "action": "notification_new",
+            "payload": event["payload"],
+        })
+
+    async def message_new(self, event):
+        await self.send_json({
+            "action": "message_new",
             "payload": event["payload"],
         })
 

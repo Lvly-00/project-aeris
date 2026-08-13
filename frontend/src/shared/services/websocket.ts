@@ -143,5 +143,16 @@ export class WebSocketService {
     if (action === 'dispatch_update') {
       queryClient.invalidateQueries({ queryKey: ['dispatches'] });
     }
+
+    if (action === 'message_new') {
+      queryClient.invalidateQueries({ queryKey: ['dispatch-messages'] });
+      if (data.payload?.title) {
+        notifications.show({
+          title: data.payload.title,
+          message: data.payload.body || '',
+          color: 'orange',
+        });
+      }
+    }
   }
 }

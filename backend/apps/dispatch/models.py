@@ -100,6 +100,39 @@ class Dispatch(models.Model):
         return f"{self.dispatcher} -> {self.incident} [{self.status}]"
 
 
+class DispatchMessage(models.Model):
+    """
+    A dispatch message sent to Barangay Tanods when an incident is dispatched.
+
+    `recipient` is optional; when NULL the message is broadcast to all tanods.
+    """
+    incident = models.ForeignKey(
+        "incidents.Incident",
+        on_delete=models.CASCADE,
+        related_name="dispatch_messages",
+    )
+    title = models.CharField(max_length=300)
+    body = models.TextField()
+    recipient = models.ForeignKey(
+        settings.AUTH_USER_MODEL,
+        on_delete=models.CASCADE,
+        null=True,
+        blank=True,
+        related_name="dispatch_messages",
+    )
+    is_read = models.BooleanField(default=False)
+    read_at = models.DateTimeField(null=True, blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        verbose_name = "Dispatch Message"
+        verbose_name_plural = "Dispatch Messages"
+        ordering = ["-created_at"]
+
+    def __str__(self) -> str:
+        return f"{self.title} [{self.created_at}]"
+
+
 class IncidentTimeline(models.Model):
     class EventType(models.TextChoices):
         DETECTED = "Detected", "Detected"

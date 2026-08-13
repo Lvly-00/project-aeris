@@ -44,7 +44,7 @@ export const IncidentCard = ({
             disabled={!unread}
             color="orange"
             offset={12}
-            position="top-left"
+            position="top-start"
             size={12}
             withBorder
             processing={isNew} // Adds a subtle pulse animation if the item is new

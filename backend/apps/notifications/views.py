@@ -18,9 +18,9 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         qs = Notification.objects.select_related("incident").all()
         user = self.request.user
-        qs = qs.filter(
-            models.Q(recipient=user) | models.Q(recipient__isnull=True)
-        )
+        # Strictly role-scoped: users only see notifications addressed to
+        # them. Admin/operator and tanod notifications never overlap.
+        qs = qs.filter(models.Q(recipient=user))
         is_read = self.request.query_params.get("is_read")
         if is_read is not None:
             qs = qs.filter(is_read=is_read.lower() == "true")
