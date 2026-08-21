@@ -35,10 +35,10 @@ export default function DashboardPage() {
             icon={<ShieldAlert size={32} color="#f15a24" />}
           />
           <StatCard
-            label="Total Reports"
+            label="Total Incidents"
             value="10"
-            description="Manage and monitor all registered reports."
-            icon={<FileWarning size={32} color="#f15a24" />}
+            description="Manage and monitor all reported incidents."
+            icon={<FileText size={32} color="#f15a24" />}
           />
         </SimpleGrid>
 

@@ -81,7 +81,7 @@ class CameraInfoView(APIView):
     Return minimal camera config for the AI service to self-register.
 
     Called by CameraManager.try_auto_register() inside the AI service.
-    Response shape: {id, rtsp_url, stream_type, is_active}
+    Response shape: {id, stream_url, stream_type, is_active}
     """
 
     authentication_classes = []          # no JWT — AI service doesn't have a user token
@@ -95,7 +95,7 @@ class CameraInfoView(APIView):
             cam = (
                 Camera.objects
                 .filter(id=camera_id)
-                .values("id", "rtsp_url", "stream_type", "is_active")
+                .values("id", "stream_url", "stream_type", "is_active")
                 .first()
             )
         except Exception:

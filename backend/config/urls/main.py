@@ -48,13 +48,13 @@ def _ensure_camera_registered(camera_id: int) -> bool:
         try:
             from apps.cameras.models import Camera
             cam = Camera.objects.filter(id=camera_id, is_active=True).first()
-            if not cam or cam.stream_type != "RTSP" or not cam.rtsp_url:
+            if not cam or cam.stream_type != "RTSP" or not cam.stream_url:
                 with _register_lock:
                     _registered_cameras.add(camera_id)
                 return
             resp = http_requests.post(
                 f"{AI_SERVICE_URL}/cameras/register",
-                json={"camera_id": camera_id, "source": cam.rtsp_url, "stream_type": "RTSP"},
+                json={"camera_id": camera_id, "source": cam.stream_url, "stream_type": "RTSP"},
                 headers={"X-API-Key": os.environ.get("AI_SERVICE_API_KEY", "")},
                 timeout=3,
             )

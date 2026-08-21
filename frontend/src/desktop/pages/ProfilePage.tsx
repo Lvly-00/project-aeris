@@ -129,7 +129,6 @@ export default function ProfilePage() {
       const payload: any = {
         first_name: userData.first_name,
         last_name: userData.last_name,
-        username: userData.username,
         email: userData.email,
       };
       if (isChangingPassword) payload.password = passwords.password;
@@ -278,10 +277,7 @@ export default function ProfilePage() {
                 </Grid>
 
                 <Grid grow>
-                  <Grid.Col span={6}>
-                    <TextInput label="USERNAME" readOnly={!isEditing} value={userData.username || ''} onChange={(e) => setUserData({ ...userData, username: e.target.value })} leftSection={<UserIcon size={16} color="var(--mantine-color-orange-filled)" />} styles={inputStyles} />
-                  </Grid.Col>
-                  <Grid.Col span={6}>
+                  <Grid.Col span={12}>
                     <TextInput label="EMAIL" readOnly={!isEditing} value={userData.email || ''} onChange={(e) => setUserData({ ...userData, email: e.target.value })} leftSection={<Mail size={16} color="var(--mantine-color-orange-filled)" />} styles={inputStyles} />
                   </Grid.Col>
                 </Grid>

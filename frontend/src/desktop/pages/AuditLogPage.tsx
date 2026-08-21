@@ -34,8 +34,8 @@ export default function AuditLogPage() {
   const [status, setStatus] = useState<string | null>(null);
   const [debouncedSearch] = useDebouncedValue(search, 400);
 
-  const ACTION_OPTIONS: AuditAction[] = ['Login', 'Logout', 'Incident_Created', 'Incident_Verified', 'Incident_Dispatched', 'Camera_Created', 'User_Created', 'Report_Generated', 'AI_Config_Changed'];
-  const MODULE_OPTIONS = [{ label: 'Authentication', value: 'User' }, { label: 'Incidents', value: 'Incident' }, { label: 'Cameras', value: 'Camera' }, { label: 'Reports', value: 'Report' }, { label: 'System', value: 'Configuration' }];
+  const ACTION_OPTIONS: AuditAction[] = ['Login', 'Logout', 'Incident_Created', 'Incident_Verified', 'Incident_Dispatched', 'Camera_Created', 'User_Created', 'AI_Config_Changed'];
+  const MODULE_OPTIONS = [{ label: 'Authentication', value: 'User' }, { label: 'Incidents', value: 'Incident' }, { label: 'Cameras', value: 'Camera' }, { label: 'System', value: 'Configuration' }];
 
   const { start, end } = useMemo(() => getDateRange(dateRangeKey), [dateRangeKey]);
 

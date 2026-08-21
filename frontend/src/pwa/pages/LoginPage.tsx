@@ -27,10 +27,10 @@ export default function LoginPage() {
     const { login } = useAuth();
 
     const form = useForm({
-        initialValues: { username: '', password: '', remember: false },
+        initialValues: { email: '', password: '', remember: false },
         validate: {
-            username: (v) => (!v ? 'Required' : null),
-            password: (v) => (!v ? 'Required' : null),
+            email: (v: string) => (!v ? 'Required' : /^\S+@\S+$/.test(v) ? null : 'Invalid email'),
+            password: (v: string) => (!v ? 'Required' : null),
         },
     });
 
@@ -121,10 +121,10 @@ export default function LoginPage() {
                             )}
 
                             <TextInput
-                                placeholder="Username / Email"
+                                placeholder="Email"
                                 radius="md"
                                 size="md"
-                                {...form.getInputProps('username')}
+                                {...form.getInputProps('email')}
                                 styles={{ input: { height: rem(50) } }}
                             />
 

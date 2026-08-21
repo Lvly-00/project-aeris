@@ -18,9 +18,9 @@ export function SudoProtectedRoute({ children }: { children: React.ReactNode }) 
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 2. Not an Admin OR in Operator Mode? 
+  // 2. Not a CCTV Chief OR in Operator Mode? 
   // This is the fix: if session resets viewMode to Operator, this triggers immediately.
-  if (isDesktop && user?.role === 'Admin' && viewMode !== 'Admin') {
+  if (isDesktop && user?.role === 'CCTV Chief' && viewMode !== 'Admin') {
     return <Navigate to="/unauthorized" replace />;
   }
 

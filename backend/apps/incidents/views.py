@@ -1,6 +1,5 @@
 import logging
-from datetime import timedelta
-from django.db.models import Count, Q, F, Avg, DurationField, ExpressionWrapper
+from django.db.models import Count
 from django.utils import timezone
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -12,8 +11,7 @@ from rest_framework.permissions import IsAuthenticated
 from apps.accounts.models import User
 from apps.cameras.models import Camera
 from apps.dispatch.models import DispatchMessage, IncidentTimeline
-from apps.dispatch.serializers import DispatchMessageSerializer
-from apps.dispatch.views import broadcast_message
+from apps.lookups.models import IncidentStatus, IncidentType, NotificationType
 from apps.notifications.models import Notification
 from apps.notifications.serializers import NotificationSerializer
 from .filters import IncidentFilter
@@ -36,7 +34,7 @@ def broadcast_incident(event_type, incident_data):
         async_to_sync(channel_layer.group_send)(
             "incidents",
             {
-                "type": event_type, 
+                "type": event_type,
                 "payload": incident_data,
             },
         )
@@ -73,19 +71,21 @@ def create_incident_notification(incident):
     priority = (
         "High" if incident.confidence_score >= 0.8 else "Medium"
     )
+    alert_type = NotificationType.objects.get(name="Alert")
+    type_name = incident.incident_type.name
 
     for recipient in User.objects.filter(
-        role__in=[User.Role.ADMIN, User.Role.OPERATOR]
+        role__name__in=["CCTV Chief", "CCTV Operator"]
     ):
         notification = Notification.objects.create(
             incident=incident,
             recipient=recipient,
-            title=f"{incident.incident_type} Detected",
+            title=f"{type_name} Detected",
             message=(
                 incident.description
-                or f"{incident.incident_type} detected"
+                or f"{type_name} detected"
             ),
-            notification_type=Notification.NotificationType.ALERT,
+            notification_type=alert_type,
             priority=priority,
         )
 
@@ -96,17 +96,13 @@ def create_incident_notification(incident):
 
 def incident_location(incident):
     """Human readable location for an incident."""
-    if incident.zone:
-        return str(incident.zone)
     if incident.camera and incident.camera.location_name:
         return incident.camera.location_name
-    if incident.location_lat is not None:
-        return f"{incident.location_lat:.4f}, {incident.location_lng:.4f}"
     return "Unknown location"
 
 
 def incident_label(incident):
-    return incident.incident_type.replace("_", " ")
+    return incident.incident_type.name.replace("_", " ")
 
 
 def create_dispatch_message_and_notifications(incident, user):
@@ -124,6 +120,7 @@ def create_dispatch_message_and_notifications(incident, user):
         if incident.severity in ("High", "Critical")
         else Notification.Priority.MEDIUM
     )
+    info_type = NotificationType.objects.get(name="Info")
 
     # 1) Dispatch message broadcast to all tanods
     message = DispatchMessage.objects.create(
@@ -135,12 +132,14 @@ def create_dispatch_message_and_notifications(incident, user):
             "are ordered to proceed immediately to the barangay hall for "
             "briefing and to respond to the incident."
         ),
+        dispatched_by=user,
         recipient=None,
     )
+    from apps.dispatch.views import broadcast_message
     broadcast_message(message)
 
     # 2) Dispatch notifications — tanod users only
-    tanod_users = User.objects.filter(role=User.Role.TANOD)
+    tanod_users = User.objects.filter(role__name="Barangay Tanod")
     for tanod in tanod_users:
         tanod_notification = Notification.objects.create(
             incident=incident,
@@ -150,7 +149,7 @@ def create_dispatch_message_and_notifications(incident, user):
                 f"You have been dispatched to a {label} incident at {location}. "
                 "Proceed to the barangay hall for briefing and respond immediately."
             ),
-            notification_type=Notification.NotificationType.INFO,
+            notification_type=info_type,
             priority=priority,
         )
         broadcast_notification(tanod_notification)
@@ -158,10 +157,11 @@ def create_dispatch_message_and_notifications(incident, user):
 
 class IncidentViewSet(viewsets.ModelViewSet):
     queryset = Incident.objects.select_related(
-        "camera", "zone", "recorded_by", "verified_by", "dismissed_by"
+        "camera", "incident_type", "status",
+        "recorded_by", "verified_by", "dismissed_by",
     ).all()
     permission_classes = [IsAuthenticated]
-    search_fields = ["incident_type", "description", "status"]
+    search_fields = ["incident_type__name", "description", "status__name"]
     filterset_class = IncidentFilter
 
     def get_serializer_class(self):
@@ -177,7 +177,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
         IncidentTimeline.objects.create(
             incident=incident,
             event_type=IncidentTimeline.EventType.DETECTED,
-            title=f"{incident.incident_type} detected",
+            title=f"{incident.incident_type.name} detected",
             actor=self.request.user,
         )
 
@@ -192,7 +192,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
         )
 
         create_incident_notification(incident)
-        
+
     @action(
     detail=False,
     methods=["post"],
@@ -208,6 +208,14 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 {
                     "error": "incident_type is required"
                 },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        try:
+            type_obj = IncidentType.objects.get(name=incident_type)
+        except IncidentType.DoesNotExist:
+            return Response(
+                {"error": f"Unknown incident_type '{incident_type}'"},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 
@@ -232,15 +240,12 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 )
 
         incident = Incident.objects.create(
-            incident_type=incident_type,
+            incident_type=type_obj,
             severity="Medium" if confidence < 0.8 else "High",
-            status=Incident.Status.DETECTED,
+            status=IncidentStatus.objects.get(name="Detected"),
             camera=camera,
-            zone=camera.zone if camera else None,
-            location_lat=camera.latitude if camera else None,
-            location_lng=camera.longitude if camera else None,
             confidence_score=confidence,
-            description=f"AI detected {incident_type} from {camera.name if camera else 'simulation'}",
+            description=f"AI detected {type_obj.name} from {camera.name if camera else 'simulation'}",
             recorded_by=request.user,
         )
 
@@ -266,51 +271,68 @@ class IncidentViewSet(viewsets.ModelViewSet):
         incident = self.get_object()
         serializer = IncidentStatusUpdateSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        
+
         new_status = serializer.validated_data["status"]
         notes = serializer.validated_data.get("notes", "")
         user = request.user
         now = timezone.now()
 
+        current_status = incident.status.name
+
         # ENFORCED SIMPLIFIED STATE MACHINE
         allowed_transitions = {
-            Incident.Status.DETECTED: [Incident.Status.VERIFIED, Incident.Status.DISMISSED],
-            Incident.Status.VERIFIED: [Incident.Status.DISPATCHED, Incident.Status.DISMISSED],
-            Incident.Status.DISPATCHED: [Incident.Status.RESOLVED],
-            Incident.Status.RESOLVED: [],
-            Incident.Status.DISMISSED: [Incident.Status.DETECTED],
+            "Detected": ["Verified", "Dismissed"],
+            "Verified": ["Dispatched", "Dismissed"],
+            "Dispatched": ["Resolved"],
+            "Resolved": [],
+            "Dismissed": ["Detected"],
         }
 
-        if new_status not in allowed_transitions.get(incident.status, []):
+        if new_status not in allowed_transitions.get(current_status, []):
             return Response(
-                {"error": f"Cannot transition from {incident.status} to {new_status}"},
+                {"error": f"Cannot transition from {current_status} to {new_status}"},
                 status=400
             )
 
         # Update fields
-        incident.status = new_status
-        if new_status == Incident.Status.VERIFIED:
+        incident.status = IncidentStatus.objects.get(name=new_status)
+        if new_status == "Verified":
             incident.verified_at = now
             incident.verified_by = user
-        elif new_status == Incident.Status.DISPATCHED:
+        elif new_status == "Dispatched":
             incident.dispatched_at = now
-        elif new_status == Incident.Status.RESOLVED:
+        elif new_status == "Resolved":
             incident.resolved_at = now
             if incident.detected_at:
-                incident.duration = now - incident.detected_at
-        elif new_status == Incident.Status.DISMISSED:
+                incident.duration = str(now - incident.detected_at)
+        elif new_status == "Dismissed":
             incident.dismissed_at = now
             incident.dismissed_by = user
 
-        if notes:
-            incident.review_notes = (incident.review_notes + "\n" + notes).strip()
-
         incident.save()
+
+        # Notes are recorded as timeline entries (review_notes was removed).
+        if notes:
+            IncidentTimeline.objects.create(
+                incident=incident,
+                event_type=IncidentTimeline.EventType.NOTE_ADDED,
+                title="Note added",
+                description=notes,
+                actor=user,
+            )
 
         # Automatically send a dispatch message + role-specific notifications
         # to the tanods when the incident is dispatched by the admin.
-        if new_status == Incident.Status.DISPATCHED:
+        if new_status == "Dispatched":
             create_dispatch_message_and_notifications(incident, user)
+
+        # Timeline entry for the transition itself
+        IncidentTimeline.objects.create(
+            incident=incident,
+            event_type=new_status,
+            title=f"Incident marked as {new_status.lower()}",
+            actor=user,
+        )
 
         # Broadcast Update to Phone App
         result = IncidentSerializer(
@@ -329,18 +351,17 @@ class IncidentViewSet(viewsets.ModelViewSet):
     def dashboard_stats(self, request) -> Response:
         base = Incident.objects.all()
         return Response({
-            "active_incidents": base.exclude(status__in=["Resolved", "Dismissed"]).count(),
+            "active_incidents": base.exclude(status__name__in=["Resolved", "Dismissed"]).count(),
             "total_incidents": base.count(),
             "today_incidents": base.filter(detected_at__date=timezone.now().date()).count(),
             "total_cameras": Camera.objects.count(),
-            "by_status": base.values("status").annotate(count=Count("id")),
-            "by_type": base.values("incident_type").annotate(count=Count("id")),
+            "by_status": base.values("status__name").annotate(count=Count("id")),
+            "by_type": base.values("incident_type__name").annotate(count=Count("id")),
         })
 
     @action(detail=True, methods=["get"], url_path="timeline")
     def timeline(self, request, pk=None) -> Response:
-        from apps.dispatch.models import IncidentTimeline as IT
         from apps.dispatch.serializers import IncidentTimelineSerializer
-        qs = IT.objects.select_related("actor").filter(incident_id=pk).order_by("created_at")
+        qs = IncidentTimeline.objects.select_related("actor").filter(incident_id=pk).order_by("created_at")
         serializer = IncidentTimelineSerializer(qs, many=True)
         return Response(serializer.data)

@@ -36,7 +36,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         else:
             ids = serializer.validated_data.get("ids", [])
             count = qs.filter(id__in=ids, is_read=False).update(is_read=True)
-        logger.info("Marked %d notifications as read for user %s", count, request.user.username)
+        logger.info("Marked %d notifications as read for user %s", count, request.user.email)
         return Response({"marked_read": count})
 
     @action(detail=False, methods=["post"], url_path="mark-all-read")
@@ -44,7 +44,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         count = self.get_queryset().filter(is_read=False).update(is_read=True)
         logger.info(
             "Marked all %d notifications as read for user %s",
-            count, request.user.username,
+            count, request.user.email,
         )
         return Response({"marked_read": count})
 

@@ -13,11 +13,6 @@ class AuditLog(models.Model):
         INCIDENT_RESOLVED = "Incident_Resolved", "Incident Resolved"
         INCIDENT_ARCHIVED = "Incident_Archived", "Incident Archived"
         INCIDENT_UPDATED = "Incident_Updated", "Incident Updated"
-        DISPATCH_ACCEPTED = "Dispatch_Accepted", "Dispatch Accepted"
-        DISPATCH_REJECTED = "Dispatch_Rejected", "Dispatch Rejected"
-        DISPATCH_STATUS = "Dispatch_Status", "Dispatch Status Changed"
-        RECOMMENDATION_ACCEPTED = "Recommendation_Accepted", "Recommendation Accepted"
-        RECOMMENDATION_REJECTED = "Recommendation_Rejected", "Recommendation Rejected"
         CAMERA_CREATED = "Camera_Created", "Camera Created"
         CAMERA_UPDATED = "Camera_Updated", "Camera Updated"
         CAMERA_DELETED = "Camera_Deleted", "Camera Deleted"
@@ -25,8 +20,6 @@ class AuditLog(models.Model):
         USER_UPDATED = "User_Updated", "User Updated"
         USER_DEACTIVATED = "User_Deactivated", "User Deactivated"
         AI_CONFIG_CHANGED = "AI_Config_Changed", "AI Configuration Changed"
-        REPORT_GENERATED = "Report_Generated", "Report Generated"
-        REPORT_APPROVED = "Report_Approved", "Report Approved"
         SETTINGS_CHANGED = "Settings_Changed", "Settings Changed"
 
     user = models.ForeignKey(

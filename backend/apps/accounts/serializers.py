@@ -2,39 +2,42 @@ import logging
 from rest_framework import serializers
 from django.contrib.auth import get_user_model, authenticate
 
+from apps.lookups.models import Role
+
 User = get_user_model()
 logger = logging.getLogger(__name__)
 
 
 class UserSerializer(serializers.ModelSerializer):
-    # Added these to support the Profile UI
-    role_display = serializers.CharField(source='get_role_display', read_only=True)
+    role = serializers.SlugRelatedField(
+        slug_field="name",
+        queryset=Role.objects.all(),
+    )
+    role_display = serializers.CharField(source="role.name", read_only=True)
     full_name = serializers.SerializerMethodField()
 
     class Meta:
         model = User
         fields = [
-            "id", "username", "email", "first_name", "last_name", "full_name", "password" , 
-            "role", "role_display", "phone_number", "barangay_zone", 
-            "is_active", "date_joined",'profile_picture', 
-            "two_factor_enabled", "preferred_language"
+            "id", "email", "first_name", "last_name", "full_name", "password",
+            "role", "role_display",
+            "is_active", "created_at", "profile_picture",
+            "two_factor_enabled", "receive_notifications", "preferred_language",
         ]
-        read_only_fields = ["id", "is_active", "date_joined", "role_display"]
+        read_only_fields = ["id", "is_active", "created_at", "role_display"]
         extra_kwargs = {
-            'password': {'write_only': True, 'required': False} 
+            "password": {"write_only": True, "required": False}
         }
 
-
-
     def get_full_name(self, obj):
-        # Returns "Juan Dela Cruz" or just the username if names are empty
+        # Returns "Juan Dela Cruz" or just the email if names are empty
         full_name = f"{obj.first_name} {obj.last_name}".strip()
-        return full_name or obj.username
-    
+        return full_name or obj.email
+
     def update(self, instance, validated_data):
         # 1. Catch the password and hash it properly
-        password = validated_data.pop('password', None)
-        
+        password = validated_data.pop("password", None)
+
         # 2. Update all other fields automatically
         for attr, value in validated_data.items():
             setattr(instance, attr, value)
@@ -48,15 +51,18 @@ class UserSerializer(serializers.ModelSerializer):
 
 
 class RegisterSerializer(serializers.ModelSerializer):
+    role = serializers.SlugRelatedField(
+        slug_field="name",
+        queryset=Role.objects.all(),
+    )
     password = serializers.CharField(write_only=True, min_length=8)
     password2 = serializers.CharField(write_only=True, min_length=8)
 
     class Meta:
         model = User
         fields = [
-            "username", "email", "password", "password2",
-            "first_name", "last_name", "role", "phone_number",
-            "barangay_zone",
+            "email", "password", "password2",
+            "first_name", "last_name", "role",
         ]
 
     def validate(self, attrs: dict) -> dict:
@@ -64,13 +70,8 @@ class RegisterSerializer(serializers.ModelSerializer):
             raise serializers.ValidationError({"password2": "Passwords do not match."})
         return attrs
 
-    def validate_username(self, value: str) -> str:
-        if User.objects.filter(username=value).exists():
-            raise serializers.ValidationError("Username already exists.")
-        return value
-
     def validate_email(self, value: str) -> str:
-        if value and User.objects.filter(email=value).exists():
+        if value and User.objects.filter(email__iexact=value).exists():
             raise serializers.ValidationError("Email already in use.")
         return value
 
@@ -79,41 +80,37 @@ class RegisterSerializer(serializers.ModelSerializer):
         user = User(**validated_data)
         user.set_password(password)
         user.save()
-        logger.info("Created user %s with role %s", user.username, user.role)
+        logger.info("Created user %s with role %s", user.email, user.role)
         return user
-
 
 
 class VerifyPasswordSerializer(serializers.Serializer):
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs):
-        request = self.context.get('request')
+        request = self.context.get("request")
         user = request.user
-
-        # Debugging: This will print to your Django terminal
-        print(f"Verifying password for user: {user}") 
 
         if not user or user.is_anonymous:
             raise serializers.ValidationError("Session expired. Please log in again.")
 
-        if not user.check_password(attrs.get('password')):
-            # Logic: user.check_password hashes the input and compares it to the DB
+        if not user.check_password(attrs.get("password")):
             raise serializers.ValidationError("Incorrect password.")
-            
+
         return attrs
 
+
 class LoginSerializer(serializers.Serializer):
-    username = serializers.CharField()
+    email = serializers.EmailField()
     password = serializers.CharField(write_only=True)
 
     def validate(self, attrs: dict) -> dict:
         user = authenticate(
-            username=attrs.get("username"),
+            email=attrs.get("email"),
             password=attrs.get("password"),
         )
         if user is None:
-            raise serializers.ValidationError("Invalid username or password.")
+            raise serializers.ValidationError("Invalid email or password.")
         if not user.is_active:
             raise serializers.ValidationError("User account is disabled.")
         attrs["user"] = user

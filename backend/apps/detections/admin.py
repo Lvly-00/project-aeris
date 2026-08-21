@@ -9,4 +9,4 @@ class DetectionAdmin(admin.ModelAdmin):
         "processed", "frame_timestamp", "created_at",
     ]
     list_filter = ["incident_type", "is_verified", "processed", "camera"]
-    search_fields = ["incident_type"]
+    search_fields = ["incident_type__name"]

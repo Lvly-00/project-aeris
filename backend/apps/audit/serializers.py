@@ -3,7 +3,9 @@ from .models import AuditLog
 
 
 class AuditLogSerializer(serializers.ModelSerializer):
-    username = serializers.CharField(source="user.username", read_only=True)
+    # Kept the "username" key for API compatibility; it now carries
+    # the actor's email since users are identified by email only.
+    username = serializers.CharField(source="user.email", read_only=True)
 
     class Meta:
         model = AuditLog

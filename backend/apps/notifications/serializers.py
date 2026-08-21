@@ -6,6 +6,9 @@ logger = logging.getLogger(__name__)
 
 
 class NotificationSerializer(serializers.ModelSerializer):
+    # Expose the lookup FK as its name so the payload stays string-based.
+    notification_type = serializers.CharField(source="notification_type.name", read_only=True)
+
     class Meta:
         model = Notification
         fields = [

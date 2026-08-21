@@ -27,13 +27,10 @@ urlpatterns = [
 
     # ── App routers ───────────────────────────────────────────────────────────
     path("accounts/", include("apps.accounts.urls")),
-    path("zones/", include("apps.zones.urls")),
     path("cameras/", include("apps.cameras.urls")),
     path("incidents/", include("apps.incidents.urls")),
     path("detections/", include("apps.detections.urls")),
-    path("recommendations/", include("apps.recommendations.urls")),
     path("notifications/", include("apps.notifications.urls")),
-    path("reports/", include("apps.reports.urls")),
     path("analytics/", include("apps.analytics.urls")),
     path("contacts/", include("apps.contacts.urls")),
     path("dispatch/", include("apps.dispatch.urls")),

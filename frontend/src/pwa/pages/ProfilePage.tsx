@@ -132,9 +132,9 @@ export default function ProfilePage() {
                 <Text fw={700} fz="xs" c="dimmed" mb={5}>Language</Text>
                 <Select
                   leftSection={<Globe size={16} />}
-                  value={user?.language || 'English'}
-                  onChange={(val) => handleUpdate('language', val)}
-                  data={['English', 'Tagalog']}
+                  value={user?.preferred_language || 'English'}
+                  onChange={(val) => handleUpdate('preferred_language', val)}
+                  data={['English', 'Filipino']}
                 />
               </Box>
             </Stack>

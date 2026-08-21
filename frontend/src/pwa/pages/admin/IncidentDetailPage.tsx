@@ -87,7 +87,7 @@ const TYPE_INFO: Record<string, { label: string; Icon: any; recommendation: stri
     label: 'SMOKE',
     Icon: CloudFog,
     recommendation: 'Continue Monitoring',
-    responder: 'Tanod',
+    responder: 'Barangay Tanod',
   },
 };
 
@@ -95,11 +95,8 @@ const STATUS_BADGE_COLOR: Record<string, string> = {
   Detected: 'red',
   Verified: 'orange',
   Dispatched: 'blue',
-  Responding: 'cyan',
   Resolved: 'green',
   Dismissed: 'gray',
-  Archived: 'gray',
-  False_Positive: 'brown',
 };
 
 export default function IncidentDetailPage() {
@@ -125,15 +122,45 @@ export default function IncidentDetailPage() {
   const statusMutation = useMutation({
     mutationFn: (newStatus: IncidentStatus) =>
       incidentsAPI.statusTransition(incidentId, newStatus),
+
+    /*
+     * Optimistic update: repaint the UI in the same tick as the click,
+     * before the network round-trip finishes.
+     */
+    onMutate: async (newStatus) => {
+      await queryClient.cancelQueries({ queryKey: ['incident', incidentId] });
+      const previous = queryClient.getQueryData(['incident', incidentId]);
+      queryClient.setQueryData(['incident', incidentId], (old: Incident | undefined) =>
+        old ? { ...old, status: newStatus } : old
+      );
+      return { previous };
+    },
+
     onSuccess: (res) => {
-      queryClient.invalidateQueries({ queryKey: ['incident', incidentId] });
+      // Replace the optimistic data with the server's authoritative record.
+      queryClient.setQueryData(['incident', incidentId], res.data);
+
+      /*
+       * Closed incidents must appear in History right away. Invalidate
+       * directly here — don't rely on the WebSocket broadcast, which can
+       * be missed if the socket reconnects.
+       */
+      if (res.data.status === 'Resolved' || res.data.status === 'Dismissed') {
+        queryClient.invalidateQueries({ queryKey: ['incident-history'] });
+      }
+
       notifications.show({
         title: 'Status Updated',
         message: `Incident marked as ${res.data.status.replace(/_/g, ' ')}`,
         color: 'green',
       });
     },
-    onError: (err: any) => {
+
+    onError: (err: any, _newStatus, context) => {
+      // Roll back to the real state if the server rejected the transition.
+      if (context?.previous) {
+        queryClient.setQueryData(['incident', incidentId], context.previous);
+      }
       notifications.show({
         title: 'Error',
         message: err.response?.data?.error || err.response?.data?.detail || 'Failed to update status',
@@ -184,7 +211,7 @@ export default function IncidentDetailPage() {
 
   const activeStep =
     status === 'Verified' ? 2 :
-      status === 'Dispatched' || status === 'Responding' ? 3 :
+      status === 'Dispatched' ? 3 :
         status === 'Resolved' ? 4 : 1;
 
   const isResolved = status === 'Resolved';
@@ -448,7 +475,7 @@ export default function IncidentDetailPage() {
             <Box style={{ minWidth: 0 }}>
               <Text fz={9} c="dimmed">Location</Text>
               <Text fz={11} fw={700} truncate>
-                {incident.location_lat ? `${incident.location_lat.toFixed(4)}, ${incident.location_lng?.toFixed(4)}` : 'Unknown'}
+                {incident.camera_name || 'Unknown'}
               </Text>
             </Box>
           </Group>

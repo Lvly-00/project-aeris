@@ -31,9 +31,10 @@ export function getStatusColor(status: string): string {
   const colors: Record<string, string> = {
     Detected: 'red',
     Verified: 'orange',
-    Responding: 'blue',
+    Dispatched: 'blue',
     Resolved: 'green',
     Online: 'green',
+    Connecting: 'yellow',
     Offline: 'gray',
     Error: 'red',
     Low: 'gray',

@@ -3,11 +3,6 @@ from django.conf import settings
 
 
 class Notification(models.Model):
-    class NotificationType(models.TextChoices):
-        ALERT = "Alert", "Alert"
-        WARNING = "Warning", "Warning"
-        INFO = "Info", "Info"
-
     class Priority(models.TextChoices):
         LOW = "Low", "Low"
         MEDIUM = "Medium", "Medium"
@@ -23,8 +18,10 @@ class Notification(models.Model):
     )
     title = models.CharField(max_length=300)
     message = models.TextField()
-    notification_type = models.CharField(
-        max_length=10, choices=NotificationType.choices, default=NotificationType.INFO
+    notification_type = models.ForeignKey(
+        "lookups.NotificationType",
+        on_delete=models.PROTECT,
+        related_name="notifications",
     )
     priority = models.CharField(
         max_length=10, choices=Priority.choices, default=Priority.MEDIUM

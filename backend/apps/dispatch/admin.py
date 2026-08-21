@@ -1,20 +1,12 @@
 from django.contrib import admin
-from .models import Dispatcher, Dispatch, IncidentTimeline
+from .models import DispatchMessage, IncidentTimeline
 
 
-@admin.register(Dispatcher)
-class DispatcherAdmin(admin.ModelAdmin):
-    list_display = ["user", "dispatcher_type", "status", "zone", "is_active"]
-    list_filter = ["dispatcher_type", "status", "zone", "is_active"]
-    search_fields = ["user__username", "user__first_name", "user__last_name", "phone_number"]
-
-
-@admin.register(Dispatch)
-class DispatchAdmin(admin.ModelAdmin):
-    list_display = ["incident", "dispatcher", "status", "created_at"]
-    list_filter = ["status", "created_at"]
-    search_fields = ["incident__description", "dispatcher__user__username"]
-    date_hierarchy = "created_at"
+@admin.register(DispatchMessage)
+class DispatchMessageAdmin(admin.ModelAdmin):
+    list_display = ["title", "incident", "dispatched_by", "recipient", "is_read", "created_at"]
+    list_filter = ["is_read", "created_at"]
+    search_fields = ["title", "body"]
 
 
 @admin.register(IncidentTimeline)

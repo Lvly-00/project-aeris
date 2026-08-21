@@ -1,5 +1,6 @@
 import { useEffect, useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
   Container,
   Title,
@@ -30,11 +31,41 @@ import { incidentsAPI } from '../../../shared/services/api';
 
 export default function IncidentsPage() {
   const navigate = useNavigate();
-  const [incidents, setIncidents] = useState<Incident[]>([]);
-  const [loading, setLoading] = useState(true);
+  const queryClient = useQueryClient();
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [deleteSelectedModal, setDeleteSelectedModal] = useState(false);
+
+  /*
+   * Always keep newest incidents first.
+   */
+  const sortLatestFirst = useCallback((items: Incident[]) => {
+    return [...items].sort(
+      (a, b) =>
+        new Date(b.detected_at).getTime() -
+        new Date(a.detected_at).getTime()
+    );
+  }, []);
+
+  /*
+   * Active incidents, kept fresh three ways:
+   *   1. refetch on mount (navigating back from the detail page)
+   *   2. 10s polling safety net
+   *   3. WebSocket events invalidate this key instantly
+   */
+  const { data: incidents = [], isLoading: loading } = useQuery({
+    queryKey: ['incidents'],
+    queryFn: async () => {
+      const res = await incidentsAPI.list({
+        status__in: 'Detected,Verified,Dispatched',
+        ordering: '-detected_at',
+      });
+
+      const data: Incident[] = res.data.results || res.data;
+      return sortLatestFirst(data);
+    },
+    refetchInterval: 10000,
+  });
 
   /*
    * Selection helpers
@@ -67,45 +98,6 @@ export default function IncidentsPage() {
   };
 
   /*
-   * Always keep newest incidents first.
-   */
-  const sortLatestFirst = useCallback((items: Incident[]) => {
-    return [...items].sort(
-      (a, b) =>
-        new Date(b.detected_at).getTime() -
-        new Date(a.detected_at).getTime()
-    );
-  }, []);
-
-  /*
-   * Fetch incidents from API
-   */
-  const fetchIncidents = useCallback(async () => {
-    try {
-      setLoading(true);
-
-      const res = await incidentsAPI.list({
-        status__in: 'Detected,Pending_Verification,Verified,Dispatched,Responding',
-        ordering: '-detected_at',
-      });
-
-      const data = res.data.results || res.data;
-
-      setIncidents(sortLatestFirst(data));
-    } catch (error) {
-      console.error('[INCIDENTS] Failed to fetch:', error);
-
-      notifications.show({
-        title: 'Error',
-        message: 'Failed to load incidents',
-        color: 'red',
-      });
-    } finally {
-      setLoading(false);
-    }
-  }, [sortLatestFirst]);
-
-  /*
    * Delete selected incidents
    */
   const handleDeleteSelected = async () => {
@@ -116,11 +108,7 @@ export default function IncidentsPage() {
         ids.map((id) => incidentsAPI.delete(id))
       );
 
-      setIncidents((prev) =>
-        prev.filter(
-          (incident) => !ids.includes(incident.id)
-        )
-      );
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
 
       exitSelectMode();
       setDeleteSelectedModal(false);
@@ -145,13 +133,6 @@ export default function IncidentsPage() {
       });
     }
   };
-
-  /*
-   * Initial API fetch
-   */
-  useEffect(() => {
-    fetchIncidents();
-  }, [fetchIncidents]);
 
   /*
    * Incident WebSocket
@@ -213,61 +194,16 @@ export default function IncidentsPage() {
         console.log('[WS] Incident event:', data);
 
         /*
-         * New incident
+         * Any incident creation or status change refetches the
+         * list from the server — resolved/dismissed incidents
+         * drop out of the active list automatically.
          */
-        if (data.action === 'incident_created') {
-          setIncidents((prev) => {
-            /*
-             * Prevent duplicate incident
-             */
-            const exists = prev.some(
-              (incident) =>
-                incident.id === data.payload.id
-            );
-
-            if (exists) {
-              return prev;
-            }
-
-            /*
-             * Add new incident and keep newest first
-             */
-            return sortLatestFirst([
-              data.payload,
-              ...prev,
-            ]);
-          });
-        }
-
-        /*
-         * Existing incident updated
-         */
-        else if (data.action === 'incident_update') {
-          setIncidents((prev) => {
-            /*
-             * Resolved/dismissed incidents leave the
-             * active list and go to the History page.
-             */
-            if (
-              data.payload.status === 'Resolved' ||
-              data.payload.status === 'Dismissed'
-            ) {
-              return sortLatestFirst(
-                prev.filter(
-                  (incident) =>
-                    incident.id !== data.payload.id
-                )
-              );
-            }
-
-            const updated = prev.map((incident) =>
-              incident.id === data.payload.id
-                ? data.payload
-                : incident
-            );
-
-            return sortLatestFirst(updated);
-          });
+        if (
+          data.action === 'incident_created' ||
+          data.action === 'incident_update'
+        ) {
+          queryClient.invalidateQueries({ queryKey: ['incidents'] });
+          queryClient.invalidateQueries({ queryKey: ['incident-history'] });
         }
       } catch (error) {
         console.error(
@@ -322,7 +258,7 @@ export default function IncidentsPage() {
         ws.onclose = null;
       }
     };
-  }, [sortLatestFirst]);
+  }, [queryClient]);
 
   return (
     <Container size="sm" py="lg">

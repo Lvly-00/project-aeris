@@ -6,14 +6,13 @@ import {
 } from '@mantine/core';
 import { Plus, Search, Edit2, MoreVertical } from 'lucide-react';
 import { PageHeader } from '../components/Layout/PageHeader';
-import { authAPI, zonesAPI } from '../../shared/services/api';
+import { authAPI } from '../../shared/services/api';
 import { UserFormModal } from '../components/common/UserFormModal';
 import { DeleteUserModal } from '../components/common/DeleteUserModal';
 
 export default function UserManagement() {
     const theme = useMantineTheme();
     const [users, setUsers] = useState<any[]>([]);
-    const [zones, setZones] = useState<{ value: string; label: string }[]>([]);
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<string | null>('all-users');
     const [searchQuery, setSearchQuery] = useState('');
@@ -29,10 +28,8 @@ export default function UserManagement() {
 
     const loadData = async () => {
         try {
-            const [usersRes, zonesRes] = await Promise.all([authAPI.getUsers(), zonesAPI.list()]);
+            const usersRes = await authAPI.getUsers();
             setUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.results || []);
-            setZones((Array.isArray(zonesRes.data) ? zonesRes.data : zonesRes.data.results || [])
-                .map((z: any) => ({ value: String(z.id), label: z.name })));
         } catch (error) { console.error(error); }
     };
 
@@ -41,7 +38,6 @@ export default function UserManagement() {
             const matchesTab = activeTab === 'all-users' || user.role === activeTab;
             const searchLower = searchQuery.toLowerCase();
             return matchesTab && (
-                user.username.toLowerCase().includes(searchLower) ||
                 (user.full_name || '').toLowerCase().includes(searchLower) ||
                 (user.email || '').toLowerCase().includes(searchLower)
             );
@@ -76,7 +72,7 @@ export default function UserManagement() {
         <Stack gap="xl">
             <PageHeader
                 title="User Management"
-                subtitle="Manage user roles and zone assignments."
+                subtitle="Manage user accounts and role assignments."
                 actions={
                     <Button
                         leftSection={<Plus size={18} />}
@@ -92,12 +88,12 @@ export default function UserManagement() {
             <UserFormModal
                 opened={formOpened} onClose={() => setFormOpened(false)}
                 onSubmit={handleCreateOrUpdate} initialValues={selectedUser}
-                zones={zones} loading={loading} isEdit={!!selectedUser}
+                loading={loading} isEdit={!!selectedUser}
             />
 
             <DeleteUserModal
                 opened={deleteOpened} onClose={() => setDeleteOpened(false)}
-                onConfirm={handleDelete} userName={selectedUser?.username || ''}
+                onConfirm={handleDelete} userName={selectedUser?.email || ''}
                 loading={loading}
             />
 
@@ -116,15 +112,15 @@ export default function UserManagement() {
                 >
                     <Tabs.List>
                         <Tabs.Tab value="all-users">All Users</Tabs.Tab>
-                        <Tabs.Tab value="Admin">Admins</Tabs.Tab>
-                        <Tabs.Tab value="Operator">Operators</Tabs.Tab>
-                        <Tabs.Tab value="Tanod">Tanods</Tabs.Tab>
+                        <Tabs.Tab value="CCTV Chief">Chiefs</Tabs.Tab>
+                        <Tabs.Tab value="CCTV Operator">Operators</Tabs.Tab>
+                        <Tabs.Tab value="Barangay Tanod">Tanods</Tabs.Tab>
                     </Tabs.List>
                 </Tabs>
 
                 <Group p="md">
                     <TextInput
-                        placeholder="Search by name, username or email..."
+                        placeholder="Search by name or email..."
                         leftSection={<Search size={16} />}
                         style={{ flex: 1, maxWidth: 400 }}
                         radius="md"
@@ -138,7 +134,7 @@ export default function UserManagement() {
                         <Table.Thead bg="var(--mantine-color-default-hover)">
                             <Table.Tr>
                                 <Table.Th>Name</Table.Th>
-                                <Table.Th>Username</Table.Th>
+                                <Table.Th>Email</Table.Th>
                                 <Table.Th>Role</Table.Th>
                                 <Table.Th>Status</Table.Th>
                                 <Table.Th ta="right">Actions</Table.Th>
@@ -151,15 +147,15 @@ export default function UserManagement() {
                                         <Table.Td>
                                             <Group gap="sm">
                                                 <Avatar color="orange" radius="xl">
-                                                    {user.username.charAt(0).toUpperCase()}
+                                                    {(user.full_name || user.email).charAt(0).toUpperCase()}
                                                 </Avatar>
                                                 <Box>
-                                                    <Text fz="sm" fw={600}>{user.full_name || user.username}</Text>
-                                                    <Text fz="xs" c="dimmed">{user.email || 'No email'}</Text>
+                                                    <Text fz="sm" fw={600}>{user.full_name || user.email}</Text>
+                                                    <Text fz="xs" c="dimmed">{user.role_display || user.role}</Text>
                                                 </Box>
                                             </Group>
                                         </Table.Td>
-                                        <Table.Td><Text fz="sm">{user.username}</Text></Table.Td>
+                                        <Table.Td><Text fz="sm">{user.email}</Text></Table.Td>
                                         <Table.Td><Badge variant="light" color="blue">{user.role_display || user.role}</Badge></Table.Td>
                                         <Table.Td>
                                             <Badge color={user.is_active ? 'green' : 'gray'} variant="dot">

@@ -30,7 +30,6 @@ import {
   Camera,
   Bell,
   Info,
-  Map,
   Plus,
   Trash2,
   Save,
@@ -38,7 +37,7 @@ import {
   PhoneCall,
   Pencil,
 } from 'lucide-react';
-import { aiAPI, zonesAPI, contactsAPI } from '../../shared/services/api';
+import { aiAPI, contactsAPI } from '../../shared/services/api';
 
 const INCIDENT_TYPES = [
   'Fire', 'Smoke', 'Vehicle_Accident',
@@ -50,10 +49,6 @@ export default function SettingsPage() {
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'ai');
   const [confThreshold, setConfThreshold] = useState(0.5);
   const [typeThresholds, setTypeThresholds] = useState<Record<string, number>>({});
-  const [zoneModalOpen, setZoneModalOpen] = useState(false);
-  const [zoneName, setZoneName] = useState('');
-  const [zoneBarangay, setZoneBarangay] = useState('');
-  const [zoneDescription, setZoneDescription] = useState('');
   const [contactModalOpen, setContactModalOpen] = useState(false);
   const [contactName, setContactName] = useState('');
   const [contactPhone, setContactPhone] = useState('');
@@ -74,14 +69,6 @@ export default function SettingsPage() {
     },
   });
 
-  const { data: zones } = useQuery({
-    queryKey: ['zones-list'],
-    queryFn: async () => {
-      const res = await zonesAPI.list();
-      return res.data.results || res.data;
-    },
-  });
-
   const saveConfigMutation = useMutation({
     mutationFn: (data: any) => aiAPI.updateConfig(data),
     onSuccess: () => {
@@ -89,32 +76,6 @@ export default function SettingsPage() {
     },
     onError: () => {
       notifications.show({ title: 'Error', message: 'Failed to save configuration', color: 'red' });
-    },
-  });
-
-  const addZoneMutation = useMutation({
-    mutationFn: (data: any) => zonesAPI.create(data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['zones-list'] });
-      notifications.show({ title: 'Success', message: 'Zone added', color: 'green' });
-      setZoneModalOpen(false);
-      setZoneName('');
-      setZoneBarangay('');
-      setZoneDescription('');
-    },
-    onError: () => {
-      notifications.show({ title: 'Error', message: 'Failed to add zone', color: 'red' });
-    },
-  });
-
-  const deleteZoneMutation = useMutation({
-    mutationFn: (id: number) => zonesAPI.delete(id),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['zones-list'] });
-      notifications.show({ title: 'Success', message: 'Zone deleted', color: 'green' });
-    },
-    onError: () => {
-      notifications.show({ title: 'Error', message: 'Failed to delete zone', color: 'red' });
     },
   });
 
@@ -172,7 +133,7 @@ export default function SettingsPage() {
 
   useEffect(() => {
     const tab = searchParams.get('tab');
-    if (tab && ['ai', 'zones', 'contacts', 'system'].includes(tab)) {
+    if (tab && ['ai', 'contacts', 'system'].includes(tab)) {
       setActiveTab(tab);
     }
   }, [searchParams]);
@@ -185,9 +146,6 @@ export default function SettingsPage() {
         <Tabs.List mb="md">
           <Tabs.Tab value="ai" leftSection={<Brain size={14} />}>
             AI Configuration
-          </Tabs.Tab>
-          <Tabs.Tab value="zones" leftSection={<Map size={14} />}>
-            Barangay Zones
           </Tabs.Tab>
           <Tabs.Tab value="contacts" leftSection={<Phone size={14} />}>
             Emergency Contacts
@@ -257,92 +215,6 @@ export default function SettingsPage() {
           </Button>
         </Tabs.Panel>
 
-        <Tabs.Panel value="zones">
-          <Group justify="space-between" mb="md">
-            <Text fw={600} size="sm">Barangay Zones</Text>
-            <Button
-              size="sm"
-              leftSection={<Plus size={14} />}
-              onClick={() => setZoneModalOpen(true)}
-            >
-              Add Zone
-            </Button>
-          </Group>
-
-          <SimpleGrid cols={{ base: 1, sm: 2, lg: 3 }} spacing="md">
-            {Array.isArray(zones) && zones.map((zone: any) => (
-              <Card key={zone.id} withBorder padding="md" radius="md">
-                <Group justify="space-between" mb="xs">
-                  <Text fw={600} size="sm">{zone.name}</Text>
-                  <ActionIcon
-                    variant="subtle"
-                    color="red"
-                    size="sm"
-                    onClick={() => deleteZoneMutation.mutate(zone.id)}
-                  >
-                    <Trash2 size={14} />
-                  </ActionIcon>
-                </Group>
-                <Text size="xs" c="dimmed">{zone.barangay}</Text>
-                {zone.description && (
-                  <Text size="xs" c="dimmed" mt="xs">{zone.description}</Text>
-                )}
-              </Card>
-            ))}
-            {(!zones || (Array.isArray(zones) && zones.length === 0)) && (
-              <Paper p="xl" ta="center" withBorder style={{ gridColumn: '1 / -1' }}>
-                <Map size={48} color="#444" />
-                <Text mt="md" size="sm" c="dimmed">No zones defined yet</Text>
-              </Paper>
-            )}
-          </SimpleGrid>
-
-          <Modal
-            opened={zoneModalOpen}
-            onClose={() => setZoneModalOpen(false)}
-            title="Add Barangay Zone"
-          >
-            <Stack>
-              <TextInput
-                label="Zone Name"
-                placeholder="e.g., Zone 1, Barangay Hall Area"
-                value={zoneName}
-                onChange={(e) => setZoneName(e.currentTarget.value)}
-                required
-              />
-              <TextInput
-                label="Barangay"
-                placeholder="e.g., Barangay San Antonio"
-                value={zoneBarangay}
-                onChange={(e) => setZoneBarangay(e.currentTarget.value)}
-                required
-              />
-              <TextInput
-                label="Description"
-                placeholder="Optional description"
-                value={zoneDescription}
-                onChange={(e) => setZoneDescription(e.currentTarget.value)}
-              />
-              <Button
-                onClick={() => {
-                  if (!zoneName || !zoneBarangay) {
-                    notifications.show({ title: 'Error', message: 'Name and Barangay are required', color: 'red' });
-                    return;
-                  }
-                  addZoneMutation.mutate({
-                    name: zoneName,
-                    barangay: zoneBarangay,
-                    description: zoneDescription,
-                  });
-                }}
-                loading={addZoneMutation.isPending}
-              >
-                Add Zone
-              </Button>
-            </Stack>
-          </Modal>
-        </Tabs.Panel>
-
         <Tabs.Panel value="contacts">
           <Group justify="space-between" mb="md">
             <Text fw={600} size="sm">Emergency Contacts</Text>
@@ -378,7 +250,7 @@ export default function SettingsPage() {
                         setEditingContact(contact);
                         setContactName(contact.name);
                         setContactPhone(contact.phone_number);
-                        setContactType(contact.incident_type);
+                        setContactType(contact.incident_type || 'General');
                         setContactModalOpen(true);
                       }}
                     >
@@ -395,7 +267,7 @@ export default function SettingsPage() {
                   </Group>
                 </Group>
                 <Group gap="xs" mb="xs">
-                  <Badge size="sm" variant="filled" color="red">{contact.incident_type.replace(/_/g, ' ')}</Badge>
+                  <Badge size="sm" variant="filled" color="red">{(contact.incident_type || 'General').replace(/_/g, ' ')}</Badge>
                   <Badge size="sm" variant="light" color={contact.is_active ? 'green' : 'gray'}>{contact.is_active ? 'Active' : 'Inactive'}</Badge>
                 </Group>
                 <Text size="lg" fw={700} ff="monospace">{contact.phone_number}</Text>
@@ -448,7 +320,7 @@ export default function SettingsPage() {
                   addContactMutation.mutate({
                     name: contactName,
                     phone_number: contactPhone,
-                    incident_type: contactType,
+                    incident_type: contactType === 'General' ? null : contactType,
                     is_active: true,
                   });
                 }}

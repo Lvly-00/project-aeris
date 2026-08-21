@@ -20,9 +20,9 @@ export function ProtectedRoute({ children, allowedRoles }: ProtectedRouteProps) 
   }
 
   // Determine the effective role:
-  // If the user is Admin, their "role" for UI purposes is whatever the viewMode is.
-  // If they are not Admin, their role is their actual role (Tanod, etc.)
-  const effectiveRole = user.role === 'Admin' ? viewMode : user.role;
+  // If the user is CCTV Chief, their "role" for UI purposes is whatever the viewMode is.
+  // If they are not Chief, their role is their actual role (Barangay Tanod, etc.)
+  const effectiveRole = user.role === 'CCTV Chief' ? viewMode : user.role;
 
   if (!allowedRoles.includes(effectiveRole)) {
     return <Navigate to="/unauthorized" replace />;

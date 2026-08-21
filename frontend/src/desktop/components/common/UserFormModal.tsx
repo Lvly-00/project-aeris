@@ -7,26 +7,22 @@ interface UserFormModalProps {
     onClose: () => void;
     onSubmit: (values: any) => Promise<void>;
     initialValues?: any;
-    zones: { value: string; label: string }[];
     loading: boolean;
     isEdit?: boolean;
 }
 
-export function UserFormModal({ opened, onClose, onSubmit, initialValues, zones, loading, isEdit }: UserFormModalProps) {
+export function UserFormModal({ opened, onClose, onSubmit, initialValues, loading, isEdit }: UserFormModalProps) {
     const form = useForm({
         initialValues: initialValues || {
-            username: '',
             first_name: '',
             last_name: '',
             email: '',
             password: '',
             password2: '',
-            role: 'Tanod',
-            phone_number: '',
-            barangay_zone: null,
+            role: 'Barangay Tanod',
         },
         validate: {
-            username: (val) => (val.length < 3 ? 'Username too short' : null),
+            email: (val) => (!val ? 'Email is required' : /^\S+@\S+$/.test(val) ? null : 'Invalid email'),
             // Password is only required when creating a new user
             password: (val) => (!isEdit && val.length < 8 ? 'Password must be 8+ characters' : null),
             password2: (val, values) => (!isEdit && val !== values.password ? 'Passwords do not match' : null),
@@ -51,8 +47,7 @@ export function UserFormModal({ opened, onClose, onSubmit, initialValues, zones,
                             <TextInput label="First Name" placeholder="Juan" required {...form.getInputProps('first_name')} />
                             <TextInput label="Last Name" placeholder="Dela Cruz" required {...form.getInputProps('last_name')} />
                         </Group>
-                        <TextInput label="Username" placeholder="juandelacruz" required disabled={isEdit} {...form.getInputProps('username')} />
-                        <TextInput label="Email" placeholder="juan@example.com" {...form.getInputProps('email')} />
+                        <TextInput label="Email" placeholder="juan@example.com" required {...form.getInputProps('email')} />
 
                         {!isEdit && (
                             <Group grow>
@@ -61,11 +56,7 @@ export function UserFormModal({ opened, onClose, onSubmit, initialValues, zones,
                             </Group>
                         )}
 
-                        <Group grow>
-                            <Select label="Role" data={['Admin', 'Operator', 'Tanod']} {...form.getInputProps('role')} />
-                            <Select label="Assigned Zone" placeholder="Select Zone" data={zones} clearable {...form.getInputProps('barangay_zone')} />
-                        </Group>
-                        <TextInput label="Phone Number" placeholder="09XXXXXXXXX" {...form.getInputProps('phone_number')} />
+                        <Select label="Role" data={['CCTV Chief', 'CCTV Operator', 'Barangay Tanod']} {...form.getInputProps('role')} />
 
                         <Group justify="flex-end" mt="xl">
                             <Button variant="subtle" onClick={onClose}>Cancel</Button>

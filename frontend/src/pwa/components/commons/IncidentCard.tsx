@@ -18,26 +18,18 @@ const SEVERITY_BADGE: Record<string, string> = {
 
 const STATUS_BADGE: Record<string, string> = {
     Detected: 'red',
-    Pending_Verification: 'yellow',
     Verified: 'orange',
     Dispatched: 'blue',
-    Responding: 'cyan',
     Resolved: 'green',
-    Archived: 'gray',
     Dismissed: 'gray',
-    False_Positive: 'brown',
 };
 
 const STATUS_LABEL: Record<string, string> = {
     Detected: 'Detected',
-    Pending_Verification: 'Pending Verification',
     Verified: 'Verified',
     Dispatched: 'Dispatched',
-    Responding: 'Responding',
     Resolved: 'Resolved',
-    Archived: 'Archived',
     Dismissed: 'Dismissed',
-    False_Positive: 'False Positive',
 };
 
 const TYPE_LABEL: Record<string, string> = {

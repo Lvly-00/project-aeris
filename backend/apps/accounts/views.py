@@ -60,7 +60,7 @@ class UserViewSet(viewsets.ModelViewSet):
         qs = self.get_queryset()
         role = request.query_params.get("role")
         if role:
-            qs = qs.filter(role=role)
+            qs = qs.filter(role__name=role)
         
         page = self.paginate_queryset(qs)
         if page is not None:
@@ -83,7 +83,7 @@ class UserViewSet(viewsets.ModelViewSet):
         instance = self.get_object()
 
         # Permission Check: Only Admins can edit other users
-        if request.user != instance and request.user.role != "Admin":
+        if request.user != instance and not request.user.is_admin():
             return Response({"error": "Only admins can update other users"}, status=status.HTTP_403_FORBIDDEN)
 
         serializer = self.get_serializer(instance, data=request.data, partial=partial)
@@ -106,7 +106,7 @@ class UserViewSet(viewsets.ModelViewSet):
         """
         Handles DELETE requests. Performs a 'Soft Delete' by deactivating the user.
         """
-        if request.user.role != "Admin":
+        if not request.user.is_admin():
             return Response({"error": "Only admins can delete users"}, status=status.HTTP_403_FORBIDDEN)
             
         user = self.get_object()
@@ -124,7 +124,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 action="USER_DEACTIVATED", # Matches your AuditLog choices
                 resource_type="User",
                 resource_id=user.id,
-                details={"deactivated_user": user.username},
+                details={"deactivated_user": user.email},
             )
         except ImportError:
             logger.warning("AuditLog model not found; skipping log entry.")
@@ -173,7 +173,7 @@ class UserViewSet(viewsets.ModelViewSet):
     @action(detail=False, methods=["GET"], url_path="dispatchers")
     def dispatchers(self, request):
         users = User.objects.filter(
-            role__in=[User.Role.TANOD, User.Role.ADMIN, User.Role.OPERATOR],
+            role__name__in=["Barangay Tanod", "CCTV Chief", "CCTV Operator"],
             is_active=True,
         )
         serializer = self.get_serializer(users, many=True)

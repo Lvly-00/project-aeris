@@ -36,7 +36,7 @@ api.interceptors.response.use(
      * Login failed:
      *
      * 401 from /accounts/login/ means
-     * incorrect username/password.
+     * incorrect email/password.
      *
      * DO NOT refresh.
      * DO NOT redirect.
@@ -127,7 +127,7 @@ api.interceptors.response.use(
 );
 
 export const authAPI = {
-  login: (data: { username: string; password: string }) =>
+  login: (data: { email: string; password: string }) =>
     api.post('/accounts/login/', data),
   logout: () =>
     api.post('/accounts/logout/'),
@@ -184,30 +184,11 @@ export const detectionsAPI = {
   get: (id: number) => api.get(`/detections/${id}/`),
 };
 
-export const recommendationsAPI = {
-  list: (params?: any) => api.get('/recommendations/', { params }),
-  get: (id: number) => api.get(`/recommendations/${id}/`),
-  accept: (id: number, data: { is_accepted: boolean }) =>
-    api.post(`/recommendations/${id}/respond/`, data),
-};
-
 export const notificationsAPI = {
   list: (params?: any) => api.get('/notifications/', { params }),
   markRead: (id: number) => api.post(`/notifications/${id}/mark-read/`),
   markAllRead: () => api.post('/notifications/mark-all-read/'),
   unreadCount: () => api.get('/notifications/unread_count/'),
-};
-
-export const reportsAPI = {
-  list: () => api.get('/reports/'),
-  get: (id: number) => api.get(`/reports/${id}/`),
-  generate: (data: any) => api.post('/reports/generate/', data),
-  downloadPdf: (id: number) => api.get(`/reports/${id}/download-pdf/`, {
-    responseType: 'blob',
-  }),
-  downloadExcel: (id: number) => api.get(`/reports/${id}/download-excel/`, {
-    responseType: 'blob',
-  }),
 };
 
 export const analyticsAPI = {
@@ -217,7 +198,6 @@ export const analyticsAPI = {
   responseTimes: () => api.get('/analytics/response-times/'),
   severityDistribution: () => api.get('/analytics/severity-distribution/'),
   trendAnalysis: (params?: any) => api.get('/analytics/trend-analysis/', { params }),
-  heatmapData: () => api.get('/analytics/heatmap-data/'),
 };
 
 export const contactsAPI = {
@@ -228,26 +208,7 @@ export const contactsAPI = {
   delete: (id: number) => api.delete(`/contacts/${id}/`),
 };
 
-export const zonesAPI = {
-  list: () => api.get('/zones/'),
-  get: (id: number) => api.get(`/zones/${id}/`),
-  create: (data: any) => api.post('/zones/', data),
-  update: (id: number, data: any) => api.put(`/zones/${id}/`, data),
-  delete: (id: number) => api.delete(`/zones/${id}/`),
-};
-
 export const dispatchAPI = {
-  listDispatchers: (params?: any) => api.get('/dispatch/dispatchers/', { params }),
-  getDispatcher: (id: number) => api.get(`/dispatch/dispatchers/${id}/`),
-  createDispatcher: (data: any) => api.post('/dispatch/dispatchers/', data),
-  updateDispatcher: (id: number, data: any) => api.patch(`/dispatch/dispatchers/${id}/`, data),
-  listDispatches: (params?: any) => api.get('/dispatch/dispatches/', { params }),
-  getDispatch: (id: number) => api.get(`/dispatch/dispatches/${id}/`),
-  createDispatch: (data: any) => api.post('/dispatch/dispatches/', data),
-  updateDispatchStatus: (id: number, status: string, notes?: string) =>
-    api.patch(`/dispatch/dispatches/${id}/status/`, { status, notes }),
-  cancelDispatch: (id: number, notes?: string) =>
-    api.post(`/dispatch/dispatches/${id}/cancel/`, { notes }),
   getTimeline: (incidentId?: number) =>
     api.get('/dispatch/timeline/', { params: { incident: incidentId } }),
 };

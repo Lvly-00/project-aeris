@@ -20,13 +20,13 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
   const form = useForm({
     initialValues: {
       name: '',
-      rtsp_url: '',
+      stream_url: '',
       stream_type: 'RTSP',
       location_name: '',
     },
     validate: {
-      name: (value) => (value.length < 1 ? 'Camera name is required' : null),
-      rtsp_url: (value) => (value.length < 1 ? 'Source is required' : null),
+      name: (value: string) => (value.length < 1 ? 'Camera name is required' : null),
+      stream_url: (value: string) => (value.length < 1 ? 'Source is required' : null),
     },
   });
 
@@ -40,7 +40,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
 
   const handleFileSelect = (file: File | null) => {
     if (file) {
-      form.setFieldValue('rtsp_url', file.name);
+      form.setFieldValue('stream_url', file.name);
     }
   };
 
@@ -108,7 +108,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
             <Group gap="xs" align="flex-start" wrap="nowrap">
               <TextInput
                 placeholder={form.values.stream_type === 'MP4' ? "Select a file..." : "rtsp://..."}
-                {...form.getInputProps('rtsp_url')}
+                {...form.getInputProps('stream_url')}
                 styles={{
                   root: { flex: 1 },
                   input: inputStyles.input

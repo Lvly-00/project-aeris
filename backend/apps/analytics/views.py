@@ -1,15 +1,12 @@
 import logging
-from datetime import timedelta
-from django.db.models import Count, Avg, Q, F, FloatField, ExpressionWrapper
+from django.db.models import Count, Avg, F, FloatField, ExpressionWrapper
 from django.db.models.functions import TruncHour, TruncDate
-from django.utils import timezone
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.incidents.models import Incident
-from apps.cameras.models import Camera
 from .serializers import AnalyticsQuerySerializer
 
 logger = logging.getLogger(__name__)
@@ -30,28 +27,25 @@ class AnalyticsViewSet(viewsets.GenericViewSet):
                 qs = qs.filter(detected_at__gte=data["date_from"])
             if data.get("date_to"):
                 qs = qs.filter(detected_at__lte=data["date_to"])
-            if data.get("zone"):
-                qs = qs.filter(zone_id=data["zone"])
             if data.get("incident_type"):
-                qs = qs.filter(incident_type=data["incident_type"])
+                qs = qs.filter(incident_type__name=data["incident_type"])
         return qs
 
     @action(detail=False, methods=["get"], url_path="incident-summary")
     def incident_summary(self, request) -> Response:
         qs = self._get_base_queryset(request)
         total = qs.count()
-        total_field = request.query_params.get("total", "false").lower() == "true"
         resp = {
             "total": total,
-            "by_type": list(qs.values("incident_type").annotate(
+            "by_type": list(qs.values("incident_type__name").annotate(
                 count=Count("id")
-            ).order_by("incident_type")),
+            ).order_by("incident_type__name")),
             "by_severity": list(qs.values("severity").annotate(
                 count=Count("id")
             ).order_by("severity")),
-            "by_status": list(qs.values("status").annotate(
+            "by_status": list(qs.values("status__name").annotate(
                 count=Count("id")
-            ).order_by("status")),
+            ).order_by("status__name")),
         }
         return Response(resp)
 
@@ -59,8 +53,7 @@ class AnalyticsViewSet(viewsets.GenericViewSet):
     def high_risk_locations(self, request) -> Response:
         qs = self._get_base_queryset(request)
         top = qs.values(
-            "camera__id", "camera__name", "camera__latitude",
-            "camera__longitude", "camera__location_name",
+            "camera__id", "camera__name", "camera__location_name",
         ).annotate(
             incident_count=Count("id")
         ).order_by("-incident_count")[:10]
@@ -69,8 +62,6 @@ class AnalyticsViewSet(viewsets.GenericViewSet):
             result.append({
                 "camera_id": item["camera__id"],
                 "camera_name": item["camera__name"],
-                "latitude": item["camera__latitude"],
-                "longitude": item["camera__longitude"],
                 "location_name": item["camera__location_name"],
                 "incident_count": item["incident_count"],
             })
@@ -107,14 +98,14 @@ class AnalyticsViewSet(viewsets.GenericViewSet):
             if data.get("date_to"):
                 qs = qs.filter(detected_at__lte=data["date_to"])
             if data.get("incident_type"):
-                qs = qs.filter(incident_type=data["incident_type"])
+                qs = qs.filter(incident_type__name=data["incident_type"])
 
         avg_times = qs.annotate(
             response_time=ExpressionWrapper(
                 F("responded_at") - F("detected_at"),
                 output_field=FloatField(),
             )
-        ).values("incident_type").annotate(
+        ).values("incident_type__name").annotate(
             avg_response_seconds=Avg(
                 ExpressionWrapper(
                     F("responded_at") - F("detected_at"),
@@ -122,13 +113,13 @@ class AnalyticsViewSet(viewsets.GenericViewSet):
                 )
             ),
             count=Count("id"),
-        ).order_by("incident_type")
+        ).order_by("incident_type__name")
 
         result = []
         for item in avg_times:
             avg_secs = item.get("avg_response_seconds")
             result.append({
-                "incident_type": item["incident_type"],
+                "incident_type": item["incident_type__name"],
                 "avg_response_time": round(avg_secs, 2) if avg_secs else None,
                 "count": item["count"],
             })
@@ -151,18 +142,6 @@ class AnalyticsViewSet(viewsets.GenericViewSet):
             count=Count("id")
         ).order_by("date"))
         return Response(trends)
-
-    @action(detail=False, methods=["get"], url_path="heatmap-data")
-    def heatmap_data(self, request) -> Response:
-        qs = self._get_base_queryset(request).filter(
-            location_lat__isnull=False,
-            location_lng__isnull=False,
-        )
-        data = qs.values(
-            "id", "incident_type", "severity", "location_lat",
-            "location_lng", "detected_at",
-        )[:500]
-        return Response(data)
 
     def list(self, request, *args, **kwargs) -> Response:
         return Response(

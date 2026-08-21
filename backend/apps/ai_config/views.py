@@ -25,7 +25,7 @@ class AIConfigurationViewSet(viewsets.GenericViewSet):
         serializer = self.get_serializer(config, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
-        logger.info("AI configuration updated by %s", request.user.username)
+        logger.info("AI configuration updated by %s", request.user.email)
         return Response(serializer.data)
 
     @action(detail=False, methods=["get", "patch"], url_path="settings")

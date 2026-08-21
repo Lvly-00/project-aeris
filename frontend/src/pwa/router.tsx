@@ -36,7 +36,7 @@ function RoleGuard({ children, allowedRole }: { children: React.ReactNode; allow
 
     if (currentRole !== targetRole) {
         // If they are in the wrong area, push them to their correct home
-        return <Navigate to={currentRole === 'admin' ? "/pwa/admin" : "/pwa/tanod"} replace />;
+        return <Navigate to={currentRole === 'cctv chief' ? "/pwa/admin" : "/pwa/tanod"} replace />;
     }
 
     return <>{children}</>;
@@ -62,7 +62,7 @@ export default function PwaRouter() {
                 path="login"
                 element={
                     isAuthenticated ? (
-                        <Navigate to={userRole === 'admin' ? "/pwa/admin" : "/pwa/tanod"} replace />
+                        <Navigate to={userRole === 'cctv chief' ? "/pwa/admin" : "/pwa/tanod"} replace />
                     ) : (
                         <LoginPage />
                     )
@@ -73,7 +73,7 @@ export default function PwaRouter() {
             <Route
                 path="admin"
                 element={
-                    <RoleGuard allowedRole="admin">
+                    <RoleGuard allowedRole="cctv chief">
                         <AdminLayout />
                     </RoleGuard>
                 }
@@ -91,7 +91,7 @@ export default function PwaRouter() {
             <Route
                 path="tanod"
                 element={
-                    <RoleGuard allowedRole="tanod">
+                    <RoleGuard allowedRole="barangay tanod">
                         <TanodLayout />
                     </RoleGuard>
                 }
@@ -109,7 +109,7 @@ export default function PwaRouter() {
                 path="/"
                 element={
                     <Navigate
-                        to={!isAuthenticated ? "login" : (userRole === 'admin' ? "admin" : "tanod")}
+                        to={!isAuthenticated ? "login" : (userRole === 'cctv chief' ? "admin" : "tanod")}
                         replace
                     />
                 }

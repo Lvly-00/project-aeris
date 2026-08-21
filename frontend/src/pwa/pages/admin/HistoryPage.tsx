@@ -1,8 +1,8 @@
-import { useEffect, useState, useCallback } from 'react';
-import { Container, Title, Text, Button, Group, Stack, Loader, Center, rem, Select, Alert, ActionIcon, Menu } from '@mantine/core';
+import { useState } from 'react';
+import { Container, Title, Text, Group, Stack, Loader, Center, rem, Select, Alert, ActionIcon, Menu } from '@mantine/core';
 import { Filter, MoreVertical, History } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
-import { notifications } from '@mantine/notifications';
+import { useQuery } from '@tanstack/react-query';
 
 import { Incident } from '../../../shared/types/index';
 import { IncidentCard } from '../../components/commons/IncidentCard';
@@ -19,52 +19,35 @@ const FILTER_OPTIONS = [
 export default function HistoryPage() {
     const navigate = useNavigate();
 
-    const [incidents, setIncidents] = useState<Incident[]>([]);
     const [filter, setFilter] = useState<StatusFilter>('all');
-    const [loading, setLoading] = useState(true);
 
-    /*
-     * Always keep newest closed incidents first.
-     */
-    const sortLatestFirst = useCallback((items: Incident[]) => {
-        return [...items].sort(
-            (a, b) =>
-                new Date(b.updated_at).getTime() -
-                new Date(a.updated_at).getTime()
-        );
-    }, []);
-
-    /*
-     * History contains incidents that are finished: resolved or dismissed.
-     */
-    const fetchHistory = useCallback(async () => {
-        try {
-            setLoading(true);
-
+    const { data: incidents = [], isLoading: loading, isError, refetch } = useQuery({
+        queryKey: ['incident-history'],
+        queryFn: async () => {
             const res = await incidentsAPI.list({
                 status__in: 'Resolved,Dismissed',
                 ordering: '-detected_at',
             });
 
-            const data = res.data.results || res.data;
+            const data: Incident[] = res.data.results || res.data;
 
-            setIncidents(sortLatestFirst(data));
-        } catch (error) {
-            console.error('[HISTORY] Failed to fetch:', error);
-
-            notifications.show({
-                title: 'Error',
-                message: 'Failed to load incident history',
-                color: 'red',
-            });
-        } finally {
-            setLoading(false);
-        }
-    }, [sortLatestFirst]);
-
-    useEffect(() => {
-        fetchHistory();
-    }, [fetchHistory]);
+            /*
+             * Always keep newest closed incidents first.
+             */
+            const closingTime = (i: Incident) =>
+                i.resolved_at || i.dismissed_at || i.created_at;
+            return [...data].sort(
+                (a, b) =>
+                    new Date(closingTime(b)).getTime() -
+                    new Date(closingTime(a)).getTime()
+            );
+        },
+        /*
+         * The WebSocket invalidates this key the moment any incident
+         * changes status; polling is just a safety net.
+         */
+        refetchInterval: 15000,
+    });
 
     const visibleIncidents = incidents.filter((incident) =>
         filter === 'all' ? true : incident.status === filter
@@ -101,7 +84,7 @@ export default function HistoryPage() {
                     variant="transparent"
                     color="gray"
                     size="lg"
-                    onClick={() => fetchHistory()}
+                    onClick={() => refetch()}
                     title="Refresh history"
                 >
                     <MoreVertical size={24} />
@@ -112,6 +95,10 @@ export default function HistoryPage() {
             <Stack gap="md">
                 {loading ? (
                     <Center py="xl"><Loader variant="dots" color="blue" /></Center>
+                ) : isError ? (
+                    <Alert variant="light" color="red" radius="md" title="Error">
+                        <Text size="sm" c="dimmed">Failed to load incident history.</Text>
+                    </Alert>
                 ) : visibleIncidents.length === 0 ? (
                     <Alert variant="light" color="gray" radius="md" title="No History">
                         <Text size="sm" c="dimmed">

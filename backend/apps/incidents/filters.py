@@ -18,10 +18,12 @@ class CSVFilter(Filter):
 
 
 class IncidentFilter(django_filters.FilterSet):
-    status__in = CSVFilter(field_name="status")
-    incident_type__in = CSVFilter(field_name="incident_type")
+    # Status and incident type are lookup FKs; the CSV filters match
+    # against their names so the API contract stays string-based.
+    status__in = CSVFilter(field_name="status__name")
+    incident_type__in = CSVFilter(field_name="incident_type__name")
     severity__in = CSVFilter(field_name="severity")
 
     class Meta:
         model = Incident
-        fields = ["incident_type", "severity", "status", "zone", "camera"]
+        fields = ["incident_type", "severity", "status", "camera"]

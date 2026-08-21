@@ -11,10 +11,10 @@ logger = logging.getLogger(__name__)
 
 
 class DetectionViewSet(viewsets.ModelViewSet):
-    queryset = Detection.objects.select_related("camera", "incident").all()
+    queryset = Detection.objects.select_related("camera", "incident", "incident_type").all()
     permission_classes = [permissions.IsAuthenticated]
-    search_fields = ["incident_type"]
-    filterset_fields = ["incident_type", "camera", "incident", "is_verified", "processed"]
+    search_fields = ["incident_type__name"]
+    filterset_fields = ["camera", "incident", "is_verified", "processed"]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -32,7 +32,7 @@ class DetectionViewSet(viewsets.ModelViewSet):
         if camera:
             qs = qs.filter(camera_id=camera)
         if incident_type:
-            qs = qs.filter(incident_type=incident_type)
+            qs = qs.filter(incident_type__name=incident_type)
         if date_from:
             qs = qs.filter(created_at__gte=date_from)
         if date_to:

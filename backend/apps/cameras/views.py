@@ -13,6 +13,7 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import AccessToken
+from apps.lookups.models import CameraStatus
 from .models import Camera
 from .serializers import CameraSerializer, CameraStatusSerializer
 
@@ -28,27 +29,29 @@ logger = logging.getLogger(__name__)
 
 
 class CameraViewSet(viewsets.ModelViewSet):
-    queryset = Camera.objects.select_related("zone").all()
+    queryset = Camera.objects.select_related("status").all()
     serializer_class = CameraSerializer
     permission_classes = [IsAuthenticated]
-    search_fields = ["name", "location_name", "rtsp_url"]
+    search_fields = ["name", "location_name", "stream_url"]
     ordering_fields = ["name", "status", "last_seen", "created_at"]
 
     def perform_create(self, serializer):
-        serializer.save(status=Camera.Status.ONLINE)
+        serializer.save(status=CameraStatus.objects.get(name="Online"))
 
     @action(detail=True, methods=["patch"], url_path="status")
     def status_update(self, request, pk=None) -> Response:
         camera = self.get_object()
         serializer = CameraStatusSerializer(data=request.data)
         serializer.is_valid(raise_exception=True)
-        camera.status = serializer.validated_data["status"]
+        camera.status, _ = CameraStatus.objects.get_or_create(
+            name=serializer.validated_data["status"]
+        )
         if "last_seen" in serializer.validated_data:
             camera.last_seen = serializer.validated_data["last_seen"]
         else:
             camera.last_seen = datetime.now()
         camera.save()
-        logger.info("Camera %s status updated to %s", camera.name, camera.status)
+        logger.info("Camera %s status updated to %s", camera.name, camera.status.name)
         return Response(CameraSerializer(camera).data)
 
     @action(detail=True, methods=["post"], url_path="snapshot")
@@ -99,7 +102,7 @@ class CameraViewSet(viewsets.ModelViewSet):
                         pass
             if not user or not user.is_authenticated:
                 return Response({"detail": "Authentication required"}, status=401)
-        filepath = Path(camera.rtsp_url)
+        filepath = Path(camera.stream_url)
         if not filepath.is_absolute():
             filepath = Path(settings.BASE_DIR) / filepath
         filepath = filepath.resolve()

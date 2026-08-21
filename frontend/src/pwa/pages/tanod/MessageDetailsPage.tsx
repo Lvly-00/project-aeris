@@ -209,7 +209,7 @@ export default function DispatchMessagePage() {
                 <DetailRow
                     icon={MapPin}
                     label="Location"
-                    value={incident.zone_name || incident.camera_name || 'Unknown location'}
+                    value={incident.camera_name || 'Unknown location'}
                 />
 
                 <Divider />

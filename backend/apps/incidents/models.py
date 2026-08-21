@@ -3,29 +3,25 @@ from django.conf import settings
 
 
 class Incident(models.Model):
-    class IncidentType(models.TextChoices):
-        FIRE = "Fire", "Fire"
-        SMOKE = "Smoke", "Smoke"
-        VEHICLE_ACCIDENT = "Vehicle_Accident", "Vehicle Accident"
-
     class Severity(models.TextChoices):
         LOW = "Low", "Low"
         MEDIUM = "Medium", "Medium"
         HIGH = "High", "High"
         CRITICAL = "Critical", "Critical"
 
-    # UPDATED STATUS LIST
-    class Status(models.TextChoices):
-        DETECTED = "Detected", "Detected"
-        VERIFIED = "Verified", "Verified"
-        DISPATCHED = "Dispatched", "Dispatched" # Changed from 'Dispatch' to 'Dispatched' for consistency
-        RESOLVED = "Resolved", "Resolved"
-        DISMISSED = "Dismissed", "Dismissed"
-
-    incident_type = models.CharField(max_length=30, choices=IncidentType.choices)
-    severity = models.CharField(max_length=10, choices=Severity.choices, default=Severity.MEDIUM)
-    status = models.CharField(max_length=20, choices=Status.choices, default=Status.DETECTED)
-    
+    incident_type = models.ForeignKey(
+        "lookups.IncidentType",
+        on_delete=models.PROTECT,
+        related_name="incidents",
+    )
+    severity = models.CharField(
+        max_length=10, choices=Severity.choices, default=Severity.MEDIUM
+    )
+    status = models.ForeignKey(
+        "lookups.IncidentStatus",
+        on_delete=models.PROTECT,
+        related_name="incidents",
+    )
     camera = models.ForeignKey(
         "cameras.Camera",
         on_delete=models.SET_NULL,
@@ -33,17 +29,8 @@ class Incident(models.Model):
         blank=True,
         related_name="incidents",
     )
-    zone = models.ForeignKey(
-        "zones.Zone",
-        on_delete=models.SET_NULL,
-        null=True,
-        blank=True,
-        related_name="incidents",
-    )
     confidence_score = models.FloatField(default=0.0)
     description = models.TextField(blank=True, default="")
-    location_lat = models.FloatField(null=True, blank=True)
-    location_lng = models.FloatField(null=True, blank=True)
     detected_at = models.DateTimeField(auto_now_add=True)
     verified_at = models.DateTimeField(null=True, blank=True)
     dispatched_at = models.DateTimeField(null=True, blank=True)
@@ -77,11 +64,7 @@ class Incident(models.Model):
     )
     evidence_gallery = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
-    updated_at = models.DateTimeField(auto_now=True)
-    duration = models.DurationField(null=True, blank=True)
-    crowd_size = models.IntegerField(null=True, blank=True)
-    review_notes = models.TextField(blank=True, default="")
-    escalated_to = models.CharField(max_length=30, blank=True, default="")
+    duration = models.CharField(max_length=50, blank=True, default="")
 
     class Meta:
         verbose_name = "Incident"

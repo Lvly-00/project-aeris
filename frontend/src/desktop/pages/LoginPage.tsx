@@ -29,13 +29,13 @@ export default function LoginPage() {
 
   const form = useForm({
     initialValues: {
-      username: '',
+      email: '',
       password: '',
       remember: false,
     },
     validate: {
-      username: (v) => (!v ? 'Username is required' : null),
-      password: (v) => (!v ? 'Password is required' : null),
+      email: (v: string) => (!v ? 'Email is required' : /^\S+@\S+$/.test(v) ? null : 'Invalid email'),
+      password: (v: string) => (!v ? 'Password is required' : null),
     },
   });
 
@@ -103,9 +103,9 @@ export default function LoginPage() {
             <Stack gap="md">
               <TextInput
                 size="md"
-                placeholder="Username / Email"
+                placeholder="Email"
                 radius="md"
-                {...form.getInputProps('username')}
+                {...form.getInputProps('email')}
                 styles={{ input: { height: rem(54) } }}
               />
 

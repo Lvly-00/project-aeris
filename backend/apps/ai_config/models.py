@@ -10,10 +10,7 @@ class AIConfiguration(models.Model):
     global_confidence_threshold = models.FloatField(default=0.3)
     fire_threshold = models.FloatField(default=0.4)
     smoke_threshold = models.FloatField(default=0.35)
-    flood_threshold = models.FloatField(default=0.35)
     accident_threshold = models.FloatField(default=0.35)
-    crowd_threshold = models.FloatField(default=0.3)
-    road_obstruction_threshold = models.FloatField(default=0.3)
     detection_interval_ms = models.IntegerField(default=2000)
     model_name = models.CharField(
         max_length=20, choices=ModelChoice.choices, default=ModelChoice.YOLO11N

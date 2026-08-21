@@ -162,7 +162,7 @@ export function TanodLayout() {
                                                 border: isActive ? `2px solid ${activeColor}` : '1px solid var(--mantine-color-default-border)',
                                             }}
                                         >
-                                            {user?.username?.charAt(0).toUpperCase() || <User size={16} />}
+                                            {user?.first_name?.charAt(0).toUpperCase() || <User size={16} />}
                                         </Avatar>
                                     ) : (
                                         <item.icon size={24} strokeWidth={isActive ? 2.5 : 1.5} color={isActive ? 'var(--mantine-color-orange-filled)' : 'var(--mantine-color-dimmed)'} />

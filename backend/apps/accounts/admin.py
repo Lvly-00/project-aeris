@@ -5,11 +5,26 @@ from .models import User
 
 @admin.register(User)
 class UserAdmin(BaseUserAdmin):
-    list_display = ["username", "email", "role", "phone_number", "is_active"]
+    list_display = ["email", "first_name", "last_name", "role", "is_active"]
     list_filter = ["role", "is_active", "is_staff"]
-    fieldsets = BaseUserAdmin.fieldsets + (
-        ("Profile", {"fields": ("role", "phone_number", "barangay_zone")}),
+    ordering = ["email"]
+    fieldsets = (
+        (None, {"fields": ("email", "password")}),
+        ("Personal info", {"fields": ("first_name", "last_name")}),
+        (
+            "Permissions",
+            {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
+        ),
+        ("Profile", {"fields": ("role", "two_factor_enabled", "receive_notifications", "preferred_language", "profile_picture")}),
+        ("Important dates", {"fields": ("last_login", "created_at")}),
     )
-    add_fieldsets = BaseUserAdmin.add_fieldsets + (
-        ("Profile", {"fields": ("role", "phone_number", "barangay_zone")}),
+    add_fieldsets = (
+        (
+            None,
+            {
+                "classes": ("wide",),
+                "fields": ("email", "first_name", "last_name", "role", "password1", "password2"),
+            },
+        ),
     )
+    readonly_fields = ["last_login", "created_at"]

@@ -66,7 +66,7 @@ export function CameraFeed({ camera, onIncidentDetected }: CameraFeedProps) {
     return (
       <Box style={{ width: '100%', height: '100%', position: 'relative' }}>
         <iframe
-          src={camera.rtsp_url}
+          src={camera.stream_url}
           style={{ width: '100%', height: '100%', border: 'none' }}
           sandbox="allow-scripts allow-same-origin allow-popups"
           allowFullScreen

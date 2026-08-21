@@ -29,8 +29,8 @@ export default function DesktopLayout() {
   const [loading, setLoading] = useState(false);
 
   const isDesktop = useMediaQuery('(min-width: 768px)');
-  const isAdminLocked = isDesktop && user?.role === 'Admin' && viewMode === 'Operator';
-  const activeRole = user?.role === 'Admin' ? viewMode : user?.role;
+  const isAdminLocked = isDesktop && user?.role === 'CCTV Chief' && viewMode === 'Operator';
+  const activeRole = user?.role === 'CCTV Chief' ? viewMode : user?.role;
 
   const toggleTheme = () => {
     setColorScheme(computedColorScheme === 'dark' ? 'light' : 'dark');
@@ -63,7 +63,7 @@ export default function DesktopLayout() {
   };
 
   const navItems = [
-    { label: 'Camera', icon: Camera, path: '/desktop/cameras', roles: ['Admin', 'Operator', 'Tanod'] },
+    { label: 'Camera', icon: Camera, path: '/desktop/cameras', roles: ['Admin', 'Operator', 'Barangay Tanod'] },
     { label: 'Account', icon: PlusSquare, path: '/desktop/accounts', roles: ['Admin'] },
     { label: 'Audit', icon: History, path: '/desktop/audit', roles: ['Admin'] },
   ];
@@ -108,13 +108,13 @@ export default function DesktopLayout() {
           <Group gap={30}>
             <img src="/icon.png" alt="logo" style={{ height: 32 }} />
 
-            {user?.role === 'Admin' && (
+            {user?.role === 'CCTV Chief' && (
               <Group gap="xs" style={{ 
                 background: 'var(--mantine-color-default-hover)', 
                 padding: '4px 12px', 
                 borderRadius: 20 
               }}>
-                <Text size="xs" fw={700} c={viewMode === 'Operator' ? 'orange' : 'dimmed'}>OPERATOR</Text>
+                <Text size="xs" fw={700} c={viewMode === 'Operator' ? 'orange' : 'dimmed'}>CCTV OPERATOR</Text>
                 <Switch
                   checked={viewMode === 'Admin'}
                   onChange={(event) => handleModeToggle(event.currentTarget.checked)}
@@ -123,7 +123,7 @@ export default function DesktopLayout() {
                   onLabel={<ShieldCheck size={12} />}
                   offLabel={<ShieldAlert size={12} />}
                 />
-                <Text size="xs" fw={700} c={viewMode === 'Admin' ? 'orange' : 'dimmed'}>ADMIN</Text>
+                <Text size="xs" fw={700} c={viewMode === 'Admin' ? 'orange' : 'dimmed'}>CHIEF</Text>
               </Group>
             )}
           </Group>
@@ -171,10 +171,10 @@ export default function DesktopLayout() {
               <Menu.Target>
                 <UnstyledButton>
                   <Group gap={10}>
-                    <Avatar radius="xl" color="orange">{user?.username?.[0].toUpperCase()}</Avatar>
+                    <Avatar radius="xl" color="orange">{user?.first_name?.[0].toUpperCase() || user?.email?.[0].toUpperCase()}</Avatar>
                     <Box visibleFrom="sm">
-                      <Text fz={13} fw={700}>{user?.username}</Text>
-                      <Badge size="xs" variant="light" color="gray">{viewMode} Mode</Badge>
+                      <Text fz={13} fw={700}>{user?.full_name || user?.email}</Text>
+                      <Badge size="xs" variant="light" color="gray">{viewMode === 'Admin' ? 'Chief' : 'CCTV Operator'} Mode</Badge>
                     </Box>
                     <ChevronDown size={14} />
                   </Group>

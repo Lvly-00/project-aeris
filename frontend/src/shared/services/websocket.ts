@@ -126,6 +126,8 @@ export class WebSocketService {
       // Invalidating triggers an immediate re-fetch in IncidentsPage.tsx
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      // Keep the History page in sync when incidents get resolved/dismissed
+      queryClient.invalidateQueries({ queryKey: ['incident-history'] });
     }
 
     if (action === 'notification_new') {

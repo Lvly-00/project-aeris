@@ -16,7 +16,7 @@ class AuditLogViewSet(viewsets.ReadOnlyModelViewSet):
     def get_queryset(self):
         qs = AuditLog.objects.select_related("user").all()
         user = self.request.user
-        if user.role != "Admin":
+        if user.role.name != "CCTV Chief":
             qs = qs.filter(user=user)
         return qs
 

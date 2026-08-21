@@ -14,7 +14,11 @@ class Detection(models.Model):
         on_delete=models.CASCADE,
         related_name="detections",
     )
-    incident_type = models.CharField(max_length=30)
+    incident_type = models.ForeignKey(
+        "lookups.IncidentType",
+        on_delete=models.PROTECT,
+        related_name="detections",
+    )
     confidence_score = models.FloatField(default=0.0)
     bbox_coords = models.JSONField(
         help_text="Bounding box coordinates [x1, y1, x2, y2]",

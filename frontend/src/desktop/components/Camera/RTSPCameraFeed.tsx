@@ -97,7 +97,7 @@ export function RTSPCameraFeed({ camera, onIncidentDetected }: RTSPCameraFeedPro
         videoRef={{ current: null }}
         cameraId={camera.id}
         streamType={camera.stream_type}
-        source={camera.rtsp_url}
+        source={camera.stream_url}
         cameraName={camera.name}
         onIncidentDetected={onIncidentDetected}
       />
