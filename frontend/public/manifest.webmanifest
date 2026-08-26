@@ -1,0 +1,30 @@
+{
+  "name": "AERIS - Barangay CCTV Incident Monitoring",
+  "short_name": "AERIS",
+  "description": "AI-Assisted Barangay CCTV Incident Monitoring & Decision Support System",
+  "id": "/pwa/",
+  "start_url": "/pwa/dashboard",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#f8f9fa",
+  "theme_color": "#FF5A05",
+  "icons": [
+    {
+      "src": "/icons/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    },
+    {
+      "src": "/icons/icon-maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    }
+  ]
+}

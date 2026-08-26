@@ -44,6 +44,16 @@ const theme = createTheme({
   },
 });
 
+const isElectron = Boolean((window as any).electronAPI?.isDesktop);
+
+if ('serviceWorker' in navigator && !isElectron) {
+  window.addEventListener('load', () => {
+    navigator.serviceWorker.register('/sw.js').catch(() => {
+      /* SW registration is best-effort; app works without it */
+    });
+  });
+}
+
 ReactDOM.createRoot(document.getElementById('root')!).render(
   <React.StrictMode>
     {/* ColorSchemeScript must be before MantineProvider */}

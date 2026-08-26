@@ -35,8 +35,11 @@ CORS_ALLOWED_ORIGINS = config(
 CORS_ALLOW_CREDENTIALS = True
 # CORS_ALLOW_ALL_ORIGINS is intentionally absent — never allow wildcard
 
-# ── Email — print to console ──────────────────────────────────────────────────
-EMAIL_BACKEND = "django.core.mail.backends.console.EmailBackend"
+# ── Email — Brevo Transactional Email API v3 (free-tier compatible) ──────────
+# SMTP relay (smtp-relay.brevo.com) requires a paid plan.
+# The REST API works on free accounts.
+BREVO_API_KEY = config("BREVO_API_KEY", default="")
+DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="Aeris <lovelypintes@gmail.com>")
 
 # ── Media — serve locally via Django ─────────────────────────────────────────
 # Handled automatically by DEBUG=True + static() in urls.py

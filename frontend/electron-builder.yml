@@ -7,41 +7,15 @@ directories:
   buildResources: build
 
 files:
-  - dist/**/*
   - electron/**/*
   - package.json
 
 electronDist: node_modules/electron/dist
 
-extraResources:
-  - from: ../backend
-    to: backend
-    filter:
-      - "**/*"
-      - "!**/__pycache__/**"
-      - "!venv/Lib/site-packages/pip/**"
-      - "!venv/Lib/site-packages/setuptools/**"
-      - "!venv/Lib/site-packages/wheel/**"
-      - "!venv/Scripts/pip*"
-      - "!venv/Scripts/*.exe.manifest"
-      - "!portable-python/**"
-      - "!**/*.pyc"
-      - "!.env"
-  - from: ../ai-service
-    to: ai-service
-    filter:
-      - "**/*"
-      - "!**/__pycache__/**"
-      - "!*.pyc"
-      - "!venv/**"
-  - from: dist
-    to: frontend
-    filter:
-      - "**/*"
-  - from: ../backend/portable-python
-    to: portable-python
-    filter:
-      - "**/*"
+# Thin client: the backend, database and AI service run on the deployed
+# server — nothing Python-related is packaged with the desktop app.
+# The server address is resolved at runtime (AERIS_SERVER_URL env var or
+# server-url.txt in the user data folder; default http://localhost:8000).
 
 win:
   target:

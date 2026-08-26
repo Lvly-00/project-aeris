@@ -1,3 +1,4 @@
+import { getAccessToken } from '../utils/tokenStorage';
 import type { QueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { playAlertSound } from '../utils/sounds';
@@ -28,7 +29,7 @@ export class WebSocketService {
   constructor(private readonly options: WebSocketServiceOptions) {}
 
   connect(): void {
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     if (!token || this.ws) return;
 
     try {

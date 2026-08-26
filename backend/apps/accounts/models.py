@@ -89,3 +89,39 @@ class User(AbstractUser):
 
     def can_dispatch(self) -> bool:
         return self.role_name in ("CCTV Chief", "CCTV Operator")
+
+
+class PasswordResetCode(models.Model):
+    """
+    Single-use, time-limited password-reset verification code.
+
+    Only a SHA-256 hash of the 6-digit code is stored; the plaintext code is
+    delivered to the user by email (console backend until SMTP is configured).
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="password_reset_codes",
+    )
+    code_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Password reset code"
+        verbose_name_plural = "Password reset codes"
+
+    def __str__(self) -> str:
+        return f"Reset code for {self.user.email} (used={self.is_used})"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_exhausted(self) -> bool:
+        return self.attempts >= 5

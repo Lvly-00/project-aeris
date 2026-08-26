@@ -1,5 +1,5 @@
-import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
     Paper,
     Text,
@@ -17,20 +17,59 @@ import {
     rem,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { ShieldCheck, Info, Eye, EyeOff } from 'lucide-react';
+import { ShieldCheck, Info, Eye, EyeOff, Download } from 'lucide-react';
 import { useAuth } from '../../shared/hooks/useAuth';
+import { AUTH_MESSAGES, mapLoginError } from '../../shared/utils/authErrors';
 
 export default function LoginPage() {
     const navigate = useNavigate();
+    const [searchParams] = useSearchParams();
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    const [installPrompt, setInstallPrompt] = useState<any>(null);
+    const [installed, setInstalled] = useState(
+        () =>
+            typeof window !== 'undefined' &&
+            window.matchMedia('(display-mode: standalone)').matches
+    );
+    const [showHint, setShowHint] = useState(false);
     const { login } = useAuth();
+
+    // Session expired after token refresh failure (interceptor adds ?expired=1)
+    const sessionExpired = searchParams.get('expired') === '1';
+
+    useEffect(() => {
+        const onBeforeInstall = (e: Event) => {
+            e.preventDefault();
+            setInstallPrompt(e);
+        };
+        const onInstalled = () => setInstalled(true);
+        window.addEventListener('beforeinstallprompt', onBeforeInstall);
+        window.addEventListener('appinstalled', onInstalled);
+        return () => {
+            window.removeEventListener('beforeinstallprompt', onBeforeInstall);
+            window.removeEventListener('appinstalled', onInstalled);
+        };
+    }, []);
+
+    const handleDownloadApp = async () => {
+        if (installPrompt) {
+            installPrompt.prompt();
+            const choice = await installPrompt.userChoice;
+            if (choice?.outcome === 'accepted') setInstalled(true);
+            setInstallPrompt(null);
+        } else {
+            setShowHint(true);
+        }
+    };
 
     const form = useForm({
         initialValues: { email: '', password: '', remember: false },
         validate: {
-            email: (v: string) => (!v ? 'Required' : /^\S+@\S+$/.test(v) ? null : 'Invalid email'),
-            password: (v: string) => (!v ? 'Required' : null),
+            email: (v: string) =>
+                !v || !v.trim() ? AUTH_MESSAGES.MISSING_EMAIL : null,
+            password: (v: string) =>
+                !v ? AUTH_MESSAGES.MISSING_PASSWORD : null,
         },
     });
 
@@ -45,16 +84,22 @@ export default function LoginPage() {
                 replace: true,
             });
         } catch (err: any) {
-            setError(
-                err.response?.data?.detail ||
-                'Invalid credentials. Please try again.'
-            );
+            setError(mapLoginError(err));
         } finally {
             setLoading(false);
         }
     };
 
     const PRIMARY_ORANGE = '#FF5A05';
+
+    const labelStyles = {
+        label: {
+            color: PRIMARY_ORANGE,
+            fontWeight: 600,
+            fontSize: rem(13),
+            marginBottom: rem(4),
+        },
+    };
 
     return (
         <Box
@@ -88,16 +133,16 @@ export default function LoginPage() {
                     display: 'flex',
                     flexDirection: 'column',
                     zIndex: 1,
+                    overflowY: 'auto',
                 }}
             >
-                <Stack justify="space-between" h="100%" gap="xs">
-
+                <Stack h="100%" gap="xs">
                     {/* TOP SECTION: Logo and Description */}
-                    <Stack align="center" gap="xs">
+                    <Stack align="center" gap="xs" pt="md">
                         <Image
                             src="/icon.png"
                             alt="Aeris Logo"
-                            w={{ base: 140, xs: 180 }} 
+                            w={{ base: 120, xs: 150 }}
                             fit="contain"
                         />
                         <Text
@@ -111,60 +156,108 @@ export default function LoginPage() {
                         </Text>
                     </Stack>
 
-                    {/* MIDDLE SECTION: The Form */}
-                    <form onSubmit={form.onSubmit(handleSubmit)} style={{ width: '100%' }}>
-                        <Stack gap="sm">
-                            {error && (
-                                <Alert icon={<Info size={14} />} color="red" p="xs">
-                                    {error}
-                                </Alert>
-                            )}
+                    {/* MIDDLE SECTION: The Form — vertically centred */}
+                    <Center style={{ flex: 1 }}>
+                        <Box w="100%">
+                            <form onSubmit={form.onSubmit(handleSubmit)} style={{ width: '100%' }}>
+                                <Stack gap="sm">
+                                    <TextInput
+                                        label="Email"
+                                        placeholder="you@barangay.local"
+                                        radius="md"
+                                        size="md"
+                                        withAsterisk={false}
+                                        {...form.getInputProps('email')}
+                                        styles={{
+                                            input: { height: rem(50) },
+                                            ...labelStyles,
+                                        }}
+                                    />
 
-                            <TextInput
-                                placeholder="Email"
-                                radius="md"
-                                size="md"
-                                {...form.getInputProps('email')}
-                                styles={{ input: { height: rem(50) } }}
-                            />
+                                    <PasswordInput
+                                        label="Password"
+                                        placeholder="Enter your password"
+                                        radius="md"
+                                        size="md"
+                                        withAsterisk={false}
+                                        {...form.getInputProps('password')}
+                                        visibilityToggleIcon={({ reveal }) =>
+                                            reveal ? <EyeOff size={18} /> : <Eye size={18} />
+                                        }
+                                        styles={{
+                                            input: { height: rem(50) },
+                                            ...labelStyles,
+                                        }}
+                                    />
 
-                            <PasswordInput
-                                placeholder="Password"
-                                radius="md"
-                                size="md"
-                                {...form.getInputProps('password')}
-                                visibilityToggleIcon={({ reveal }) =>
-                                    reveal ? <EyeOff size={18} /> : <Eye size={18} />
-                                }
-                                styles={{ input: { height: rem(50) } }}
-                            />
+                                    <Group justify="space-between">
+                                        <Checkbox
+                                            label="Remember Me"
+                                            size="xs"
+                                            color={PRIMARY_ORANGE}
+                                            {...form.getInputProps('remember', { type: 'checkbox' })}
+                                        />
+                                        <Anchor
+                                            href="#"
+                                            size="xs"
+                                            fw={600}
+                                            c={PRIMARY_ORANGE}
+                                            onClick={(e) => {
+                                                e.preventDefault();
+                                                navigate('/forgot-password?app=pwa');
+                                            }}
+                                        >
+                                            Forgot Password?
+                                        </Anchor>
+                                    </Group>
 
-                            <Group justify="space-between">
-                                <Checkbox
-                                    label="Remember Me"
-                                    size="xs"
-                                    color={PRIMARY_ORANGE}
-                                    {...form.getInputProps('remember', { type: 'checkbox' })}
-                                />
-                                <Anchor href="#" size="xs" fw={600} c={PRIMARY_ORANGE}>
-                                    Forgot Password?
-                                </Anchor>
-                            </Group>
+                                    <Button
+                                        type="submit"
+                                        fullWidth
+                                        size="md"
+                                        h={52}
+                                        radius="md"
+                                        mt="xs"
+                                        loading={loading}
+                                        bg={PRIMARY_ORANGE}
+                                        style={{ fontWeight: 700 }}
+                                    >
+                                        Log In
+                                    </Button>
 
-                            <Button
-                                type="submit"
-                                fullWidth
-                                size="md"
-                                h={52}
-                                radius="md"
-                                mt="xs"
-                                bg={PRIMARY_ORANGE}
-                                style={{ fontWeight: 700 }}
-                            >
-                                Log In
-                            </Button>
-                        </Stack>
-                    </form>
+                                    {(error || sessionExpired) && (
+                                        <Alert icon={<Info size={14} />} color={sessionExpired && !error ? 'orange' : 'red'} p="xs">
+                                            {error || AUTH_MESSAGES.SESSION_EXPIRED}
+                                        </Alert>
+                                    )}
+
+                                    {!installed && (
+                                        <Button
+                                            fullWidth
+                                            size="md"
+                                            h={44}
+                                            radius="md"
+                                            variant="light"
+                                            color={PRIMARY_ORANGE}
+                                            leftSection={<Download size={18} />}
+                                            onClick={handleDownloadApp}
+                                            style={{ fontWeight: 600 }}
+                                        >
+                                            Download App
+                                        </Button>
+                                    )}
+
+                                    {showHint && !installed && (
+                                        <Text fz={11} c="dimmed" ta="center">
+                                            Open your browser menu and choose{' '}
+                                            <b>&quot;Add to Home Screen&quot;</b> /{' '}
+                                            <b>&quot;Install app&quot;</b> to install AERIS.
+                                        </Text>
+                                    )}
+                                </Stack>
+                            </form>
+                        </Box>
+                    </Center>
 
                     {/* BOTTOM SECTION: Security Box */}
                     <Box
@@ -173,7 +266,7 @@ export default function LoginPage() {
                             borderRadius: rem(12),
                             border: '1px solid #eee',
                             backgroundColor: '#fff',
-                            marginBottom: rem(10) // Small buffer from bottom edge
+                            marginBottom: rem(10), // Small buffer from bottom edge
                         }}
                     >
                         <Group gap="xs" wrap="nowrap" align="center" justify="center">

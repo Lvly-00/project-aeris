@@ -9,6 +9,7 @@ import {
 
 import { authAPI } from '../services/api';
 import { User } from '../types';
+import { getAccessToken, setTokens, clearTokens } from '../utils/tokenStorage';
 
 interface AuthContextType {
   user: User | null;
@@ -61,14 +62,12 @@ export function AuthProvider({
 
   const logout = useCallback(async () => {
     try {
+      // Backend blacklists the refresh token (FR-LG-012).
       await authAPI.logout();
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
-      // Don't clear everything in localStorage.
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('viewMode');
+      clearTokens();
 
       setUser(null);
       setViewModeState('Operator');
@@ -80,7 +79,7 @@ export function AuthProvider({
   }, []);
 
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
 
     if (!token) {
       setLoading(false);
@@ -93,7 +92,11 @@ export function AuthProvider({
         setUser(res.data);
       })
       .catch(() => {
-        logout();
+        // Stored token is dead/expired: drop it silently. Do NOT call
+        // logout() here — it hard-navigates to login, which would hijack
+        // public pages like /forgot-password mid-flow.
+        clearTokens();
+        setUser(null);
       })
       .finally(() => {
         setLoading(false);
@@ -105,15 +108,10 @@ export function AuthProvider({
     // The LoginPage will catch the error.
     const response = await authAPI.login(data);
 
-    localStorage.setItem(
-      'access_token',
-      response.data.access
-    );
-
-    localStorage.setItem(
-      'refresh_token',
-      response.data.refresh
-    );
+    // FR-LG-002 — Remember Me keeps the session on this trusted device
+    // (localStorage); otherwise it ends when the browser session closes
+    // (sessionStorage).
+    setTokens(response.data.access, response.data.refresh, Boolean(data?.remember));
 
     setUser(response.data.user);
 

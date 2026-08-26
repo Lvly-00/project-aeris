@@ -1,8 +1,7 @@
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Paper,
-  Title,
   Text,
   TextInput,
   PasswordInput,
@@ -20,12 +19,17 @@ import {
 import { useForm } from '@mantine/form';
 import { ShieldCheck, Info, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../shared/hooks/useAuth';
+import { AUTH_MESSAGES, mapLoginError } from '../../shared/utils/authErrors';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { login } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+
+  // Session expired after token refresh failure (interceptor adds ?expired=1)
+  const sessionExpired = searchParams.get('expired') === '1';
 
   const form = useForm({
     initialValues: {
@@ -34,8 +38,10 @@ export default function LoginPage() {
       remember: false,
     },
     validate: {
-      email: (v: string) => (!v ? 'Email is required' : /^\S+@\S+$/.test(v) ? null : 'Invalid email'),
-      password: (v: string) => (!v ? 'Password is required' : null),
+      email: (v: string) =>
+        !v || !v.trim() ? AUTH_MESSAGES.MISSING_EMAIL : null,
+      password: (v: string) =>
+        !v ? AUTH_MESSAGES.MISSING_PASSWORD : null,
     },
   });
 
@@ -46,13 +52,21 @@ export default function LoginPage() {
       await login(values);
       navigate('/desktop/cameras', { replace: true });
     } catch (err: any) {
-      setError(
-        err.response?.data?.detail ||
-        'Invalid credentials. Please try again.'
-      );
+      setError(mapLoginError(err));
     } finally {
       setLoading(false);
     }
+  };
+
+  const ORANGE = '#FF6B00';
+
+  const labelStyles = {
+    label: {
+      color: ORANGE,
+      fontWeight: 600,
+      fontSize: rem(13),
+      marginBottom: rem(4),
+    },
   };
 
   return (
@@ -60,12 +74,12 @@ export default function LoginPage() {
       style={{
         height: '100vh',
         width: '100vw',
-        backgroundImage: `url('/loginBG.png')`,
+        backgroundImage: `url('/BACKGROUND.png')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         display: 'flex',
         alignItems: 'center',
-        paddingLeft: '10%',
+        justifyContent: 'center',
       }}
     >
       <Paper
@@ -83,51 +97,65 @@ export default function LoginPage() {
           {/* LOGO AREA */}
           <Center flex={1} style={{ flexDirection: 'column' }}>
             <Image
-              src="/icon.png" // Update with your Aeris logo path
+              src="/icon.png"
               alt="Aeris Logo"
               w={180}
               mb="md"
             />
+
             <Text ta="center" c="dimmed" fz="sm" fw={500} style={{ maxWidth: 300, lineHeight: 1.4 }}>
-              Sign in to access the AI-Assisted Barangay CCTV Incident Monitoring & Decision Support System.
+              AI-Assisted Barangay CCTV Incident Monitoring & Decision Support System.
             </Text>
           </Center>
-
-          {error && (
-            <Alert icon={<Info size={16} />} color="red" variant="light" radius="md">
-              {error}
-            </Alert>
-          )}
 
           <form onSubmit={form.onSubmit(handleSubmit)}>
             <Stack gap="md">
               <TextInput
+                label="Email"
+                placeholder="you@barangay.local"
                 size="md"
-                placeholder="Email"
                 radius="md"
+                withAsterisk={false}
                 {...form.getInputProps('email')}
-                styles={{ input: { height: rem(54) } }}
+                styles={{
+                  input: { height: rem(54) },
+                  ...labelStyles,
+                }}
               />
 
               <PasswordInput
+                label="Password"
+                placeholder="Enter your password"
                 size="md"
-                placeholder="Password"
                 radius="md"
+                withAsterisk={false}
                 {...form.getInputProps('password')}
                 visibilityToggleIcon={({ reveal }) =>
                   reveal ? <EyeOff size={18} /> : <Eye size={18} />
                 }
-                styles={{ input: { height: rem(54) } }}
+                styles={{
+                  input: { height: rem(54) },
+                  ...labelStyles,
+                }}
               />
 
               <Group justify="space-between">
                 <Checkbox
                   label="Remember Me"
                   size="xs"
-                  color="#FF6B00"
+                  color={ORANGE}
                   {...form.getInputProps('remember', { type: 'checkbox' })}
                 />
-                <Anchor href="#" size="xs" fw={600} c="#FF6B00">
+                <Anchor
+                  href="#"
+                  size="xs"
+                  fw={600}
+                  c={ORANGE}
+                  onClick={(e) => {
+                    e.preventDefault();
+                    navigate('/forgot-password?app=desktop');
+                  }}
+                >
                   Forgot Password?
                 </Anchor>
               </Group>
@@ -140,11 +168,22 @@ export default function LoginPage() {
                 radius="md"
                 mt="md"
                 loading={loading}
-                color="#FF6B00"
+                color={ORANGE}
                 style={{ fontSize: rem(16), fontWeight: 700 }}
               >
                 Log In
               </Button>
+
+              {(error || sessionExpired) && (
+                <Alert
+                  icon={<Info size={16} />}
+                  color={sessionExpired && !error ? 'orange' : 'red'}
+                  variant="light"
+                  radius="md"
+                >
+                  {error || AUTH_MESSAGES.SESSION_EXPIRED}
+                </Alert>
+              )}
             </Stack>
           </form>
 
@@ -158,7 +197,7 @@ export default function LoginPage() {
             }}
           >
             <Group gap="xs" wrap="nowrap">
-              <ShieldCheck size={18} color="#FF6B00" />
+              <ShieldCheck size={18} color={ORANGE} />
               <Text fz={11} fw={500} c="#994400">
                 Your information is encrypted and securely protected.
               </Text>

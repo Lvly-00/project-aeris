@@ -1,3 +1,4 @@
+import { getAccessToken } from '../utils/tokenStorage';
 /**
  * useCameraFeed — manages stream URL state and retry logic for HTTP/MP4 feeds.
  * Extracted from CameraFeed so the state logic is testable independently.
@@ -24,7 +25,7 @@ export function useCameraFeed({ cameraId, streamType }: UseCameraFeedOptions): U
   const retryRef = useRef(0);
 
   const buildStreamUrl = () => {
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     return `/api/cameras/${cameraId}/stream/?token=${encodeURIComponent(token || '')}`;
   };
 

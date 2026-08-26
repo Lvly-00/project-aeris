@@ -5,6 +5,11 @@ import PwaRouter from './pwa/router';
 
 import AppGuard from './shared/components/AppGuard';
 
+// Shared auth pages (outside AppGuard — reachable from BOTH logins)
+import ForgotPasswordPage from './shared/pages/ForgotPasswordPage';
+import VerificationCodePage from './shared/pages/VerificationCodePage';
+import ResetPasswordPage from './shared/pages/ResetPasswordPage';
+
 export default function AppRouter() {
   return (
     <Routes>
@@ -32,6 +37,14 @@ export default function AppRouter() {
           </AppGuard>
         }
       />
+
+      {/* =========================
+          SHARED PASSWORD RESET FLOW
+          (?app=pwa|desktop returns the user to the correct login)
+         ========================= */}
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/verification-code" element={<VerificationCodePage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
 
       {/* =========================
           DEFAULT

@@ -1,8 +1,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  getBackendUrl: () => 'http://localhost:8000',
-  getAiUrl: () => 'http://localhost:8005',
+  // Origin of the deployed backend (thin client — resolved by main process).
+  getBackendUrl: () => ipcRenderer.sendSync('get-server-url'),
+
+  // The AI service is reached through the same-origin /ai proxy
+  // (Vite dev server in development, nginx on the deployed server).
+  getAiUrl: () => '/ai',
 
   // Used by React to determine whether it's running in Electron
   isDesktop: true,

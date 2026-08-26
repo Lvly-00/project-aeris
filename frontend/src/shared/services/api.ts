@@ -1,6 +1,27 @@
 import axios from 'axios';
+import {
+  getAccessToken,
+  getRefreshToken,
+  persistAccessToken,
+  clearTokens,
+} from '../utils/tokenStorage';
 
 const API_BASE_URL = '/api';
+
+/** Public pages must never be hijacked by the expired-session redirect. */
+const PUBLIC_AUTH_PATHS = [
+  '/forgot-password',
+  '/verification-code',
+  '/reset-password',
+];
+
+function isPublicAuthPath(): boolean {
+  const path = window.location.pathname;
+  return (
+    path.endsWith('/login') ||
+    PUBLIC_AUTH_PATHS.some((prefix) => path.startsWith(prefix))
+  );
+}
 
 const api = axios.create({
   baseURL: API_BASE_URL,
@@ -11,10 +32,23 @@ const api = axios.create({
 
 api.interceptors.request.use(
   (config) => {
-    const token = localStorage.getItem('access_token');
-    if (token) {
-      config.headers.Authorization = `Bearer ${token}`;
+    // Never send stale tokens to public auth endpoints — doing so can
+    // cause DRF to attempt validation and return 401 even when the view
+    // is set to authentication_classes=[].
+    const url = (config.url ?? '').toLowerCase();
+    const isPublicEndpoint =
+      url.includes('/accounts/login/') ||
+      url.includes('/accounts/password-reset/') ||
+      url.includes('/accounts/register/') ||
+      url.includes('/auth/token/');
+
+    if (!isPublicEndpoint) {
+      const token = getAccessToken();
+      if (token) {
+        config.headers.Authorization = `Bearer ${token}`;
+      }
     }
+
     return config;
   },
   (error) => Promise.reject(error)
@@ -49,22 +83,17 @@ api.interceptors.response.use(
 
     /**
      * Refresh request itself failed.
-     * The session is no longer valid.
+     * The session is no longer valid — but if the user is on a public
+     * page (login / password-reset flow) just drop the tokens and let
+     * them continue; do NOT bounce them to login.
      */
-    if (
-      error.response?.status === 401 &&
-      isRefreshRequest
-    ) {
-      localStorage.removeItem('access_token');
-      localStorage.removeItem('refresh_token');
-      localStorage.removeItem('viewMode');
+    if (error.response?.status === 401 && isRefreshRequest) {
+      clearTokens();
 
-      const isPwa =
-        window.location.pathname.startsWith('/pwa');
-
-      window.location.href = isPwa
-        ? '/pwa/login'
-        : '/desktop/login';
+      if (!isPublicAuthPath()) {
+        const isPwa = window.location.pathname.startsWith('/pwa');
+        window.location.href = `${isPwa ? '/pwa/login' : '/desktop/login'}?expired=1`;
+      }
 
       return Promise.reject(error);
     }
@@ -80,8 +109,7 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refresh =
-          localStorage.getItem('refresh_token');
+        const refresh = getRefreshToken();
 
         if (!refresh) {
           throw new Error('No refresh token');
@@ -96,27 +124,19 @@ api.interceptors.response.use(
         );
 
         const newAccess = response.data.access;
-
-        localStorage.setItem(
-          'access_token',
-          newAccess
-        );
+        persistAccessToken(newAccess);
 
         originalRequest.headers.Authorization =
           `Bearer ${newAccess}`;
 
         return api(originalRequest);
       } catch (refreshError) {
-        localStorage.removeItem('access_token');
-        localStorage.removeItem('refresh_token');
-        localStorage.removeItem('viewMode');
+        clearTokens();
 
-        const isPwa =
-          window.location.pathname.startsWith('/pwa');
-
-        window.location.href = isPwa
-          ? '/pwa/login'
-          : '/desktop/login';
+        if (!isPublicAuthPath()) {
+          const isPwa = window.location.pathname.startsWith('/pwa');
+          window.location.href = `${isPwa ? '/pwa/login' : '/desktop/login'}?expired=1`;
+        }
 
         return Promise.reject(refreshError);
       }
@@ -130,7 +150,13 @@ export const authAPI = {
   login: (data: { email: string; password: string }) =>
     api.post('/accounts/login/', data),
   logout: () =>
-    api.post('/accounts/logout/'),
+    api.post('/accounts/logout/', { refresh: getRefreshToken() ?? undefined }),
+  requestPasswordReset: (email: string) =>
+    api.post('/accounts/password-reset/', { email }),
+  verifyPasswordResetCode: (email: string, code: string) =>
+    api.post('/accounts/password-reset/verify/', { email, code }),
+  confirmPasswordReset: (email: string, code: string, password: string) =>
+    api.post('/accounts/password-reset/confirm/', { email, code, password }),
   verifyPassword: (password: string) =>
     api.post('/accounts/verify-password/', { password }),
   refresh: (refresh: string) =>

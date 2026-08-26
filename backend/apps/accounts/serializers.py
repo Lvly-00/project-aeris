@@ -101,17 +101,69 @@ class VerifyPasswordSerializer(serializers.Serializer):
 
 
 class LoginSerializer(serializers.Serializer):
-    email = serializers.EmailField()
-    password = serializers.CharField(write_only=True)
+    """
+    Validates the SHAPE of login credentials only. Actual authentication
+    (including lockout / progressive delay / audit logging) is handled by
+    the login view so failed attempts are always recorded.
+    """
+    email = serializers.EmailField(
+        error_messages={
+            "required": "Email Address is required.",
+            "blank": "Email Address is required.",
+        }
+    )
+    password = serializers.CharField(
+        write_only=True,
+        error_messages={
+            "required": "Password is required.",
+            "blank": "Password is required.",
+        },
+    )
 
     def validate(self, attrs: dict) -> dict:
-        user = authenticate(
-            email=attrs.get("email"),
-            password=attrs.get("password"),
-        )
-        if user is None:
-            raise serializers.ValidationError("Invalid email or password.")
-        if not user.is_active:
-            raise serializers.ValidationError("User account is disabled.")
-        attrs["user"] = user
         return attrs
+
+
+class PasswordResetVerifySerializer(serializers.Serializer):
+    """Shape validation for the verification-code step."""
+
+    email = serializers.EmailField(
+        error_messages={
+            "required": "Email Address is required.",
+            "blank": "Email Address is required.",
+        }
+    )
+    code = serializers.RegexField(
+        r"^\d{6}$",
+        error_messages={
+            "required": "Verification code is required.",
+            "invalid": "Enter the 6-digit verification code.",
+        },
+    )
+
+
+class PasswordResetConfirmSerializer(serializers.Serializer):
+    """Shape validation for setting the new password."""
+
+    email = serializers.EmailField(
+        error_messages={
+            "required": "Email Address is required.",
+            "blank": "Email Address is required.",
+        }
+    )
+    code = serializers.RegexField(
+        r"^\d{6}$",
+        error_messages={
+            "required": "Verification code is required.",
+            "invalid": "Enter the 6-digit verification code.",
+        },
+    )
+    password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+        error_messages={
+            "required": "Password is required.",
+            "blank": "Password is required.",
+            "min_length": "Password must be at least 8 characters.",
+        },
+    )

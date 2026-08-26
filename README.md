@@ -71,6 +71,23 @@ npm run dev                                     # http://localhost:5173
 > **Run only ONE Django process in dev.** Channels uses an in-memory layer per
 > process — two `runserver` instances silently split WebSocket delivery.
 
+## Deployment & Desktop Builds
+
+The backend, database and AI service run centrally on the deployed server;
+both clients are thin:
+
+- **PWA (web)**: `cd frontend && npm run build` (same as `build:pwa`)
+  produces `dist/` — an installable PWA (manifest + service worker + icons).
+  Serve it from the **same origin** as `/api`, `/ws` and `/ai` (the nginx /
+  Docker setup already does). A **Download App** button under the login form
+  triggers the browser's native install prompt.
+- **Desktop (Electron)**: `scripts/build-desktop.ps1` or
+  `npm run build:desktop`. The installer no longer bundles Django, Python or
+  the AI service — it loads the deployed site directly. The server URL comes
+  from (in order): `AERIS_SERVER_URL` env var → `server-url.txt` in the app
+  data folder (`%APPDATA%\Aeris\server-url.txt`) → default
+  `http://localhost:8000`.
+
 ## Repository Layout
 
 ```

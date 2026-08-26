@@ -7,8 +7,9 @@
   "scripts": {
     "dev": "vite --host",
     "dev:desktop": "concurrently -k -n \"vite,electron\" -c \"cyan,green\" \"vite --host\" \"wait-on http://localhost:5173 && electron .\"",
-    "build": "tsc -b && vite build",
-    "build:desktop": "tsc -b && vite build --mode desktop && electron-builder --config electron-builder.yml",
+    "build": "tsc -b && vite build --mode pwa",
+    "build:pwa": "tsc -b && vite build --mode pwa",
+    "build:desktop": "tsc -b && electron-builder --config electron-builder.yml",
     "preview": "vite preview",
     "lint": "eslint .",
     "electron": "electron ."
