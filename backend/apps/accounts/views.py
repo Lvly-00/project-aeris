@@ -15,7 +15,7 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
-from .models import PasswordResetCode
+from .models import PasswordResetCode, EmailChangeCode, TwoFactorCode, TrustedDevice
 from .email import send_email
 from .serializers import (
     UserSerializer,
@@ -24,6 +24,10 @@ from .serializers import (
     VerifyPasswordSerializer,
     PasswordResetVerifySerializer,
     PasswordResetConfirmSerializer,
+    ChangePasswordSerializer,
+    EmailChangeRequestSerializer,
+    EmailChangeVerifySerializer,
+    EmailChangeConfirmSerializer,
 )
 
 User = get_user_model()
@@ -86,9 +90,16 @@ class RegisterView(generics.CreateAPIView):
             status=status.HTTP_201_CREATED,
         )
 
+ALLOWED_IMAGE_EXTENSIONS = {"jpg", "jpeg", "png", "webp"}
+MAX_PROFILE_PICTURE_SIZE = 5 * 1024 * 1024  # 5 MB
+
+
 class UserDetailView(generics.RetrieveUpdateAPIView):
     """
     Endpoint for the currently logged-in user to see/update their own profile.
+    Only first_name, last_name, profile_picture, receive_notifications, and
+    preferred_language may be modified.  role, is_active, email, and
+    two_factor_enabled are read-only here.
     """
     queryset = User.objects.all()
     serializer_class = UserSerializer
@@ -96,6 +107,33 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 
     def get_object(self):
         return self.request.user
+
+    def partial_update(self, request, *args, **kwargs):
+        user = self.get_object()
+
+        # --- Profile picture validation (FR-PP-003) ---
+        picture = request.FILES.get("profile_picture")
+        if picture:
+            ext = picture.name.rsplit(".", 1)[-1].lower() if "." in picture.name else ""
+            if ext not in ALLOWED_IMAGE_EXTENSIONS:
+                return Response(
+                    {"profile_picture": "Unsupported profile picture format. Use JPG, PNG, or WebP."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+            if picture.size > MAX_PROFILE_PICTURE_SIZE:
+                return Response(
+                    {"profile_picture": "Profile picture exceeds the maximum allowed file size (5 MB)."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        response = super().partial_update(request, *args, **kwargs)
+
+        # --- Audit trail (FR-PP-009) ---
+        _audit_action(
+            user, request, "PROFILE_UPDATED",
+            {"fields": list(request.data.keys())},
+        )
+        return response
 
 class UserViewSet(viewsets.ModelViewSet):
     """
@@ -266,6 +304,81 @@ class UserViewSet(viewsets.ModelViewSet):
                 {"detail": "User account is disabled."},
                 status=status.HTTP_403_FORBIDDEN,
             )
+
+        # FR-2F-007 — If 2FA is enabled, check if this is a trusted device.
+        # Only require 2FA on new/unrecognized devices.
+        if user.two_factor_enabled:
+            device_id = (request.data.get("device_id") or "").strip()
+            is_trusted = (
+                device_id
+                and TrustedDevice.objects.filter(user=user, device_id=device_id).exists()
+            )
+
+            if is_trusted:
+                # Trusted device — skip 2FA, issue tokens directly.
+                refresh = RefreshToken.for_user(user)
+                # Update last_used_at.
+                TrustedDevice.objects.filter(user=user, device_id=device_id).update(
+                    last_used_at=timezone.now()
+                )
+                _audit_action(user, request, "LOGIN", {"method": "trusted_device"})
+                return Response({
+                    "refresh": str(refresh),
+                    "access": str(refresh.access_token),
+                    "user": UserSerializer(user).data,
+                })
+
+            # New device — require 2FA.
+            # Invalidate any outstanding 2FA codes.
+            user.two_factor_codes.filter(is_used=False).update(is_used=True)
+
+            code = f"{secrets.randbelow(1_000_000):06d}"
+            TwoFactorCode.objects.create(
+                user=user,
+                code_hash=self._two_factor_hash(code),
+                expires_at=timezone.now()
+                + timedelta(seconds=self.TWO_FACTOR_CODE_TTL_SECONDS),
+            )
+
+            if settings.DEBUG:
+                logger.info("[DEV] 2FA login code for %s: %s", user.email, code)
+
+            try:
+                html_body = (
+                    "<p>Hello,</p>"
+                    "<p>Use the verification code below to complete your login:</p>"
+                    f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
+                    f'margin:16px 0">{code}</p>'
+                    f"<p>This code expires in "
+                    f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
+                    "If you did not attempt to log in, you can safely "
+                    "ignore this email.</p>"
+                )
+                text_body = (
+                    "Hello,\n\n"
+                    "Use the verification code below to complete your login:\n\n"
+                    f"{code}\n\n"
+                    f"This code expires in "
+                    f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
+                    "If you did not attempt to log in, you can safely "
+                    "ignore this email.\n"
+                )
+                send_email(
+                    to_email=user.email,
+                    subject="Your AERIS login verification code",
+                    html_content=html_body,
+                    text_content=text_body,
+                )
+            except Exception:
+                logger.warning("2FA login email failed for %s", user.email)
+
+            _audit_action(user, request, "TWO_FACTOR_ENABLED", {"phase": "login_code_sent"})
+
+            return Response({
+                "requires_2fa": True,
+                "email": user.email,
+                "detail": "A verification code has been sent to your email.",
+            })
 
         # FR-LG-008 — record successful authentication
         refresh = RefreshToken.for_user(user)
@@ -471,6 +584,103 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({"detail": "Password has been reset."})
 
 
+    @action(
+        detail=False,
+        methods=["POST"],
+        url_path="login-verify-2fa",
+        permission_classes=[permissions.AllowAny],
+        authentication_classes=[],
+    )
+    def login_verify_2fa(self, request):
+        """
+        Step 2 of 2FA login: verify the 6-digit code and issue tokens.
+        POST { "email": "...", "code": "123456" }
+        """
+        email = (request.data.get("email") or "").strip().lower()
+        code = (request.data.get("code") or "").strip()
+
+        if not email or not code:
+            return Response(
+                {"detail": "Email and verification code are required."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        if len(code) != 6 or not code.isdigit():
+            return Response(
+                {"detail": "Enter the complete 6-digit verification code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = User.objects.filter(email__iexact=email).first()
+        if user is None:
+            return Response(
+                {"detail": "Invalid verification code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        code_obj = (
+            user.two_factor_codes
+            .filter(is_used=False)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if (
+            code_obj is None
+            or code_obj.is_expired
+            or code_obj.is_exhausted
+            or not hmac.compare_digest(code_obj.code_hash, self._two_factor_hash(code))
+        ):
+            if code_obj is not None and not code_obj.is_exhausted:
+                code_obj.attempts += 1
+                fields = ["attempts"]
+                if code_obj.attempts >= self.TWO_FACTOR_MAX_ATTEMPTS:
+                    code_obj.is_used = True
+                    fields.append("is_used")
+                code_obj.save(update_fields=fields)
+
+                remaining = max(0, self.TWO_FACTOR_MAX_ATTEMPTS - code_obj.attempts)
+                if remaining == 0:
+                    return Response(
+                        {"detail": "Too many verification attempts. Please log in again."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                return Response(
+                    {"detail": "The verification code is invalid. Please try again.", "attempts_remaining": remaining},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            return Response(
+                {"detail": "This verification code has expired. Please log in again."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Code is valid — consume it and issue tokens.
+        code_obj.is_used = True
+        code_obj.save(update_fields=["is_used"])
+
+        # Invalidate other pending codes.
+        user.two_factor_codes.filter(is_used=False).update(is_used=True)
+
+        # Save this device as trusted so future logins skip 2FA.
+        device_id = (request.data.get("device_id") or "").strip()
+        if device_id:
+            TrustedDevice.objects.get_or_create(
+                user=user,
+                device_id=device_id,
+                defaults={"label": (request.META.get("HTTP_USER_AGENT") or "")[:200]},
+            )
+
+        refresh = RefreshToken.for_user(user)
+        _audit_action(user, request, "LOGIN", {"method": "2fa"})
+        _audit_action(user, request, "TWO_FACTOR_VERIFIED", {})
+
+        return Response({
+            "refresh": str(refresh),
+            "access": str(refresh.access_token),
+            "user": UserSerializer(user).data,
+        })
+
     @action(detail=False, methods=["GET"], url_path="dispatchers")
     def dispatchers(self, request):
         users = User.objects.filter(
@@ -490,3 +700,385 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             
         return Response({"detail": "Password verified successfully"}, status=status.HTTP_200_OK)
+
+    # ── Profile: Change Password (FR-PP-004 / FR-PP-005) ──────────────────────
+
+    @action(detail=False, methods=["POST"], url_path="change-password")
+    def change_password(self, request):
+        serializer = ChangePasswordSerializer(
+            data=request.data,
+            context={"request": request},
+            user=request.user,
+        )
+        serializer.is_valid(raise_exception=True)
+
+        request.user.set_password(serializer.validated_data["new_password"])
+        request.user.save(update_fields=["password"])
+
+        _audit_action(request.user, request, "PASSWORD_CHANGED", {})
+
+        # Invalidate all refresh tokens so the user must re-login.
+        try:
+            from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+            for token in OutstandingToken.objects.filter(user=request.user):
+                from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+                BlacklistedToken.objects.get_or_create(token=token)
+        except Exception:
+            logger.warning("Could not blacklist tokens for user %s", request.user.email)
+
+        return Response({"detail": "Password changed successfully. Please log in again."})
+
+    # ── Profile: Email Change (FR-PP-010 / FR-PP-011 / FR-PP-012 / FR-PP-013) ─
+
+    EMAIL_CHANGE_CODE_TTL_SECONDS = 300
+    EMAIL_CHANGE_MAX_ATTEMPTS = 5
+
+    def _email_change_hash(self, code: str) -> str:
+        return hashlib.sha256(
+            f"{code}:{settings.SECRET_KEY}".encode()
+        ).hexdigest()
+
+    @action(detail=False, methods=["POST"], url_path="email-change/initiate")
+    def email_change_initiate(self, request):
+        """
+        Step 1: Send a verification code to the user's CURRENT email address.
+        No new_email needed yet — the user proves identity first.
+        """
+        user = request.user
+
+        # Invalidate any outstanding email-change codes.
+        user.email_change_codes.filter(is_used=False).update(is_used=True)
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        EmailChangeCode.objects.create(
+            user=user,
+            new_email="",
+            code_hash=self._email_change_hash(code),
+            expires_at=timezone.now()
+            + timedelta(seconds=self.EMAIL_CHANGE_CODE_TTL_SECONDS),
+        )
+
+        if settings.DEBUG:
+            logger.info("[DEV] Email change code for %s: %s", user.email, code)
+
+        try:
+            html_body = (
+                "<p>Hello,</p>"
+                "<p>Use the verification code below to confirm your email address change:</p>"
+                f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
+                f'margin:16px 0">{code}</p>'
+                f"<p>This code expires in "
+                f"{self.EMAIL_CHANGE_CODE_TTL_SECONDS // 60} minutes. "
+                "If you did not request this change, you can safely "
+                "ignore this email.</p>"
+            )
+            text_body = (
+                "Hello,\n\n"
+                "Use the verification code below to confirm your email address change:\n\n"
+                f"{code}\n\n"
+                f"This code expires in "
+                f"{self.EMAIL_CHANGE_CODE_TTL_SECONDS // 60} minutes. "
+                "If you did not request this change, you can safely "
+                "ignore this email.\n"
+            )
+            send_email(
+                to_email=user.email,
+                subject="Verify your AERIS email change",
+                html_content=html_body,
+                text_content=text_body,
+            )
+        except Exception:
+            logger.warning("Email change verification email failed for %s", user.email)
+
+        _audit_action(
+            user, request, "EMAIL_CHANGE_REQUESTED",
+            {},
+        )
+
+        return Response(
+            {"detail": "Verification code sent to your current email address."},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["POST"], url_path="email-change/verify")
+    def email_change_verify(self, request):
+        """
+        Step 2: Verify the 6-digit code (identity check only).
+        Does NOT apply the email change — that happens in confirm.
+        """
+        serializer = EmailChangeVerifySerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        code = serializer.validated_data["code"]
+        user = request.user
+
+        code_obj = (
+            user.email_change_codes
+            .filter(is_used=False)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if (
+            code_obj is None
+            or code_obj.is_expired
+            or code_obj.is_exhausted
+            or not hmac.compare_digest(code_obj.code_hash, self._email_change_hash(code))
+        ):
+            if code_obj and not code_obj.is_exhausted:
+                code_obj.attempts += 1
+                fields = ["attempts"]
+                if code_obj.attempts >= self.EMAIL_CHANGE_MAX_ATTEMPTS:
+                    code_obj.is_used = True
+                    fields.append("is_used")
+                code_obj.save(update_fields=fields)
+
+            _audit_action(
+                user, request, "EMAIL_CHANGE_REQUESTED",
+                {"success": False, "reason": "invalid_code"},
+            )
+
+            return Response(
+                {"detail": "Invalid or expired verification code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Mark this code as verified (but don't apply yet — wait for confirm).
+        code_obj.verified = True
+        code_obj.save(update_fields=["verified"])
+
+        return Response({"detail": "Code verified."})
+
+    @action(detail=False, methods=["POST"], url_path="email-change/confirm")
+    def email_change_confirm(self, request):
+        """
+        Step 3: Apply the email change. Requires new_email + current password.
+        The code must have been verified in step 2.
+        """
+        serializer = EmailChangeConfirmSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        new_email = serializer.validated_data["new_email"].strip().lower()
+        password = serializer.validated_data["password"]
+        user = request.user
+
+        # Verify current password.
+        if not user.check_password(password):
+            return Response(
+                {"password": "The current password is incorrect."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check new email isn't the same.
+        if new_email == user.email.lower():
+            return Response(
+                {"new_email": "New email must be different from current email."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Check new email isn't taken.
+        if User.objects.filter(email__iexact=new_email).exists():
+            return Response(
+                {"new_email": "This email address is already in use."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Find the latest verified, unused code.
+        code_obj = (
+            user.email_change_codes
+            .filter(is_used=False, verified=True)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if code_obj is None or code_obj.is_expired or code_obj.is_exhausted:
+            return Response(
+                {"detail": "Verification code has expired. Please start over."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Apply the email change (FR-PP-012).
+        user.email = new_email
+        user.save(update_fields=["email"])
+
+        code_obj.is_used = True
+        code_obj.save(update_fields=["is_used"])
+
+        # Invalidate other pending codes.
+        user.email_change_codes.filter(is_used=False).update(is_used=True)
+
+        # Blacklist all refresh tokens so the user must re-login with new email.
+        try:
+            from rest_framework_simplejwt.token_blacklist.models import OutstandingToken
+            for token in OutstandingToken.objects.filter(user=user):
+                from rest_framework_simplejwt.token_blacklist.models import BlacklistedToken
+                BlacklistedToken.objects.get_or_create(token=token)
+        except Exception:
+            logger.warning("Could not blacklist tokens for user %s", user.email)
+
+        _audit_action(user, request, "EMAIL_CHANGE_COMPLETED", {"new_email": new_email})
+
+        return Response({"detail": "Your email address has been successfully updated."})
+
+    # ── Profile: Chief Mode audit (FR-PPD-006) ───────────────────────────────
+
+    @action(detail=False, methods=["POST"], url_path="chief-mode-log")
+    def chief_mode_log(self, request):
+        entered = request.data.get("entered")
+        if not isinstance(entered, bool):
+            return Response(
+                {"detail": "'entered' must be a boolean."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        action_name = "CHIEF_MODE_ENTERED" if entered else "CHIEF_MODE_EXITED"
+        _audit_action(request.user, request, action_name, {})
+        return Response({"detail": f"{action_name} logged."})
+
+    # ── Profile: Two-Factor Authentication (FR-2F-001 – FR-2F-009) ──────────
+
+    TWO_FACTOR_CODE_TTL_SECONDS = 300
+    TWO_FACTOR_MAX_ATTEMPTS = 5
+
+    def _two_factor_hash(self, code: str) -> str:
+        return hashlib.sha256(
+            f"{code}:{settings.SECRET_KEY}".encode()
+        ).hexdigest()
+
+    @action(detail=False, methods=["POST"], url_path="2fa/send")
+    def two_factor_send(self, request):
+        """
+        Send a 6-digit verification code to the user's email.
+        The frontend opens the VerificationCodeModal after this succeeds.
+        """
+        user = request.user
+
+        # Invalidate any outstanding 2FA codes.
+        user.two_factor_codes.filter(is_used=False).update(is_used=True)
+
+        code = f"{secrets.randbelow(1_000_000):06d}"
+        TwoFactorCode.objects.create(
+            user=user,
+            code_hash=self._two_factor_hash(code),
+            expires_at=timezone.now()
+            + timedelta(seconds=self.TWO_FACTOR_CODE_TTL_SECONDS),
+        )
+
+        if settings.DEBUG:
+            logger.info("[DEV] 2FA code for %s: %s", user.email, code)
+
+        try:
+            html_body = (
+                "<p>Hello,</p>"
+                "<p>Use the verification code below to verify your identity:</p>"
+                f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
+                f'margin:16px 0">{code}</p>'
+                f"<p>This code expires in "
+                f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
+                "If you did not request this, you can safely "
+                "ignore this email.</p>"
+            )
+            text_body = (
+                "Hello,\n\n"
+                "Use the verification code below to verify your identity:\n\n"
+                f"{code}\n\n"
+                f"This code expires in "
+                f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
+                "If you did not request this, you can safely "
+                "ignore this email.\n"
+            )
+            send_email(
+                to_email=user.email,
+                subject="Your AERIS verification code",
+                html_content=html_body,
+                text_content=text_body,
+            )
+        except Exception:
+            logger.warning("2FA verification email failed for %s", user.email)
+            return Response(
+                {"detail": "We could not send the verification code. Please try again."},
+                status=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            )
+
+        _audit_action(user, request, "TWO_FACTOR_ENABLED", {"phase": "code_sent"})
+
+        return Response(
+            {"detail": "Verification code sent to your email address."},
+            status=status.HTTP_200_OK,
+        )
+
+    @action(detail=False, methods=["POST"], url_path="2fa/verify")
+    def two_factor_verify(self, request):
+        """
+        Verify the 6-digit code and toggle two_factor_enabled.
+        POST { "code": "123456" }
+        """
+        code = (request.data.get("code") or "").strip()
+        if not code or len(code) != 6 or not code.isdigit():
+            return Response(
+                {"detail": "Enter the complete 6-digit verification code."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        user = request.user
+
+        code_obj = (
+            user.two_factor_codes
+            .filter(is_used=False)
+            .order_by("-created_at")
+            .first()
+        )
+
+        if (
+            code_obj is None
+            or code_obj.is_expired
+            or code_obj.is_exhausted
+            or not hmac.compare_digest(code_obj.code_hash, self._two_factor_hash(code))
+        ):
+            if code_obj is not None and not code_obj.is_exhausted:
+                code_obj.attempts += 1
+                fields = ["attempts"]
+                if code_obj.attempts >= self.TWO_FACTOR_MAX_ATTEMPTS:
+                    code_obj.is_used = True
+                    fields.append("is_used")
+                code_obj.save(update_fields=fields)
+
+                remaining = max(0, self.TWO_FACTOR_MAX_ATTEMPTS - code_obj.attempts)
+                if remaining == 0:
+                    return Response(
+                        {"detail": "Too many verification attempts. Please return to Login and start a new verification process."},
+                        status=status.HTTP_400_BAD_REQUEST,
+                    )
+                return Response(
+                    {"detail": "The verification code is invalid. Please try again.", "attempts_remaining": remaining},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            if code_obj is not None and code_obj.is_exhausted:
+                return Response(
+                    {"detail": "Too many verification attempts. Please return to Login and start a new verification process."},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+            return Response(
+                {"detail": "This verification code has expired. Request a new code to continue."},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # Code is valid — consume it and toggle 2FA.
+        code_obj.is_used = True
+        code_obj.save(update_fields=["is_used"])
+
+        # Invalidate other pending codes.
+        user.two_factor_codes.filter(is_used=False).update(is_used=True)
+
+        # Toggle the flag.
+        user.two_factor_enabled = not user.two_factor_enabled
+        user.save(update_fields=["two_factor_enabled"])
+
+        action_name = "TWO_FACTOR_ENABLED" if user.two_factor_enabled else "TWO_FACTOR_DISABLED"
+        _audit_action(user, request, action_name, {})
+
+        return Response({
+            "detail": "Verification successful.",
+            "two_factor_enabled": user.two_factor_enabled,
+        })

@@ -181,7 +181,11 @@ export default function VerificationCodePage() {
                         size="md"
                         type="number"
                         placeholder=""
-                        {...form.getInputProps('code')}
+                        value={form.values.code}
+                        onChange={(val) => {
+                            const digits = val.replace(/\D/g, '').slice(0, 6);
+                            form.setFieldValue('code', digits);
+                        }}
                         styles={{
                             input: {
                                 width: rem(46),

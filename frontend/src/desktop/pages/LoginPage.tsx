@@ -20,13 +20,17 @@ import { useForm } from '@mantine/form';
 import { ShieldCheck, Info, Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { AUTH_MESSAGES, mapLoginError } from '../../shared/utils/authErrors';
+import VerificationCodeModal from '../../shared/components/VerificationCodeModal';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
-  const { login } = useAuth();
+  const { login, verify2FALogin } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [twoFAOpen, setTwoFAOpen] = useState(false);
+  const [twoFAEmail, setTwoFAEmail] = useState('');
+  const [rememberMe, setRememberMe] = useState(false);
 
   // Session expired after token refresh failure (interceptor adds ?expired=1)
   const sessionExpired = searchParams.get('expired') === '1';
@@ -49,7 +53,16 @@ export default function LoginPage() {
     setLoading(true);
     setError('');
     try {
-      await login(values);
+      const result = await login(values);
+
+      if (result?.requires_2fa) {
+        setTwoFAEmail(result.email || values.email);
+        setRememberMe(values.remember);
+        setTwoFAOpen(true);
+        setLoading(false);
+        return;
+      }
+
       navigate('/desktop/cameras', { replace: true });
     } catch (err: any) {
       setError(mapLoginError(err));
@@ -205,6 +218,22 @@ export default function LoginPage() {
           </Box>
         </Stack>
       </Paper>
+
+      <VerificationCodeModal
+        opened={twoFAOpen}
+        onClose={() => { setTwoFAOpen(false); setTwoFAEmail(''); }}
+        email={twoFAEmail}
+        onSendCode={async () => {
+          // Code was already sent by the login endpoint.
+        }}
+        onVerify={async (code) => {
+          await verify2FALogin(twoFAEmail, code, rememberMe);
+        }}
+        onVerified={() => navigate('/desktop/cameras', { replace: true })}
+        title="Two-Factor Authentication"
+        subtitle="Your identity has been verified. You may now continue."
+        verifyLabel="Continue to Dashboard"
+      />
     </Box>
   );
 }

@@ -10,11 +10,13 @@ import {
 import { authAPI } from '../services/api';
 import { User } from '../types';
 import { getAccessToken, setTokens, clearTokens } from '../utils/tokenStorage';
+import { getDeviceId } from '../utils/device';
 
 interface AuthContextType {
   user: User | null;
   loading: boolean;
-  login: (data: any) => Promise<void>;
+  login: (data: any) => Promise<{ requires_2fa?: boolean; email?: string }>;
+  verify2FALogin: (email: string, code: string, remember?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
   viewMode: 'Admin' | 'Operator';
@@ -106,7 +108,14 @@ export function AuthProvider({
   const login = async (data: any) => {
     // If credentials are wrong, this throws.
     // The LoginPage will catch the error.
-    const response = await authAPI.login(data);
+    const deviceId = await getDeviceId();
+    const response = await authAPI.login({ ...data, device_id: deviceId });
+
+    // FR-2F-007 — If 2FA is required, do NOT set tokens yet.
+    // Return the flag so the Login page can show the VerificationCodeModal.
+    if (response.data.requires_2fa) {
+      return { requires_2fa: true, email: response.data.email };
+    }
 
     // FR-LG-002 — Remember Me keeps the session on this trusted device
     // (localStorage); otherwise it ends when the browser session closes
@@ -117,6 +126,15 @@ export function AuthProvider({
 
     // Always start in Operator mode.
     setViewMode('Operator');
+    return {};
+  };
+
+  const verify2FALogin = async (email: string, code: string, remember?: boolean) => {
+    const deviceId = await getDeviceId();
+    const response = await authAPI.verify2FALogin(email, code, deviceId);
+    setTokens(response.data.access, response.data.refresh, Boolean(remember));
+    setUser(response.data.user);
+    setViewMode('Operator');
   };
 
   return (
@@ -125,6 +143,7 @@ export function AuthProvider({
         user,
         loading,
         login,
+        verify2FALogin,
         logout,
         isAuthenticated: !!user,
         viewMode,

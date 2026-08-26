@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
 import { 
   LogOut, Settings, User, History, Camera, 
@@ -13,6 +13,8 @@ import {
   Stack, ActionIcon, useMantineColorScheme, useComputedColorScheme 
 } from '@mantine/core';
 import { useMediaQuery } from '@mantine/hooks';
+
+const SUDO_PROTECTED_PATHS = ['/desktop/profile', '/desktop/settings', '/desktop/accounts', '/desktop/audit'];
 
 export default function DesktopLayout() {
   const navigate = useNavigate();
@@ -32,6 +34,14 @@ export default function DesktopLayout() {
   const isAdminLocked = isDesktop && user?.role === 'CCTV Chief' && viewMode === 'Operator';
   const activeRole = user?.role === 'CCTV Chief' ? viewMode : user?.role;
 
+  // FR-PPD-005: When Chief Mode is exited while on a sudo-protected route,
+  // redirect to cameras automatically.
+  useEffect(() => {
+    if (isAdminLocked && SUDO_PROTECTED_PATHS.some((p) => location.pathname.startsWith(p))) {
+      navigate('/desktop/cameras', { replace: true });
+    }
+  }, [isAdminLocked, location.pathname, navigate]);
+
   const toggleTheme = () => {
     setColorScheme(computedColorScheme === 'dark' ? 'light' : 'dark');
   };
@@ -41,7 +51,9 @@ export default function DesktopLayout() {
       setSudoModalOpened(true);
     } else {
       setViewMode('Operator');
-      if (location.pathname.includes('/audit') || location.pathname.includes('/accounts')) {
+      // FR-PPD-006: Audit log for Chief Mode exit
+      authAPI.logChiefMode(false).catch(() => {});
+      if (location.pathname.includes('/audit') || location.pathname.includes('/accounts') || location.pathname.includes('/profile') || location.pathname.includes('/settings')) {
         navigate('/desktop/cameras');
       }
     }
@@ -55,6 +67,8 @@ export default function DesktopLayout() {
       setViewMode('Admin');
       setSudoModalOpened(false);
       setPassword('');
+      // FR-PPD-006: Audit log for Chief Mode entry
+      authAPI.logChiefMode(true).catch(() => {});
     } catch (err: any) {
       setError("Verification failed. Please check your password.");
     } finally {

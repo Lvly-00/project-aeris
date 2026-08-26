@@ -147,8 +147,10 @@ api.interceptors.response.use(
 );
 
 export const authAPI = {
-  login: (data: { email: string; password: string }) =>
+  login: (data: { email: string; password: string; device_id?: string }) =>
     api.post('/accounts/login/', data),
+  verify2FALogin: (email: string, code: string, device_id?: string) =>
+    api.post('/accounts/login-verify-2fa/', { email, code, device_id }),
   logout: () =>
     api.post('/accounts/logout/', { refresh: getRefreshToken() ?? undefined }),
   requestPasswordReset: (email: string) =>
@@ -169,6 +171,20 @@ export const authAPI = {
     api.patch('/accounts/me/', data, {
       headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
     }),
+  changePassword: (data: { current_password: string; new_password: string; confirm_password: string }) =>
+    api.post('/accounts/change-password/', data),
+  initiateEmailChange: () =>
+    api.post('/accounts/email-change/initiate/'),
+  verifyEmailChange: (code: string) =>
+    api.post('/accounts/email-change/verify/', { code }),
+  confirmEmailChange: (new_email: string, password: string) =>
+    api.post('/accounts/email-change/confirm/', { new_email, password }),
+  logChiefMode: (entered: boolean) =>
+    api.post('/accounts/chief-mode-log/', { entered }),
+  send2FACode: () =>
+    api.post('/accounts/2fa/send/'),
+  verify2FACode: (code: string) =>
+    api.post('/accounts/2fa/verify/', { code }),
   getUsers: () =>
     api.get('/accounts/'),
   updateUser: (id: number, data: any) =>

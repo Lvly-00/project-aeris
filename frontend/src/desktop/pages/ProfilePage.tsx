@@ -1,351 +1,354 @@
-import React, { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import {
   Container, Grid, Paper, Text, Title, Avatar, Divider,
-  Stack, Group, TextInput, PasswordInput, Button, Switch,
-  Select, ActionIcon, Box, LoadingOverlay, rem, FileButton, Tooltip
+  Stack, Group, Switch, Box, LoadingOverlay, rem, FileButton, Badge, Button,
 } from '@mantine/core';
-import { ChevronLeft, User as UserIcon, Mail, Lock, Bell, ShieldCheck, Languages, Camera, Key, CheckCircle2 } from 'lucide-react';
+import {
+  ChevronLeft, Bell, ShieldCheck, Languages, Camera, EyeOff,
+} from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../../shared/services/api';
+import { useAuth } from '../../shared/hooks/useAuth';
+import { User } from '../../shared/types';
+import EditProfileModal from '../../shared/components/profile/EditProfileModal';
+import ChangePasswordModal from '../../shared/components/profile/ChangePasswordModal';
+import ChangeEmailModal from '../../shared/components/profile/ChangeEmailModal';
+import VerificationCodeModal from '../../shared/components/VerificationCodeModal';
 
-// --- Updated PageHeader Component ---
-interface PageHeaderProps {
-  title: string;
-  subtitle?: string;
-  actions?: React.ReactNode;
-  onBack?: () => void;
-}
-
-export function PageHeader({ title, subtitle, actions, onBack }: PageHeaderProps) {
-  return (
-    <Box mb="md">
-      <Group justify="space-between" align="flex-start" wrap="nowrap" mb="sm">
-        <Stack gap={4}>
-          <Group gap="xs" align="center">
-            {onBack && (
-              <ActionIcon
-                variant="subtle"
-                color="gray"
-                onClick={onBack}
-                size="lg"
-                style={{ marginLeft: rem(-8) }}
-              >
-                <ChevronLeft size={24} />
-              </ActionIcon>
-            )}
-            <Title order={2} style={{ textTransform: 'uppercase', fontSize: '1.25rem', fontWeight: 700 }}>
-              {title}
-            </Title>
-          </Group>
-          {subtitle && (
-            <Text size="sm" c="dimmed" fw={400} style={{ paddingLeft: onBack ? rem(32) : 0 }}>
-              {subtitle}
-            </Text>
-          )}
-        </Stack>
-        {actions && <Box pt={4}>{actions}</Box>}
-      </Group>
-      <Divider color="var(--mantine-color-default-border)" />
-    </Box>
-  );
-}
-
-const translations = {
-  English: {
-    personal: "PERSONAL INFORMATION",
-    personalSub: "Manage registrar attributes, contact emails, and secure account access settings",
-    pref: "Preferences",
-    prefSub: "Verifies user credentials for secure system access.",
-    lang: "Language",
-    save: "SAVE CHANGES",
-    edit: "EDIT PROFILE",
-    cancel: "CANCEL",
-    passwordLabel: "PASSWORD",
-    changePassBtn: "CHANGE PASSWORD",
-    currentPass: "CURRENT PASSWORD",
-    newPass: "NEW PASSWORD",
-    confirmPass: "CONFIRM NEW PASSWORD"
-  },
-  Filipino: {
-    personal: "PERSONAL NA IMPORMASYON",
-    personalSub: "Pamahalaan ang iyong mga detalye at seguridad ng account",
-    pref: "Mga Kagustuhan",
-    prefSub: "Sinisiguro ang pagkakakilanlan para sa ligtas na pag-access.",
-    lang: "Wika",
-    save: "I-SAVE ANG PAGBABAGO",
-    edit: "I-EDIT ANG PROFILE",
-    cancel: "IKANSELA",
-    passwordLabel: "PASSWORD",
-    changePassBtn: "PALITAN ANG PASSWORD",
-    currentPass: "KASALUKUYANG PASSWORD",
-    newPass: "BAGONG PASSWORD",
-    confirmPass: "I-KUMPIRMA ANG BAGONG PASSWORD"
-  }
-};
+const ORANGE = '#FF6B00';
 
 export default function ProfilePage() {
+  const navigate = useNavigate();
+  const { user: authUser } = useAuth();
   const [loading, setLoading] = useState(true);
-  const [isEditing, setIsEditing] = useState(false);
-  const [isChangingPassword, setIsChangingPassword] = useState(false);
-  const [userData, setUserData] = useState<any>(null);
+  const [updating, setUpdating] = useState(false);
+  const [userData, setUserData] = useState<User | null>(null);
+  const fileResetRef = useRef<() => void | null>(null);
 
-  const [passwords, setPasswords] = useState({
-    current: '',
-    password: '',
-    confirm: ''
-  });
+  // Modals
+  const [editOpened, setEditOpened] = useState(false);
+  const [passwordOpened, setPasswordOpened] = useState(false);
+  const [emailOpened, setEmailOpened] = useState(false);
+  const [twoFAModalOpened, setTwoFAModalOpened] = useState(false);
 
-  useEffect(() => {
-    fetchProfile();
-  }, []);
+  useEffect(() => { fetchProfile(); }, []);
 
   const fetchProfile = async () => {
     try {
       const res = await authAPI.getProfile();
       setUserData(res.data);
     } catch (err) {
-      console.error("Failed to fetch profile", err);
+      console.error('Failed to fetch profile', err);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleCancel = () => {
-    setIsEditing(false);
-    setIsChangingPassword(false);
-    setPasswords({ current: '', password: '', confirm: '' });
-    fetchProfile();
-  };
-
-  const handleSave = async () => {
-    if (isChangingPassword) {
-      if (!passwords.current) { alert("Authorization required: Please enter current password."); return; }
-      if (passwords.password.length < 8) { alert("New password must be at least 8 characters."); return; }
-      if (passwords.password !== passwords.confirm) { alert("New passwords do not match!"); return; }
-    }
-
-    setLoading(true);
-    try {
-      if (isChangingPassword) await authAPI.verifyPassword(passwords.current);
-      const payload: any = {
-        first_name: userData.first_name,
-        last_name: userData.last_name,
-        email: userData.email,
-      };
-      if (isChangingPassword) payload.password = passwords.password;
-      const res = await authAPI.updateProfile(payload);
-      setUserData(res.data);
-      setPasswords({ current: '', password: '', confirm: '' });
-      setIsChangingPassword(false);
-      setIsEditing(false);
-      alert("Profile updated successfully!");
-    } catch (err: any) {
-      const errorMsg = err.response?.data?.password?.[0] || "Update failed. Check your current password.";
-      alert(errorMsg);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleImageUpload = async (file: File | null) => {
-    if (!file) return;
-    setLoading(true);
-    const formData = new FormData();
-    formData.append('profile_picture', file);
-    try {
-      const res = await authAPI.updateProfile(formData);
-      setUserData((prev: any) => ({ ...prev, profile_picture: res.data.profile_picture }));
-    } catch (err) {
-      alert("Failed to upload image.");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const updatePreference = async (field: string, value: any) => {
+  const handlePreferenceUpdate = async (field: string, value: any) => {
+    setUpdating(true);
     try {
       const res = await authAPI.updateProfile({ [field]: value });
       setUserData(res.data);
     } catch (err) {
-      console.error("Preference update failed", err);
+      console.error('Update failed', err);
+    } finally {
+      setUpdating(false);
     }
+  };
+
+  const handlePictureUpload = async (file: File | null) => {
+    if (!file) return;
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/webp'];
+    if (!allowed.includes(file.type)) {
+      alert('Unsupported profile picture format. Use JPG, PNG, or WebP.');
+      return;
+    }
+    if (file.size > 5 * 1024 * 1024) {
+      alert('Profile picture exceeds the maximum allowed file size (5 MB).');
+      return;
+    }
+    setUpdating(true);
+    try {
+      const formData = new FormData();
+      formData.append('profile_picture', file);
+      const res = await authAPI.updateProfile(formData);
+      setUserData(res.data);
+    } catch (err) {
+      console.error('Upload failed', err);
+    } finally {
+      setUpdating(false);
+    }
+  };
+
+  const maskedEmail = (email: string) => {
+    const [name, domain] = email.split('@');
+    if (!domain) return email;
+    return `${name.slice(0, 2)}${'*'.repeat(Math.max(name.length - 2, 3))}@${domain}`;
   };
 
   if (!userData) return <LoadingOverlay visible />;
 
-  const t = translations[userData.preferred_language as 'English' | 'Filipino'] || translations.English;
-
-  // Theme-aware Input Styles
-  const inputStyles = {
-    label: {
-      fontSize: rem(10),
-      fontWeight: 700,
-      marginBottom: rem(4),
-      c: 'dimmed',
-      textTransform: 'uppercase' as const
-    },
-    input: {
-      color: 'var(--mantine-color-orange-filled)',
-      fontWeight: 600,
-      backgroundColor: isEditing ? 'var(--mantine-color-body)' : 'var(--mantine-color-default-hover)',
-      borderColor: 'var(--mantine-color-default-border)',
-      cursor: isEditing ? 'text' : 'default',
-    }
-  };
-
   return (
-    <Container size="lg" py="xl" style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-body)' }}>
-      <LoadingOverlay visible={loading} overlayProps={{ blur: 2 }} />
+    <Container size="xl" py="xl" style={{ backgroundColor: 'var(--mantine-color-body)', minHeight: '100vh' }}>
+      <LoadingOverlay visible={loading} overlayProps={{ blur: 1 }} />
 
-      <PageHeader
-        title="PROFILE"
-        subtitle="Manage your personal details and how others see you."
-        onBack={() => window.history.back()}
-      />
+      {/* PageHeader */}
+      <Box mb="xl">
+        <Group gap="xs" align="center">
+          <Box
+            component="button"
+            onClick={() => window.history.back()}
+            style={{
+              background: 'none', border: 'none', cursor: 'pointer', padding: 4,
+              display: 'flex', alignItems: 'center',
+            }}
+          >
+            <ChevronLeft size={32} strokeWidth={2.5} color="var(--mantine-color-dimmed)" />
+          </Box>
+          <Stack gap={0}>
+            <Title order={2} style={{ fontSize: rem(22), fontWeight: 900, letterSpacing: '-0.5px' }}>
+              PROFILE
+            </Title>
+            <Text size="sm" c="dimmed" fw={500}>
+              Manage your personal details and how others see you.
+            </Text>
+          </Stack>
+        </Group>
+      </Box>
 
-      <Grid gutter="xl" mt="lg">
-        <Grid.Col span={{ base: 12, md: 3.5 }}>
-          <Paper withBorder radius="md" p="xl" bg="var(--mantine-color-body)">
+      <Grid gutter={30}>
+        {/* SIDEBAR */}
+        <Grid.Col span={{ base: 12, md: 3 }}>
+          <Paper withBorder radius={16} p={40} style={{ height: '100%' }}>
             <Stack align="center" gap="xs">
               <Box style={{ position: 'relative' }}>
                 <Avatar
                   src={userData.profile_picture}
-                  size={160}
+                  size={180}
                   radius={100}
-                  style={{ border: `4px solid var(--mantine-color-orange-filled)` }}
+                  style={{ border: `3px solid ${ORANGE}` }}
                 />
-                <FileButton onChange={handleImageUpload} accept="image/png,image/jpeg">
+                <FileButton
+                  resetRef={fileResetRef as any}
+                  accept="image/jpeg,image/png,image/webp"
+                  onChange={handlePictureUpload}
+                >
                   {(props) => (
-                    <Tooltip label="Change Profile Picture">
-                      <ActionIcon
-                        {...props}
-                        variant="filled"
-                        color="orange"
-                        radius="xl"
-                        size="lg"
-                        style={{
-                          position: 'absolute',
-                          bottom: 5,
-                          right: 5,
-                          border: '3px solid var(--mantine-color-body)'
-                        }}
-                      >
-                        <Camera size={18} />
-                      </ActionIcon>
-                    </Tooltip>
+                    <Box
+                      {...props}
+                      style={{
+                        position: 'absolute',
+                        bottom: 8,
+                        right: 8,
+                        width: 36,
+                        height: 36,
+                        borderRadius: '50%',
+                        backgroundColor: ORANGE,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        cursor: 'pointer',
+                        border: '3px solid white',
+                      }}
+                    >
+                      <Camera size={18} color="white" />
+                    </Box>
                   )}
                 </FileButton>
               </Box>
-              <Title order={4} mt="md" c="orange" style={{ letterSpacing: '0.5px' }}>
+
+              <Title order={3} c="orange" fw={900} mt="md" ta="center">
                 {userData.first_name} {userData.last_name}
               </Title>
-              <Group gap={5}>
-                <CheckCircle2 size={14} color="var(--mantine-color-green-6)" />
-                <Text size="sm" c="dimmed" fw={500}>{userData.role_display}</Text>
-              </Group>
+              <Text c="dimmed" fz="sm" fw={600}>{userData.role}</Text>
+
+              <Divider w="100%" my="xl" />
+
+              <Box w="100%">
+                <Text fz={10} fw={800} c="dimmed" mb={4}>ROLE</Text>
+                <Group gap="sm">
+                  <Badge variant="light" color="orange" size="lg" tt="uppercase" fw={700}>
+                    {userData.role || 'Staff'}
+                  </Badge>
+                </Group>
+              </Box>
+
+              <Box w="100%" mt="sm">
+                <Text fz={10} fw={800} c="dimmed" mb={4}>STATUS</Text>
+                <Badge variant="outline" color={userData.is_active ? 'green' : 'red'} size="sm">
+                  {userData.is_active ? 'Active' : 'Inactive'}
+                </Badge>
+              </Box>
             </Stack>
           </Paper>
         </Grid.Col>
 
-        <Grid.Col span={{ base: 12, md: 8.5 }}>
+        {/* MAIN CONTENT */}
+        <Grid.Col span={{ base: 12, md: 9 }}>
           <Stack gap="xl">
-            <Paper withBorder radius="md" p="xl" bg="var(--mantine-color-body)">
-              <Group justify="space-between" align="flex-start" mb="xl">
-                <Stack gap={2}>
-                  <Title order={5} style={{ fontWeight: 700 }}>{t.personal}</Title>
-                  <Text size="xs" c="dimmed">{t.personalSub}</Text>
-                </Stack>
-                <Group gap="xs">
-                  {isEditing && (
-                    <Button variant="subtle" color="gray" size="sm" onClick={handleCancel}>
-                      {t.cancel}
+            {/* PERSONAL INFORMATION */}
+            <Paper withBorder radius={16} p={30}>
+              <Stack gap={0}>
+                <Title order={4} fw={800}>PERSONAL INFORMATION</Title>
+                <Text size="xs" c="dimmed" mb="xl">
+                  Manage registrar attributes, contact emails, and secure account access settings
+                </Text>
+
+                <Stack gap="md">
+                  <Group justify="space-between" align="center" wrap="nowrap" py="xs">
+                    <Stack gap={2}>
+                      <Text fw={700} fz="sm" c="dark.4">Account Name</Text>
+                      <Text fz="sm" fw={500} c="gray.7">{userData.first_name} {userData.last_name}</Text>
+                    </Stack>
+                    <Button variant="filled" color="orange" size="xs" radius="sm" px="xl" h={28}
+                      onClick={() => setEditOpened(true)}>
+                      Edit
                     </Button>
-                  )}
-                  <Button color="orange" radius="md" onClick={isEditing ? handleSave : () => setIsEditing(true)}>
-                    {isEditing ? t.save : t.edit}
-                  </Button>
-                </Group>
-              </Group>
-
-              <Stack gap="md">
-                <Grid grow>
-                  <Grid.Col span={6}>
-                    <TextInput label="FIRST NAME" readOnly={!isEditing} value={userData.first_name || ''} onChange={(e) => setUserData({ ...userData, first_name: e.target.value })} leftSection={<UserIcon size={16} color="var(--mantine-color-orange-filled)" />} styles={inputStyles} />
-                  </Grid.Col>
-                  <Grid.Col span={6}>
-                    <TextInput label="LAST NAME" readOnly={!isEditing} value={userData.last_name || ''} onChange={(e) => setUserData({ ...userData, last_name: e.target.value })} leftSection={<UserIcon size={16} color="var(--mantine-color-orange-filled)" />} styles={inputStyles} />
-                  </Grid.Col>
-                </Grid>
-
-                <Grid grow>
-                  <Grid.Col span={12}>
-                    <TextInput label="EMAIL" readOnly={!isEditing} value={userData.email || ''} onChange={(e) => setUserData({ ...userData, email: e.target.value })} leftSection={<Mail size={16} color="var(--mantine-color-orange-filled)" />} styles={inputStyles} />
-                  </Grid.Col>
-                </Grid>
-
-                <Box>
-                  <Group align="center" mb={4}>
-                    <Text size="xs" fw={700} c="dimmed" style={{ textTransform: 'uppercase' }}>{t.passwordLabel}:</Text>
-                    {isEditing && (
-                      <Button variant="subtle" color="orange" size="xs" p={0} onClick={() => setIsChangingPassword(!isChangingPassword)}>
-                        {t.changePassBtn}
-                      </Button>
-                    )}
-                    {!isEditing && <Text fw={600} c="orange">••••••••</Text>}
                   </Group>
-                </Box>
 
-                {isEditing && isChangingPassword && (
-                  <Stack gap="md" mt="xs" p="md" style={{ border: '1px dashed var(--mantine-color-orange-filled)', borderRadius: '8px' }}>
-                    <PasswordInput label={t.currentPass} required placeholder="Enter current password" value={passwords.current} onChange={(e) => setPasswords({ ...passwords, current: e.target.value })} leftSection={<Lock size={16} color="var(--mantine-color-orange-filled)" />} styles={inputStyles} />
-                    <Grid grow>
-                      <Grid.Col span={6}>
-                        <PasswordInput label={t.newPass} value={passwords.password} onChange={(e) => setPasswords({ ...passwords, password: e.target.value })} leftSection={<Key size={16} color="var(--mantine-color-orange-filled)" />} styles={inputStyles} />
-                      </Grid.Col>
-                      <Grid.Col span={6}>
-                        <PasswordInput label={t.confirmPass} value={passwords.confirm} onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })} leftSection={<Key size={16} color="var(--mantine-color-orange-filled)" />} styles={inputStyles} />
-                      </Grid.Col>
-                    </Grid>
-                  </Stack>
-                )}
+                  <Group justify="space-between" align="center" wrap="nowrap" py="xs">
+                    <Stack gap={2}>
+                      <Text fw={700} fz="sm" c="dark.4">Email</Text>
+                      <Group gap="xs">
+                        <Text fz="sm" fw={500} c="gray.7">{maskedEmail(userData.email)}</Text>
+                        <EyeOff size={14} color="gray" />
+                      </Group>
+                    </Stack>
+                    <Button variant="filled" color="orange" size="xs" radius="sm" px="xl" h={28}
+                      onClick={() => setEmailOpened(true)}>
+                      Change
+                    </Button>
+                  </Group>
+
+                  <Group justify="space-between" align="center" wrap="nowrap" py="xs">
+                    <Stack gap={2}>
+                      <Text fw={700} fz="sm" c="dark.4">Password</Text>
+                      <Text fz="sm" fw={500} c="gray.7">••••••••</Text>
+                    </Stack>
+                    <Button variant="filled" color="orange" size="xs" radius="sm" px="xl" h={28}
+                      onClick={() => setPasswordOpened(true)}>
+                      Change
+                    </Button>
+                  </Group>
+                </Stack>
               </Stack>
             </Paper>
 
-            <Paper withBorder radius="md" p="xl" bg="var(--mantine-color-body)">
-              <Title order={5} style={{ fontWeight: 700 }} mb="xl">{t.pref}</Title>
+            {/* PREFERENCES */}
+            <Paper withBorder radius={16} p={30}>
+              <LoadingOverlay visible={updating} overlayProps={{ blur: 1 }} />
+              <Title order={4} fw={800}>Preferences</Title>
+              <Text size="xs" c="dimmed" mb="xl">
+                Customize your notification and display settings.
+              </Text>
+
               <Stack gap="lg">
                 <Group justify="space-between">
                   <Group gap="md">
-                    <Bell size={20} color="var(--mantine-color-orange-filled)" />
+                    <Box bg="#FFF0E6" p={8} style={{ borderRadius: 8 }}>
+                      <Bell size={20} color={ORANGE} fill={ORANGE} />
+                    </Box>
                     <Stack gap={0}>
-                      <Text size="sm" fw={600}>Receive Notifications</Text>
+                      <Text size="sm" fw={700}>Receive Notifications</Text>
                       <Text size="xs" c="dimmed">Get alerts about important updates</Text>
                     </Stack>
                   </Group>
-                  <Switch color="orange" checked={userData.receive_notifications} onChange={(e) => updatePreference('receive_notifications', e.currentTarget.checked)} />
+                  <Switch
+                    color="orange"
+                    size="md"
+                    checked={userData.receive_notifications}
+                    onChange={(e) => handlePreferenceUpdate('receive_notifications', e.currentTarget.checked)}
+                  />
                 </Group>
+
                 <Group justify="space-between">
                   <Group gap="md">
-                    <ShieldCheck size={20} color="var(--mantine-color-orange-filled)" />
+                    <Box bg="#FFF0E6" p={8} style={{ borderRadius: 8 }}>
+                      <ShieldCheck size={20} color={userData.two_factor_enabled ? ORANGE : 'gray'} />
+                    </Box>
                     <Stack gap={0}>
-                      <Text size="sm" fw={600}>Two-Factor Authentication</Text>
-                      <Text size="xs" c="dimmed">Active only for new login devices</Text>
+                      <Text size="sm" fw={700}>Two-Factor Authentication</Text>
+                      <Text size="xs" c="dimmed">
+                        {userData.two_factor_enabled ? 'Extra layer of security is active' : 'Add extra security to your account'}
+                      </Text>
                     </Stack>
                   </Group>
-                  <Switch color="orange" checked={userData.two_factor_enabled} onChange={(e) => updatePreference('two_factor_enabled', e.currentTarget.checked)} />
+                  <Switch
+                    color="orange"
+                    size="md"
+                    checked={userData.two_factor_enabled}
+                    onChange={() => setTwoFAModalOpened(true)}
+                  />
                 </Group>
-                <Divider color="var(--mantine-color-default-border)" />
+
+                <Divider />
+
                 <Group justify="space-between">
                   <Group gap="md">
-                    <Languages size={20} color="var(--mantine-color-orange-filled)" />
-                    <Text size="sm" fw={600}>{t.lang}</Text>
+                    <Box bg="#FFF0E6" p={8} style={{ borderRadius: 8 }}>
+                      <Languages size={20} color={ORANGE} />
+                    </Box>
+                    <Stack gap={0}>
+                      <Text size="sm" fw={700}>Language</Text>
+                      <Text size="xs" c="dimmed">Select your preferred language</Text>
+                    </Stack>
                   </Group>
-                  <Select data={['English', 'Filipino']} value={userData.preferred_language} onChange={(val) => updatePreference('preferred_language', val)} w={150} />
+                  <Box w={220}>
+                    <select
+                      value={userData.preferred_language}
+                      onChange={(e) => handlePreferenceUpdate('preferred_language', e.target.value)}
+                      style={{
+                        width: '100%',
+                        padding: '8px 12px',
+                        borderRadius: 8,
+                        border: '1px solid var(--mantine-color-default-border)',
+                        backgroundColor: 'var(--mantine-color-body)',
+                        color: 'var(--mantine-color-text)',
+                        fontSize: 14,
+                      }}
+                    >
+                      <option value="English">English</option>
+                      <option value="Filipino">Filipino</option>
+                    </select>
+                  </Box>
                 </Group>
               </Stack>
             </Paper>
           </Stack>
         </Grid.Col>
       </Grid>
+
+      {/* Modals */}
+      <EditProfileModal
+        opened={editOpened}
+        onClose={() => setEditOpened(false)}
+        user={{ first_name: userData.first_name, last_name: userData.last_name }}
+        onUpdated={(updated) => setUserData((prev) => prev ? { ...prev, ...updated } : prev)}
+      />
+
+      <ChangePasswordModal
+        opened={passwordOpened}
+        onClose={() => setPasswordOpened(false)}
+      />
+
+      <ChangeEmailModal
+        opened={emailOpened}
+        onClose={() => setEmailOpened(false)}
+        currentEmail={userData.email}
+        onEmailChanged={fetchProfile}
+      />
+
+      <VerificationCodeModal
+        opened={twoFAModalOpened}
+        onClose={() => setTwoFAModalOpened(false)}
+        email={userData.email}
+        onSendCode={async () => { await authAPI.send2FACode(); }}
+        onVerify={async (code) => { await authAPI.verify2FACode(code); }}
+        onVerified={fetchProfile}
+        title="Two-Factor Authentication"
+        subtitle={userData.two_factor_enabled ? '2FA has been disabled.' : '2FA has been enabled. You will need to verify your identity on future logins.'}
+        verifyLabel={userData.two_factor_enabled ? 'Disable 2FA' : 'Enable 2FA'}
+      />
     </Container>
   );
 }

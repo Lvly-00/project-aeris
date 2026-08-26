@@ -48,10 +48,16 @@ export default function ForgotPasswordPage() {
         },
     };
 
+    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+
     const form = useForm({
         initialValues: { email: prefillEmail },
         validate: {
-            email: (v: string) => (!v || !v.trim() ? AUTH_MESSAGES.MISSING_EMAIL : null),
+            email: (v: string) => {
+                if (!v || !v.trim()) return AUTH_MESSAGES.MISSING_EMAIL;
+                if (!emailRegex.test(v.trim())) return 'Please enter a valid email address.';
+                return null;
+            },
         },
     });
 

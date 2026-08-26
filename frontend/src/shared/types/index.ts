@@ -207,7 +207,12 @@ export type AuditAction =
   | 'Incident_Dismissed' | 'Incident_Dispatched' | 'Incident_Resolved'
   | 'Incident_Archived' | 'Incident_Updated' | 'Camera_Created'
   | 'Camera_Updated' | 'Camera_Deleted' | 'User_Created' | 'User_Updated'
-  | 'User_Deactivated' | 'AI_Config_Changed' | 'Settings_Changed';
+  | 'User_Deactivated' | 'AI_Config_Changed' | 'Settings_Changed'
+  | 'Profile_Updated' | 'Password_Changed'
+  | 'Email_Change_Requested' | 'Email_Change_Completed'
+  | 'Chief_Mode_Entered' | 'Chief_Mode_Exited'
+  | 'Two_Factor_Enabled' | 'Two_Factor_Disabled'
+  | 'Two_Factor_Verified' | 'Two_Factor_Failed';
 
 export interface AuditLog {
   id: number;

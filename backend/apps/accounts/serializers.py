@@ -167,3 +167,101 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
             "min_length": "Password must be at least 8 characters.",
         },
     )
+
+
+class ChangePasswordSerializer(serializers.Serializer):
+    """Validate the current password before allowing a password change (FR-PP-005)."""
+
+    current_password = serializers.CharField(
+        write_only=True,
+        error_messages={
+            "required": "Current password is required.",
+            "blank": "Current password is required.",
+        },
+    )
+    new_password = serializers.CharField(
+        write_only=True,
+        min_length=8,
+        error_messages={
+            "required": "New password is required.",
+            "blank": "New password is required.",
+            "min_length": "Password must be at least 8 characters.",
+        },
+    )
+    confirm_password = serializers.CharField(
+        write_only=True,
+        error_messages={
+            "required": "Please confirm your new password.",
+            "blank": "Please confirm your new password.",
+        },
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+
+    def validate_current_password(self, value):
+        if not self.user or not self.user.check_password(value):
+            raise serializers.ValidationError("The current password is incorrect.")
+        return value
+
+    def validate(self, attrs):
+        if attrs["new_password"] != attrs["confirm_password"]:
+            raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
+        if attrs["current_password"] == attrs["new_password"]:
+            raise serializers.ValidationError({"new_password": "New password must be different from current password."})
+        return attrs
+
+
+class EmailChangeRequestSerializer(serializers.Serializer):
+    """Initiate an email change — sends a verification code to the CURRENT email."""
+
+    new_email = serializers.EmailField(
+        error_messages={
+            "required": "New email address is required.",
+            "blank": "New email address is required.",
+            "invalid": "Enter a valid email address.",
+        },
+    )
+
+    def __init__(self, *args, **kwargs):
+        self.user = kwargs.pop("user", None)
+        super().__init__(*args, **kwargs)
+
+    def validate_new_email(self, value):
+        if self.user and value.lower() == self.user.email.lower():
+            raise serializers.ValidationError("New email must be different from current email.")
+        if User.objects.filter(email__iexact=value).exists():
+            raise serializers.ValidationError("This email address is already in use.")
+        return value
+
+
+class EmailChangeVerifySerializer(serializers.Serializer):
+    """Verify the code (identity check only — does not apply the change)."""
+
+    code = serializers.RegexField(
+        r"^\d{6}$",
+        error_messages={
+            "required": "Verification code is required.",
+            "invalid": "Enter the 6-digit verification code.",
+        },
+    )
+
+
+class EmailChangeConfirmSerializer(serializers.Serializer):
+    """After code is verified, apply the email change with new email + password."""
+
+    new_email = serializers.EmailField(
+        error_messages={
+            "required": "New email address is required.",
+            "blank": "New email address is required.",
+            "invalid": "Enter a valid email address.",
+        },
+    )
+    password = serializers.CharField(
+        write_only=True,
+        error_messages={
+            "required": "Current password is required.",
+            "blank": "Current password is required.",
+        },
+    )

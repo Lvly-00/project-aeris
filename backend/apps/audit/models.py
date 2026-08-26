@@ -26,6 +26,16 @@ class AuditLog(models.Model):
         USER_DEACTIVATED = "User_Deactivated", "User Deactivated"
         AI_CONFIG_CHANGED = "AI_Config_Changed", "AI Configuration Changed"
         SETTINGS_CHANGED = "Settings_Changed", "Settings Changed"
+        PROFILE_UPDATED = "Profile_Updated", "Profile Updated"
+        PASSWORD_CHANGED = "Password_Changed", "Password Changed"
+        EMAIL_CHANGE_REQUESTED = "Email_Change_Requested", "Email Change Requested"
+        EMAIL_CHANGE_COMPLETED = "Email_Change_Completed", "Email Change Completed"
+        CHIEF_MODE_ENTERED = "Chief_Mode_Entered", "Chief Mode Entered"
+        CHIEF_MODE_EXITED = "Chief_Mode_Exited", "Chief Mode Exited"
+        TWO_FACTOR_ENABLED = "Two_Factor_Enabled", "Two-Factor Authentication Enabled"
+        TWO_FACTOR_DISABLED = "Two_Factor_Disabled", "Two-Factor Authentication Disabled"
+        TWO_FACTOR_VERIFIED = "Two_Factor_Verified", "Two-Factor Verification Successful"
+        TWO_FACTOR_FAILED = "Two_Factor_Failed", "Two-Factor Verification Failed"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

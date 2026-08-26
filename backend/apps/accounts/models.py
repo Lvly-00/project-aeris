@@ -125,3 +125,101 @@ class PasswordResetCode(models.Model):
     @property
     def is_exhausted(self) -> bool:
         return self.attempts >= 5
+
+
+class EmailChangeCode(models.Model):
+    """
+    Single-use, time-limited verification code for email address changes.
+    Only a SHA-256 hash is stored; the plaintext code is sent to the
+    user's CURRENT email address.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="email_change_codes",
+    )
+    new_email = models.EmailField(blank=True, default="")
+    code_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    verified = models.BooleanField(default=False)
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Email change code"
+        verbose_name_plural = "Email change codes"
+
+    def __str__(self) -> str:
+        return f"Email change code for {self.user.email} → {self.new_email}"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_exhausted(self) -> bool:
+        return self.attempts >= 5
+
+
+class TwoFactorCode(models.Model):
+    """
+    Single-use, time-limited verification code for two-factor authentication
+    setup (enable/disable) from the profile page.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="two_factor_codes",
+    )
+    code_hash = models.CharField(max_length=64)
+    created_at = models.DateTimeField(auto_now_add=True)
+    expires_at = models.DateTimeField()
+    attempts = models.PositiveSmallIntegerField(default=0)
+    is_used = models.BooleanField(default=False)
+
+    class Meta:
+        ordering = ["-created_at"]
+        verbose_name = "Two-factor code"
+        verbose_name_plural = "Two-factor codes"
+
+    def __str__(self) -> str:
+        return f"2FA code for {self.user.email} (used={self.is_used})"
+
+    @property
+    def is_expired(self) -> bool:
+        return timezone.now() >= self.expires_at
+
+    @property
+    def is_exhausted(self) -> bool:
+        return self.attempts >= 5
+
+
+class TrustedDevice(models.Model):
+    """
+    A device that has already passed 2FA verification.
+    Subsequent logins from this device skip the 2FA step.
+    device_id is a SHA-256 hash of the browser fingerprint.
+    """
+
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name="trusted_devices",
+    )
+    device_id = models.CharField(max_length=128)
+    label = models.CharField(max_length=200, blank=True, default="")
+    created_at = models.DateTimeField(auto_now_add=True)
+    last_used_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ["-last_used_at"]
+        unique_together = ["user", "device_id"]
+        verbose_name = "Trusted device"
+        verbose_name_plural = "Trusted devices"
+
+    def __str__(self) -> str:
+        return f"Trusted device for {self.user.email}: {self.label or self.device_id[:12]}"
