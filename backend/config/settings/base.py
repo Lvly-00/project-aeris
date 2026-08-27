@@ -134,6 +134,7 @@ REST_FRAMEWORK = {
         "user": "100000/hour",
         "internal": "300/minute",  # used by ScopedRateThrottle on /internal/ endpoints
         "login": "5/minute",       # authentication endpoints: max 5 attempts/min per client
+        "verify_password": "5/minute",  # admin verification: max 5 attempts/min per client
     },
     "DEFAULT_RENDERER_CLASSES": (
         "rest_framework.renderers.JSONRenderer",

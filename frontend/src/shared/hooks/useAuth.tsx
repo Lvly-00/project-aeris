@@ -5,6 +5,8 @@ import {
   createContext,
   useContext,
   ReactNode,
+  type Dispatch,
+  type SetStateAction,
 } from 'react';
 
 import { authAPI } from '../services/api';
@@ -14,6 +16,7 @@ import { getDeviceId } from '../utils/device';
 
 interface AuthContextType {
   user: User | null;
+  setUser: Dispatch<SetStateAction<User | null>>;
   loading: boolean;
   login: (data: any) => Promise<{ requires_2fa?: boolean; email?: string }>;
   verify2FALogin: (email: string, code: string, remember?: boolean) => Promise<void>;
@@ -141,6 +144,7 @@ export function AuthProvider({
     <AuthContext.Provider
       value={{
         user,
+        setUser,
         loading,
         login,
         verify2FALogin,

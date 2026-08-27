@@ -94,7 +94,7 @@ export default function ForgotPasswordPage() {
         <Stack align="center" gap="lg" justify="center">
             {/* Orange Icon Circle */}
             <Box
-                bg="#fdf2e8"
+                bg="var(--mantine-color-orange-light)"
                 style={{
                     borderRadius: '50%',
                     width: isPwa ? rem(72) : rem(86),
@@ -176,7 +176,7 @@ export default function ForgotPasswordPage() {
                         overflow: 'hidden',
                         display: 'flex',
                         flexDirection: 'column',
-                        backgroundColor: '#f8f9fa',
+                        backgroundColor: 'var(--mantine-color-body)',
                     }}
                 >
                     <Box
@@ -201,12 +201,7 @@ export default function ForgotPasswordPage() {
                         }}
                     >
                         <Stack align="center" gap="xs" pt="sm" style={{ flex: 1 }}>
-                            <Image
-                                src="/icon.png"
-                                alt="Aeris Logo"
-                                w={90}
-                                fit="contain"
-                            />
+                          
                             <Center style={{ flex: 1, width: '100%', minHeight: 0 }}>
                                 <Box w="100%">{cardContent}</Box>
                             </Center>
@@ -238,7 +233,7 @@ export default function ForgotPasswordPage() {
                             maxWidth: rem(480),
                             height: rem(660),
                             minHeight: rem(660),
-                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                            backgroundColor: 'var(--mantine-color-body)',
                         }}
                     >
                         {cardContent}

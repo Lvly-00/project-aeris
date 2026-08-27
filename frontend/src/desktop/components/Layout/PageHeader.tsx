@@ -23,7 +23,7 @@ export function PageHeader({ title, subtitle, actions }: PageHeaderProps) {
         </Stack>
         {actions && <Box pt={4}>{actions}</Box>}
       </Group>
-      <Divider color="#e9ecef" />
+      <Divider color="var(--mantine-color-default-border)" />
     </Box>
   );
 }

@@ -1,14 +1,11 @@
 import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../../../shared/hooks/useAuth';
 import { LoadingOverlay } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
 
 
 export function SudoProtectedRoute({ children }: { children: React.ReactNode }) {
   const { user, viewMode, loading, isAuthenticated } = useAuth();
   const location = useLocation();
-
-  const isDesktop = useMediaQuery('(min-width: 768px)');
 
 
   if (loading) return <LoadingOverlay visible />;
@@ -18,9 +15,10 @@ export function SudoProtectedRoute({ children }: { children: React.ReactNode }) 
     return <Navigate to="/login" state={{ from: location }} replace />;
   }
 
-  // 2. Not a CCTV Chief OR in Operator Mode? 
-  // This is the fix: if session resets viewMode to Operator, this triggers immediately.
-  if (isDesktop && user?.role === 'CCTV Chief' && viewMode !== 'Admin') {
+  // 2. Not in Chief (Admin) view?
+  // Profile/Settings/Accounts/Audit are Chief-only. This also covers non-chief
+  // roles, where viewMode is always 'Operator'.
+  if (user && viewMode !== 'Admin') {
     return <Navigate to="/unauthorized" replace />;
   }
 

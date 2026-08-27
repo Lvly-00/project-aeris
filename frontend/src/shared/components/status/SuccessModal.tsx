@@ -55,7 +55,7 @@ export default function SuccessModal({
             <Stack align="center" gap="lg" w="100%">
 
                 <Box
-                    bg="#e8fdeb"
+                    bg="var(--mantine-color-green-light)"
                     style={{
                         borderRadius: '50%',
                         width: rem(86),
@@ -82,7 +82,7 @@ export default function SuccessModal({
                     {message}
                 </Text>
 
-                <Divider w="100%" color="#E0E0E0" />
+                <Divider w="100%" color="var(--mantine-color-default-border)" />
 
                 <Button
                     fullWidth

@@ -101,7 +101,7 @@ export default function ResetPasswordPage() {
         <Stack align="center" gap="md" justify="center">
             {/* Header Icon */}
             <Box
-                bg="#fdf2e8"
+                bg="var(--mantine-color-orange-light)"
                 style={{
                     borderRadius: '50%',
                     width: isPwa ? rem(72) : rem(86),
@@ -199,12 +199,12 @@ export default function ResetPasswordPage() {
                         overflow: 'hidden',
                         display: 'flex',
                         flexDirection: 'column',
-                        backgroundColor: '#f8f9fa',
+                        backgroundColor: 'var(--mantine-color-body)',
                     }}
                 >
                     <Box
                         style={{
-                            height: '28%',
+                            height: '25%',
                             backgroundImage: `url('/loginBG.png')`,
                             backgroundSize: 'cover',
                             backgroundPosition: 'center',
@@ -213,19 +213,19 @@ export default function ResetPasswordPage() {
                     />
                     <Paper
                         radius="32px 32px 0 0"
-                        p="xl"
+                        p="md"
                         style={{
                             flex: 1,
-                            marginTop: rem(-40),
+                            marginTop: rem(-32),
                             display: 'flex',
                             flexDirection: 'column',
                             zIndex: 1,
-                            overflowY: 'auto',
+                            overflow: 'hidden',
                         }}
                     >
-                        <Stack align="center" gap="sm" pt="md" style={{ flex: 1 }}>
+                        <Stack align="center" gap="xs" pt="sm" style={{ flex: 1 }}>
 
-                            <Center style={{ flex: 1, width: '100%' }}>
+                            <Center style={{ flex: 1, width: '100%', minHeight: 0 }}>
                                 <Box w="100%">{cardContent}</Box>
                             </Center>
                         </Stack>
@@ -256,7 +256,7 @@ export default function ResetPasswordPage() {
                             maxWidth: rem(480),
                             height: rem(660),
                             minHeight: rem(660),
-                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                            backgroundColor: 'var(--mantine-color-body)',
                         }}
                     >
                         {cardContent}

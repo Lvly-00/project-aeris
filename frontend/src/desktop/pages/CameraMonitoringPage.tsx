@@ -103,7 +103,7 @@ export default function CameraMonitoringPage() {
 
       {/* 3. Main View Area */}
       {cameras.length === 0 && !isLoading ? (
-        <Paper p={50} ta="center" withBorder radius="md" bg="gray.0">
+        <Paper p={50} ta="center" withBorder radius="md" bg="var(--mantine-color-body)">
           <Stack align="center" gap="xs">
             <Camera  width={48} height={48} color="#adb5bd" />
             <Text fw={600} c="dimmed">No cameras found.</Text>

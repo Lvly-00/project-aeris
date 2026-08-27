@@ -23,7 +23,7 @@ export default function UnauthorizedPage() {
     <Box
       style={{
         minHeight: '100vh',
-        backgroundColor: '#ffffff',
+        backgroundColor: 'var(--mantine-color-body)',
         position: 'relative',
         overflow: 'hidden',
       }}
@@ -111,7 +111,7 @@ export default function UnauthorizedPage() {
             order={1}
             ta="center"
             style={{
-              color: '#333333',
+              color: 'var(--mantine-color-text)',
               fontSize: 'clamp(28px, 4vw, 40px)',
               fontWeight: 750,
               letterSpacing: '-0.025em',
@@ -135,7 +135,7 @@ export default function UnauthorizedPage() {
             <Text
               ta="center"
               style={{
-                color: '#9b9b9b',
+                color: 'var(--mantine-color-dimmed)',
                 fontSize: 17,
                 lineHeight: 1.5,
               }}
@@ -146,7 +146,7 @@ export default function UnauthorizedPage() {
             <Text
               ta="center"
               style={{
-                color: '#9b9b9b',
+                color: 'var(--mantine-color-dimmed)',
                 fontSize: 17,
                 lineHeight: 1.5,
               }}
@@ -202,7 +202,7 @@ export default function UnauthorizedPage() {
 
             <Text
               style={{
-                color: '#a3a3a3',
+                color: 'var(--mantine-color-dimmed)',
                 fontSize: 11,
                 fontWeight: 600,
                 letterSpacing: '0.08em',

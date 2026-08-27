@@ -42,7 +42,7 @@ function firstFieldError(data: any, field: string): string | undefined {
 }
 
 /** Parses "Request was throttled. Expected available in 15 seconds." → 15 */
-function parseThrottleSeconds(detail: unknown): number {
+export function parseThrottleSeconds(detail: unknown): number {
   if (typeof detail !== 'string') return 0;
   const match = detail.match(/(\d+)\s+seconds?/i);
   if (!match) return 0;

@@ -79,7 +79,7 @@ export function CameraFeed({ camera, onIncidentDetected }: CameraFeedProps) {
   if (hasError) {
     return (
       <Box ta="center" p="md">
-        <Video  width={48} height={48} color="#444" />
+        <Video  width={48} height={48} color="var(--mantine-color-dimmed)" />
         <Text size="xs" c="dimmed" mt="xs">Stream unavailable</Text>
         {errorMsg && (
           <Text size="xs" c="red" mt={4} style={{ wordBreak: 'break-all' }}>

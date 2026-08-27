@@ -157,7 +157,7 @@ export default function LoginPage() {
                 overflow: 'hidden', // Disable scrolling
                 display: 'flex',
                 flexDirection: 'column',
-                backgroundColor: '#f8f9fa',
+                backgroundColor: 'var(--mantine-color-body)',
             }}
         >
             {/* TOP BACKGROUND SECTION (approx 28% of screen) */}
@@ -291,14 +291,14 @@ export default function LoginPage() {
                                                 border: `1px solid ${PRIMARY_ORANGE}`,
                                                 borderRadius: rem(16),
                                                 padding: rem(16),
-                                                backgroundColor: '#FFFFFF',
+                                                backgroundColor: 'var(--mantine-color-body)',
                                                 transition: 'background-color 150ms ease, transform 150ms ease',
                                             }}
                                             onMouseEnter={(e) => {
-                                                e.currentTarget.style.backgroundColor = '#FFF9F5';
+                                                e.currentTarget.style.backgroundColor = 'var(--mantine-color-default-hover)';
                                             }}
                                             onMouseLeave={(e) => {
-                                                e.currentTarget.style.backgroundColor = '#FFFFFF';
+                                                e.currentTarget.style.backgroundColor = 'var(--mantine-color-body)';
                                             }}
                                         >
                                             <Group justify="space-between" align="center" wrap="nowrap">
@@ -312,7 +312,7 @@ export default function LoginPage() {
                                                         display: 'flex',
                                                         alignItems: 'center',
                                                         justifyContent: 'center',
-                                                        backgroundColor: '#FFF0E6',
+                                                        backgroundColor: 'var(--mantine-color-orange-light)',
                                                         borderRadius: rem(18),
                                                     }}
                                                 >
@@ -342,7 +342,7 @@ export default function LoginPage() {
 
                                                     <Text
                                                         fz={{ base: 12, sm: 14 }}
-                                                        c="#999999"
+                                                        c="var(--mantine-color-dimmed)"
                                                         lh={1.3}
                                                     >
                                                         Access AERIS from your mobile device.

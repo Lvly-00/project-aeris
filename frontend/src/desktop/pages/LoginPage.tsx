@@ -139,7 +139,7 @@ export default function LoginPage() {
           maxWidth: rem(480),
           height: rem(660),
           minHeight: rem(660),
-          backgroundColor: 'rgba(255, 255, 255, 0.98)',
+          backgroundColor: 'var(--mantine-color-body)',
         }}
       >
         <Stack gap="xl" justify="center">

@@ -17,7 +17,7 @@ const ORANGE = '#FF6B00';
 
 export default function ProfilePage() {
   const navigate = useNavigate();
-  const { user: authUser } = useAuth();
+  const { user: authUser, setUser } = useAuth();
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [userData, setUserData] = useState<User | null>(null);
@@ -47,6 +47,7 @@ export default function ProfilePage() {
     try {
       const res = await authAPI.updateProfile({ [field]: value });
       setUserData(res.data);
+      setUser(res.data);
     } catch (err) {
       console.error('Update failed', err);
     } finally {
@@ -71,6 +72,7 @@ export default function ProfilePage() {
       formData.append('profile_picture', file);
       const res = await authAPI.updateProfile(formData);
       setUserData(res.data);
+      setUser(res.data);
     } catch (err) {
       console.error('Upload failed', err);
     } finally {
@@ -165,7 +167,7 @@ export default function ProfilePage() {
               <Box w="100%">
                 <Text fz={10} fw={800} c="dimmed" mb={4}>ROLE</Text>
                 <Group gap="sm">
-                  <Badge variant="light" color="orange" size="lg" tt="uppercase" fw={700}>
+                  <Badge variant="light" color={userData.role === 'CCTV Chief' ? 'orange' : 'gray'} size="lg" tt="uppercase" fw={700}>
                     {userData.role || 'Staff'}
                   </Badge>
                 </Group>
@@ -195,8 +197,8 @@ export default function ProfilePage() {
                 <Stack gap="md">
                   <Group justify="space-between" align="center" wrap="nowrap" py="xs">
                     <Stack gap={2}>
-                      <Text fw={700} fz="sm" c="dark.4">Account Name</Text>
-                      <Text fz="sm" fw={500} c="gray.7">{userData.first_name} {userData.last_name}</Text>
+                      <Text fw={700} fz="sm" c="var(--mantine-color-text)">Account Name</Text>
+                      <Text fz="sm" fw={500} c="var(--mantine-color-dimmed)">{userData.first_name} {userData.last_name}</Text>
                     </Stack>
                     <Button variant="filled" color="orange" size="xs" radius="sm" px="xl" h={28}
                       onClick={() => setEditOpened(true)}>
@@ -206,9 +208,9 @@ export default function ProfilePage() {
 
                   <Group justify="space-between" align="center" wrap="nowrap" py="xs">
                     <Stack gap={2}>
-                      <Text fw={700} fz="sm" c="dark.4">Email</Text>
+                      <Text fw={700} fz="sm" c="var(--mantine-color-text)">Email</Text>
                       <Group gap="xs">
-                        <Text fz="sm" fw={500} c="gray.7">{maskedEmail(userData.email)}</Text>
+                        <Text fz="sm" fw={500} c="var(--mantine-color-dimmed)">{maskedEmail(userData.email)}</Text>
                         <EyeSlash  width={14} height={14} color="gray" />
                       </Group>
                     </Stack>
@@ -220,8 +222,8 @@ export default function ProfilePage() {
 
                   <Group justify="space-between" align="center" wrap="nowrap" py="xs">
                     <Stack gap={2}>
-                      <Text fw={700} fz="sm" c="dark.4">Password</Text>
-                      <Text fz="sm" fw={500} c="gray.7">••••••••</Text>
+                      <Text fw={700} fz="sm" c="var(--mantine-color-text)">Password</Text>
+                      <Text fz="sm" fw={500} c="var(--mantine-color-dimmed)">••••••••</Text>
                     </Stack>
                     <Button variant="filled" color="orange" size="xs" radius="sm" px="xl" h={28}
                       onClick={() => setPasswordOpened(true)}>
@@ -243,7 +245,7 @@ export default function ProfilePage() {
               <Stack gap="lg">
                 <Group justify="space-between">
                   <Group gap="md">
-                    <Box bg="#FFF0E6" p={8} style={{ borderRadius: 8 }}>
+                    <Box bg="var(--mantine-color-orange-light)" p={8} style={{ borderRadius: 8 }}>
                       <Bell  width={20} height={20} color={ORANGE} fill={ORANGE} />
                     </Box>
                     <Stack gap={0}>
@@ -261,7 +263,7 @@ export default function ProfilePage() {
 
                 <Group justify="space-between">
                   <Group gap="md">
-                    <Box bg="#FFF0E6" p={8} style={{ borderRadius: 8 }}>
+                    <Box bg="var(--mantine-color-orange-light)" p={8} style={{ borderRadius: 8 }}>
                       <CheckShield  width={20} height={20} color={userData.two_factor_enabled ? ORANGE : 'gray'} />
                     </Box>
                     <Stack gap={0}>
@@ -283,7 +285,7 @@ export default function ProfilePage() {
 
                 <Group justify="space-between">
                   <Group gap="md">
-                    <Box bg="#FFF0E6" p={8} style={{ borderRadius: 8 }}>
+                    <Box bg="var(--mantine-color-orange-light)" p={8} style={{ borderRadius: 8 }}>
                       <GlobeAlt  width={20} height={20} color={ORANGE} />
                     </Box>
                     <Stack gap={0}>
@@ -321,7 +323,10 @@ export default function ProfilePage() {
         opened={editOpened}
         onClose={() => setEditOpened(false)}
         user={{ first_name: userData.first_name, last_name: userData.last_name }}
-        onUpdated={(updated) => setUserData((prev) => prev ? { ...prev, ...updated } : prev)}
+        onUpdated={(updated) => {
+          setUserData((prev) => prev ? { ...prev, ...updated } : prev);
+          setUser((prev) => prev ? { ...prev, ...updated } : prev);
+        }}
       />
 
       <ChangePasswordModal

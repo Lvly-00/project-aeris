@@ -263,7 +263,7 @@ export default function SettingsPage() {
             ))}
             {(!contacts || (Array.isArray(contacts) && contacts.length === 0)) && (
               <Paper p="xl" ta="center" withBorder style={{ gridColumn: '1 / -1' }}>
-                <Phone  width={48} height={48} color="#444" />
+                <Phone  width={48} height={48} color="var(--mantine-color-dimmed)" />
                 <Text mt="md" size="sm" c="dimmed">No emergency contacts configured</Text>
               </Paper>
             )}

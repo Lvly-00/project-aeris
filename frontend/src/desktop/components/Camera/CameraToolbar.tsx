@@ -32,8 +32,8 @@ export function CameraToolbar({ count, layout, onLayoutChange }: CameraToolbarPr
                 width: 140, 
                 fontWeight: 600, 
                 borderRadius: '4px',
-                backgroundColor: '#fff',
-                border: '1px solid #dee2e6'
+                backgroundColor: 'var(--mantine-color-body)',
+                border: '1px solid var(--mantine-color-default-border)'
             }
           }}
         />

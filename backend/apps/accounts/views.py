@@ -10,7 +10,7 @@ from django.utils import timezone
 from rest_framework import generics, permissions, status, viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.throttling import AnonRateThrottle
+from rest_framework.throttling import AnonRateThrottle, SimpleRateThrottle
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
@@ -52,6 +52,50 @@ class LoginRateThrottle(AnonRateThrottle):
     """Per-client rate limit for authentication endpoints (scope: 'login')."""
 
     scope = "login"
+
+
+class VerifyPasswordRateThrottle(SimpleRateThrottle):
+    """Fixed 1-minute lockout after 5 admin-verification attempts per client IP.
+
+    Unlike AnonRateThrottle (which returns no key for authenticated users and
+    therefore never throttles), this keys on the client IP so authed requests
+    are rate limited too: max 5 attempts/minute.
+
+    SimpleRateThrottle's own wait() is a scrolling window — the countdown is
+    "time until the oldest attempt falls out of the window", so it can start
+    well below 60. Here, the over-limit request bumps a hard lock: the client
+    is blocked for a full 60 seconds measured from that rejection, so the
+    countdown always starts at 60.
+    """
+
+    scope = "verify_password"
+    LOCK_SECONDS = 60
+
+    def get_cache_key(self, request, view):
+        ident = self.get_ident(request)
+        return self.cache_format % {"scope": self.scope, "ident": ident}
+
+    def allow_request(self, request, view):
+        key = self.get_cache_key(request, view)
+        lock_key = f"{key}:lock"
+        locked_until = self.cache.get(lock_key)
+        now = self.timer()
+        if locked_until is not None and float(locked_until) > now:
+            self.locked_until = float(locked_until)
+            return False
+        if locked_until is not None:
+            self.cache.delete(lock_key)
+        allowed = super().allow_request(request, view)
+        if not allowed:
+            self.locked_until = now + self.LOCK_SECONDS
+            self.cache.set(lock_key, self.locked_until, self.LOCK_SECONDS + 60)
+        return allowed
+
+    def wait(self):
+        locked_until = getattr(self, "locked_until", None)
+        if locked_until is not None:
+            return max(1, locked_until - self.timer())
+        return super().wait()
 
 
 def _audit_action(user, request, action: str, details: dict | None = None) -> None:
@@ -258,6 +302,9 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_throttles(self):
         # Stricter per-client rate limit on authentication endpoints (FR-LG-009,
         # NFR-LG-007) — protects against brute force and credential stuffing.
+        if self.action == "verify_password":
+            # Admin verification has its own independent 5/min bucket.
+            return [VerifyPasswordRateThrottle()]
         if self.action in (
             "login",
             "password_reset",

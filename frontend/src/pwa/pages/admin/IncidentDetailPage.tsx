@@ -443,7 +443,7 @@ export default function IncidentDetailPage() {
         </Group>
         <Group grow preventGrowOverflow={false}>
           <Group gap="xs">
-            <ThemeIcon color="orange.0" variant="light" radius="xl"><Video  width={16} height={16} color="orange" /></ThemeIcon>
+            <ThemeIcon color="orange" variant="light" radius="xl"><Video  width={16} height={16} color="orange" /></ThemeIcon>
             <Box style={{ minWidth: 0 }}>
               <Text fz={9} c="dimmed">Camera</Text>
               <Text fz={11} fw={700} truncate>{incident.camera_name || `Camera #${incident.camera}`}</Text>
@@ -451,7 +451,7 @@ export default function IncidentDetailPage() {
           </Group>
           <Divider orientation="vertical" />
           <Group gap="xs">
-            <ThemeIcon color="orange.0" variant="light" radius="xl"><LocationPin  width={16} height={16} color="orange" /></ThemeIcon>
+            <ThemeIcon color="orange" variant="light" radius="xl"><LocationPin  width={16} height={16} color="orange" /></ThemeIcon>
             <Box style={{ minWidth: 0 }}>
               <Text fz={9} c="dimmed">Location</Text>
               <Text fz={11} fw={700} truncate>

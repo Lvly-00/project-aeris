@@ -1,14 +1,14 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
-import { Camera, CheckShield, ChevronDown, Cog, DoorOpen, History, Moon, PlusCircle, ShieldAlt, Sun, User } from '@boxicons/react';
+import { Camera, ChevronDown, Cog, DoorOpen, History, Moon, PlusCircle, Toggles, Sun, User } from '@boxicons/react';
 import { useAuth } from '../../../shared/hooks/useAuth';
 import { authAPI } from '../../../shared/services/api';
+import { parseThrottleSeconds } from '../../../shared/utils/authErrors';
+import { AdminVerificationModal } from './AdminVerificationModal';
 import { 
-  Avatar, Box, Group, Menu, Text, UnstyledButton, 
-  Switch, Badge, Modal, PasswordInput, Button, 
-  Stack, ActionIcon, useMantineColorScheme, useComputedColorScheme 
+  Avatar, Box, Group, Menu, Text, UnstyledButton, Badge,
+  useMantineColorScheme, useComputedColorScheme, Container
 } from '@mantine/core';
-import { useMediaQuery } from '@mantine/hooks';
 
 const SUDO_PROTECTED_PATHS = ['/desktop/profile', '/desktop/settings', '/desktop/accounts', '/desktop/audit'];
 
@@ -16,7 +16,7 @@ export default function DesktopLayout() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, logout, viewMode, setViewMode } = useAuth();
-  
+
   // Theme Hooks
   const { setColorScheme } = useMantineColorScheme();
   const computedColorScheme = useComputedColorScheme('light', { getInitialValueInEffect: true });
@@ -25,9 +25,29 @@ export default function DesktopLayout() {
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [sudoThrottleSeconds, setSudoThrottleSeconds] = useState(0);
 
-  const isDesktop = useMediaQuery('(min-width: 768px)');
-  const isAdminLocked = isDesktop && user?.role === 'CCTV Chief' && viewMode === 'Operator';
+  // FR-PPD-005: Countdown for admin-verification (429) cooldown while the
+  // submit button is disabled — mirrors the login rate-limit behaviour.
+  useEffect(() => {
+    if (sudoThrottleSeconds <= 0) return;
+    const id = setInterval(() => {
+      setSudoThrottleSeconds((s) => {
+        if (s <= 1) {
+          clearInterval(id);
+          setError('');
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [sudoThrottleSeconds]);
+
+  // FR-PPD-005: Profile/Settings (and other sudo-protected routes) are only
+  // available to the Chief view — locked for every other role/mode.
+  const isAdminLocked = viewMode !== 'Admin';
+  // Mode used for nav filtering (matches the role strings in navItems).
   const activeRole = user?.role === 'CCTV Chief' ? viewMode : user?.role;
 
   // FR-PPD-005: When Chief Mode is exited while on a sudo-protected route,
@@ -48,7 +68,7 @@ export default function DesktopLayout() {
     } else {
       setViewMode('Operator');
       // FR-PPD-006: Audit log for Chief Mode exit
-      authAPI.logChiefMode(false).catch(() => {});
+      authAPI.logChiefMode(false).catch(() => { });
       if (location.pathname.includes('/audit') || location.pathname.includes('/accounts') || location.pathname.includes('/profile') || location.pathname.includes('/settings')) {
         navigate('/desktop/cameras');
       }
@@ -63,10 +83,21 @@ export default function DesktopLayout() {
       setViewMode('Admin');
       setSudoModalOpened(false);
       setPassword('');
+      setSudoThrottleSeconds(0);
       // FR-PPD-006: Audit log for Chief Mode entry
-      authAPI.logChiefMode(true).catch(() => {});
+      authAPI.logChiefMode(true).catch(() => { });
     } catch (err: any) {
-      setError("Verification failed. Please check your password.");
+      if (err?.response?.status === 429) {
+        const seconds = parseThrottleSeconds(err?.response?.data?.detail);
+        setSudoThrottleSeconds(seconds || 60);
+        setError(
+          seconds > 0
+            ? `Too many attempts. Please try again in ${seconds}s.`
+            : 'Too many attempts. Please wait a moment and try again.'
+        );
+      } else {
+        setError('Invalid Password');
+      }
     } finally {
       setLoading(false);
     }
@@ -81,143 +112,138 @@ export default function DesktopLayout() {
   const filteredNav = navItems.filter(item => item.roles.includes(activeRole || ''));
 
   return (
-    <Box style={{ 
-      minHeight: '100vh', 
-      backgroundColor: 'var(--mantine-color-body)', // Adapts to theme
-      display: 'flex', 
-      flexDirection: 'column' 
-    }}>
+    <Box style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-body)', display: 'flex', flexDirection: 'column' }}>
 
-      <Modal opened={sudoModalOpened} onClose={() => setSudoModalOpened(false)} title="Admin Verification" centered>
-        <Stack>
-          <Text size="sm">Please enter your password to enable Admin Mode.</Text>
-          <PasswordInput
-            label="Password"
-            placeholder="Enter admin password"
-            value={password}
-            onChange={(e) => setPassword(e.currentTarget.value)}
-            error={error}
-            onKeyDown={(e) => e.key === 'Enter' && handleVerifySudo()}
-          />
-          <Button color="orange" fullWidth onClick={handleVerifySudo} loading={loading}>
-            Unlock Admin View
-          </Button>
-        </Stack>
-      </Modal>
+      <AdminVerificationModal
+        opened={sudoModalOpened}
+        onClose={() => setSudoModalOpened(false)}
+        password={password}
+        onPasswordChange={setPassword}
+        error={error}
+        loading={loading}
+        throttleSeconds={sudoThrottleSeconds}
+        onSubmit={handleVerifySudo}
+      />
 
-      <Box 
-        component="header" 
-        style={{ 
-          height: 64, 
-          backgroundColor: 'var(--mantine-color-scheme-outline)', // Themed white/dark surface
-          borderBottom: '1px solid var(--mantine-color-default-border)', 
-          paddingInline: 24 
+      <Box
+        component="header"
+        style={{
+          height: 80,
+          backgroundColor: 'var(--mantine-color-scheme-outline)',
+          borderBottom: '1px solid var(--mantine-color-default-border)',
+          display: 'flex',
+          alignItems: 'center'
         }}
       >
-        <Group justify="space-between" h="100%" maw={1400} mx="auto">
-          <Group gap={30}>
-            <img src="/icon.png" alt="logo" style={{ height: 32 }} />
+        <Container size="xl" h="100%" w="100%" fluid px={{ base: 16, sm: 24, lg: 40 }}>
+          <Group justify="space-between" h="100%" wrap="nowrap">
 
-            {user?.role === 'CCTV Chief' && (
-              <Group gap="xs" style={{ 
-                background: 'var(--mantine-color-default-hover)', 
-                padding: '4px 12px', 
-                borderRadius: 20 
-              }}>
-                <Text size="xs" fw={700} c={viewMode === 'Operator' ? 'orange' : 'dimmed'}>CCTV OPERATOR</Text>
-                <Switch
-                  checked={viewMode === 'Admin'}
-                  onChange={(event) => handleModeToggle(event.currentTarget.checked)}
-                  color="orange"
-                  size="sm"
-                  onLabel={<CheckShield  width={12} height={12} />}
-                  offLabel={<ShieldAlt  width={12} height={12} />}
-                />
-                <Text size="xs" fw={700} c={viewMode === 'Admin' ? 'orange' : 'dimmed'}>CHIEF</Text>
+            {/* Logo Section */}
+            <Group gap={80} wrap="nowrap" style={{ minWidth: 0 }}>
+              <img src="/icon.png" alt="logo" style={{ height: 'clamp(40px, 6vw, 60px)', cursor: 'pointer', flexShrink: 0 }} onClick={() => navigate('/desktop/cameras')} />
+
+              {/* Navigation Links */}
+              <Group component="nav" gap={60} wrap="nowrap">
+                {filteredNav.map((item) => {
+                  const isActive = location.pathname.startsWith(item.path);
+                  return (
+                    <Box key={item.path} style={{ position: 'relative', height: '100%' }}>
+                      <Link
+                        to={item.path}
+                        style={{
+                          textDecoration: 'none',
+                          color: isActive ? 'var(--mantine-color-orange-filled)' : 'var(--mantine-color-dimmed)',
+                          fontWeight: 600,
+                          fontSize: 16,
+                          display: 'block',
+                          padding: '5px 0',
+                          whiteSpace: 'nowrap'
+                        }}
+                      >
+                        {item.label}
+                      </Link>
+                      {/* Custom Underline matching the image */}
+                      {isActive && (
+                        <Box
+                          style={{
+                            position: 'absolute',
+                            bottom: -22,
+                            left: -10,
+                            right: -10,
+                            height: 3,
+                            backgroundColor: 'var(--mantine-color-orange-filled)',
+                            borderRadius: '2px 2px 0 0'
+                          }}
+                        />
+                      )}
+                    </Box>
+                  );
+                })}
               </Group>
-            )}
-          </Group>
+            </Group>
 
-          <Group component="nav" gap={40}>
-            {filteredNav.map((item) => (
-              <Link 
-                key={item.path} 
-                to={item.path} 
-                style={{
-                  textDecoration: 'none',
-                  color: location.pathname.startsWith(item.path) 
-                    ? 'var(--mantine-color-orange-filled)' 
-                    : 'var(--mantine-color-text)', // Adaptive text color
-                  fontWeight: 600, 
-                  fontSize: 14,
-                  borderBottom: location.pathname.startsWith(item.path) 
-                    ? '2px solid var(--mantine-color-orange-filled)' 
-                    : 'none',
-                  paddingBottom: 4
-                }}
-              >
-                {item.label}
-              </Link>
-            ))}
-          </Group>
-
-          <Group gap="md">
-            {/* Dark/Light Mode Toggle Button */}
-            <ActionIcon
-              onClick={toggleTheme}
-              variant="default"
-              size="lg"
-              aria-label="Toggle color scheme"
-              radius="md"
-            >
-              {computedColorScheme === 'dark' ? (
-                <Sun  width={18} height={18} strokeWidth={1.5} />
-              ) : (
-                <Moon  width={18} height={18} strokeWidth={1.5} />
-              )}
-            </ActionIcon>
-
-            <Menu position="bottom-end" withArrow>
+            {/* User Profile Section */}
+            <Menu position="bottom-end" withArrow width={220}>
               <Menu.Target>
                 <UnstyledButton>
-                  <Group gap={10}>
-                    <Avatar radius="xl" color="orange">{user?.first_name?.[0].toUpperCase() || user?.email?.[0].toUpperCase()}</Avatar>
-                    <Box visibleFrom="sm">
-                      <Text fz={13} fw={700}>{user?.full_name || user?.email}</Text>
-                      <Badge size="xs" variant="light" color="gray">{viewMode === 'Admin' ? 'Chief' : 'CCTV Operator'} Mode</Badge>
+                  <Group gap={12}>
+                    <Avatar
+                      size={45}
+                      radius="xl"
+                      src={user?.profile_picture}
+                      style={{ border: '1px solid var(--mantine-color-default-border)' }}
+                    >
+                      {user?.first_name?.[0]}
+                    </Avatar>
+                    <Box visibleFrom="xs">
+                      <Text fz={16} fw={700} lh={1.2} style={{ color: 'var(--mantine-color-text)' }}>
+                        {user?.full_name || "User Name"}
+                      </Text>
+                      <Badge
+                        mt={4}
+                        size="sm"
+                        variant="filled"
+                        color={viewMode === 'Admin' ? 'orange' : 'gray'}
+                        tt="uppercase"
+                        fw={600}
+                        style={{ letterSpacing: 0.6 }}
+                      >
+                        {viewMode === 'Admin' ? 'Chief' : 'Operator'} Mode
+                      </Badge>
                     </Box>
-                    <ChevronDown  width={14} height={14} />
+                    <ChevronDown size="sm" color="var(--mantine-color-dimmed)" style={{ marginLeft: 5 }} />
                   </Group>
                 </UnstyledButton>
               </Menu.Target>
-              <Menu.Dropdown miw={200}>
-                <Menu.Item
-                  leftSection={<User  width={ 14 } height={ 14 } />}
-                  onClick={() => navigate('/desktop/profile')}
-                  disabled={isAdminLocked}
-                >
-                  Profile {isAdminLocked && '(Locked)'}
-                </Menu.Item>
 
-                <Menu.Item
-                  leftSection={<Cog  width={ 14 } height={ 14 } />}
-                  onClick={() => navigate('/desktop/settings')}
-                  disabled={isAdminLocked}
-                >
-                  Settings {isAdminLocked && '(Locked)'}
+              <Menu.Dropdown>
+                <Menu.Item leftSection={<User size="sm" />} onClick={() => navigate('/desktop/profile')} disabled={isAdminLocked}>Profile</Menu.Item>
+                <Menu.Item leftSection={<Cog size="sm" />} onClick={() => navigate('/desktop/settings')} disabled={isAdminLocked}>Settings</Menu.Item>
+                <Menu.Divider />
+                {user?.role === 'CCTV Chief' && (
+                  <Menu.Item
+                    leftSection={<Toggles size="sm" />}
+                    onClick={() => handleModeToggle(viewMode === 'Operator')}
+                  >
+                    Switch to {viewMode === 'Admin' ? 'Operator' : 'Chief'}
+                  </Menu.Item>
+                )}
+                <Menu.Item leftSection={computedColorScheme === 'dark' ? <Sun size="sm" /> : <Moon size="sm" />} onClick={toggleTheme}>
+                  {computedColorScheme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                 </Menu.Item>
                 <Menu.Divider />
-                <Menu.Item leftSection={<DoorOpen  width={ 14 } height={ 14 } />} color="orange" onClick={logout}>Logout</Menu.Item>
+                <Menu.Item leftSection={<DoorOpen size="sm" />} color="orange" onClick={logout}>Logout</Menu.Item>
               </Menu.Dropdown>
             </Menu>
+
           </Group>
-        </Group>
+        </Container>
       </Box>
 
       <Box component="main" style={{ flex: 1, padding: 24 }}>
-        <Box maw={1400} mx="auto">
+        <Container size="xl">
           <Outlet />
-        </Box>
+        </Container>
       </Box>
     </Box>
   );

@@ -123,7 +123,7 @@ export default function VerificationCodePage() {
 
             {/* Header Icon */}
             <Box
-                bg="#fdf2e8"
+                bg="var(--mantine-color-orange-light)"
                 style={{
                     borderRadius: '50%',
                     width: isPwa ? rem(72) : rem(86),
@@ -190,7 +190,7 @@ export default function VerificationCodePage() {
                 </Anchor>
             </Text>
 
-            <Divider w="100%" my="sm" color="#EEEEEE" />
+            <Divider w="100%" my="sm" color="var(--mantine-color-default-border)" />
 
             <Alert
                 variant="light"
@@ -200,10 +200,10 @@ export default function VerificationCodePage() {
                 w="100%"
                 styles={{
                     root: {
-                        backgroundColor: error ? '#FFF1F0' : '#FFF5F0',
+                        backgroundColor: error ? 'var(--mantine-color-red-light)' : 'var(--mantine-color-orange-light)',
                         border: 'none',
                     },
-                    message: { color: '#666', fontSize: rem(13), lineHeight: 1.4 },
+                    message: { color: 'var(--mantine-color-dimmed)', fontSize: rem(13), lineHeight: 1.4 },
                 }}
                 icon={
                     error ? (
@@ -254,12 +254,12 @@ export default function VerificationCodePage() {
                         overflow: 'hidden',
                         display: 'flex',
                         flexDirection: 'column',
-                        backgroundColor: '#f8f9fa',
+                        backgroundColor: 'var(--mantine-color-body)',
                     }}
                 >
                     <Box
                         style={{
-                            height: '28%',
+                            height: '25%',
                             backgroundImage: `url('/loginBG.png')`,
                             backgroundSize: 'cover',
                             backgroundPosition: 'center',
@@ -268,19 +268,19 @@ export default function VerificationCodePage() {
                     />
                     <Paper
                         radius="32px 32px 0 0"
-                        p="xl"
+                        p="md"
                         style={{
                             flex: 1,
-                            marginTop: rem(-40),
+                            marginTop: rem(-32),
                             display: 'flex',
                             flexDirection: 'column',
                             zIndex: 1,
-                            overflowY: 'auto',
+                            overflow: 'hidden',
                         }}
                     >
-                        <Stack align="center" gap="sm" pt="md" style={{ flex: 1 }}>
-
-                            <Center style={{ flex: 1, width: '100%' }}>
+                        <Stack align="center" gap="xs" pt="sm" style={{ flex: 1 }}>
+                           
+                            <Center style={{ flex: 1, width: '100%', minHeight: 0 }}>
                                 <Box w="100%">{cardContent}</Box>
                             </Center>
                         </Stack>
@@ -311,7 +311,7 @@ export default function VerificationCodePage() {
                             maxWidth: rem(480),
                             height: rem(660),
                             minHeight: rem(660),
-                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                            backgroundColor: 'var(--mantine-color-body)',
                         }}
                     >
                         {cardContent}

@@ -184,7 +184,7 @@ export default function VerificationCodeModal({
       {verified ? (
         <Stack align="center" gap="md">
           <Box
-            bg="#E8FDF0"
+            bg="var(--mantine-color-green-light)"
             style={{
               borderRadius: '50%',
               width: rem(80),
@@ -223,7 +223,7 @@ export default function VerificationCodeModal({
           ) : (
             <>
               <Box
-                bg="#E8FDF0"
+                bg="var(--mantine-color-green-light)"
                 style={{
                   borderRadius: '50%',
                   width: rem(80),
@@ -291,7 +291,7 @@ export default function VerificationCodeModal({
                 </Text>
               </Text>
 
-              <Divider w="100%" my="lg" color="#EEEEEE" />
+                    <Divider w="100%" my="lg" color="var(--mantine-color-default-border)" />
 
               <Group justify="flex-end" w="100%">
                 <Button variant="default" onClick={handleClose}>
