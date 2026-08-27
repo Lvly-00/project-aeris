@@ -15,9 +15,10 @@ import {
     Image,
     Center,
     rem,
+    UnstyledButton
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { ShieldCheck, Info, Eye, EyeOff, Download } from 'lucide-react';
+import { ArrowToBottom, ChevronRight, Eye, EyeSlash, InfoCircle } from '@boxicons/react';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { AUTH_MESSAGES, mapLoginError } from '../../shared/utils/authErrors';
 import VerificationCodeModal from '../../shared/components/VerificationCodeModal';
@@ -38,9 +39,26 @@ export default function LoginPage() {
     const [twoFAOpen, setTwoFAOpen] = useState(false);
     const [twoFAEmail, setTwoFAEmail] = useState('');
     const [rememberMe, setRememberMe] = useState(false);
+    const [throttleSeconds, setThrottleSeconds] = useState(0);
 
     // Session expired after token refresh failure (interceptor adds ?expired=1)
     const sessionExpired = searchParams.get('expired') === '1';
+
+    // Countdown for rate-limit (429) cooldown while the login button is disabled.
+    useEffect(() => {
+        if (throttleSeconds <= 0) return;
+        const id = setInterval(() => {
+            setThrottleSeconds((s) => {
+                if (s <= 1) {
+                    clearInterval(id);
+                    setError('');
+                    return 0;
+                }
+                return s - 1;
+            });
+        }, 1000);
+        return () => clearInterval(id);
+    }, [throttleSeconds]);
 
     useEffect(() => {
         const onBeforeInstall = (e: Event) => {
@@ -70,8 +88,13 @@ export default function LoginPage() {
     const form = useForm({
         initialValues: { email: '', password: '', remember: false },
         validate: {
-            email: (v: string) =>
-                !v || !v.trim() ? AUTH_MESSAGES.MISSING_EMAIL : null,
+            email: (v: string) => {
+                if (!v || !v.trim()) return AUTH_MESSAGES.MISSING_EMAIL;
+                if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) {
+                    return AUTH_MESSAGES.INVALID_EMAIL;
+                }
+                return null;
+            },
             password: (v: string) =>
                 !v ? AUTH_MESSAGES.MISSING_PASSWORD : null,
         },
@@ -80,6 +103,8 @@ export default function LoginPage() {
     const handleSubmit = async (values: any) => {
         setLoading(true);
         setError('');
+        form.clearFieldError('email');
+        form.clearFieldError('password');
 
         try {
             const result = await login(values);
@@ -96,7 +121,18 @@ export default function LoginPage() {
                 replace: true,
             });
         } catch (err: any) {
-            setError(mapLoginError(err));
+            const mapped = mapLoginError(err);
+            if (mapped.fieldError) {
+                form.setFieldError(mapped.fieldError.field, mapped.fieldError.message);
+            }
+            if (mapped.bannerError) {
+                setError(mapped.bannerError);
+            }
+            if (mapped.throttleSeconds) {
+                setThrottleSeconds(mapped.throttleSeconds);
+            } else if (throttleSeconds <= 0) {
+                setError(mapped.bannerError || '');
+            }
         } finally {
             setLoading(false);
         }
@@ -164,7 +200,7 @@ export default function LoginPage() {
                             lh={1.4}
                             style={{ maxWidth: '90%' }}
                         >
-                            Sign in to access the AI-Assisted Barangay CCTV Incident Monitoring & Decision Support System.
+                            AI-Assisted Barangay CCTV Incident Monitoring & Decision Support System.
                         </Text>
                     </Stack>
 
@@ -194,7 +230,7 @@ export default function LoginPage() {
                                         withAsterisk={false}
                                         {...form.getInputProps('password')}
                                         visibilityToggleIcon={({ reveal }) =>
-                                            reveal ? <EyeOff size={18} /> : <Eye size={18} />
+                                            reveal ? <EyeSlash  width={18} height={18} /> : <Eye  width={18} height={18} />
                                         }
                                         styles={{
                                             input: { height: rem(50) },
@@ -205,13 +241,13 @@ export default function LoginPage() {
                                     <Group justify="space-between">
                                         <Checkbox
                                             label="Remember Me"
-                                            size="xs"
+                                            // size="xs"
                                             color={PRIMARY_ORANGE}
                                             {...form.getInputProps('remember', { type: 'checkbox' })}
                                         />
                                         <Anchor
                                             href="#"
-                                            size="xs"
+                                            size="sm"
                                             fw={600}
                                             c={PRIMARY_ORANGE}
                                             onClick={(e) => {
@@ -223,6 +259,12 @@ export default function LoginPage() {
                                         </Anchor>
                                     </Group>
 
+                                    {(error || sessionExpired) && (
+                                        <Alert icon={<InfoCircle  width={ 14 } height={ 14 } />} color={sessionExpired && !error ? 'orange' : 'red'} p="xs">
+                                            {error || AUTH_MESSAGES.SESSION_EXPIRED}
+                                        </Alert>
+                                    )}
+
                                     <Button
                                         type="submit"
                                         fullWidth
@@ -231,32 +273,93 @@ export default function LoginPage() {
                                         radius="md"
                                         mt="xs"
                                         loading={loading}
-                                        bg={PRIMARY_ORANGE}
+                                        disabled={throttleSeconds > 0}
+                                        color="#FA5401"
                                         style={{ fontWeight: 700 }}
                                     >
-                                        Log In
+                                        {throttleSeconds > 0 ? `Retry in ${throttleSeconds}s` : 'Log In'}
                                     </Button>
 
-                                    {(error || sessionExpired) && (
-                                        <Alert icon={<Info size={14} />} color={sessionExpired && !error ? 'orange' : 'red'} p="xs">
-                                            {error || AUTH_MESSAGES.SESSION_EXPIRED}
-                                        </Alert>
-                                    )}
+
 
                                     {!installed && (
-                                        <Button
-                                            fullWidth
-                                            size="md"
-                                            h={44}
-                                            radius="md"
-                                            variant="light"
-                                            color={PRIMARY_ORANGE}
-                                            leftSection={<Download size={18} />}
+                                        <UnstyledButton
                                             onClick={handleDownloadApp}
-                                            style={{ fontWeight: 600 }}
+                                            w="100%"
+                                            style={{
+                                                display: 'block',
+                                                border: `1px solid ${PRIMARY_ORANGE}`,
+                                                borderRadius: rem(16),
+                                                padding: rem(16),
+                                                backgroundColor: '#FFFFFF',
+                                                transition: 'background-color 150ms ease, transform 150ms ease',
+                                            }}
+                                            onMouseEnter={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#FFF9F5';
+                                            }}
+                                            onMouseLeave={(e) => {
+                                                e.currentTarget.style.backgroundColor = '#FFFFFF';
+                                            }}
                                         >
-                                            Download App
-                                        </Button>
+                                            <Group justify="space-between" align="center" wrap="nowrap">
+
+                                                {/* Download Icon */}
+                                                <Box
+                                                    w={40}
+                                                    h={40}
+                                                    style={{
+                                                        flexShrink: 0,
+                                                        display: 'flex',
+                                                        alignItems: 'center',
+                                                        justifyContent: 'center',
+                                                        backgroundColor: '#FFF0E6',
+                                                        borderRadius: rem(18),
+                                                    }}
+                                                >
+                                                    <ArrowToBottom
+                                                         width={20} height={20}
+                                                        strokeWidth={2.5}
+                                                        color={PRIMARY_ORANGE}
+                                                    />
+                                                </Box>
+
+                                                {/* Text */}
+                                                <Stack
+                                                    gap={2}
+                                                    style={{
+                                                        flex: 1,
+                                                        minWidth: 0,
+                                                    }}
+                                                >
+                                                    <Text
+                                                        fw={700}
+                                                        fz={{ base: 16, sm: 18 }}
+                                                        c={PRIMARY_ORANGE}
+                                                        lh={1.2}
+                                                    >
+                                                        Download AERIS App
+                                                    </Text>
+
+                                                    <Text
+                                                        fz={{ base: 12, sm: 14 }}
+                                                        c="#999999"
+                                                        lh={1.3}
+                                                    >
+                                                        Access AERIS from your mobile device.
+                                                    </Text>
+                                                </Stack>
+
+                                                {/* Arrow */}
+                                                <ChevronRight
+                                                     width={22} height={22}
+                                                    strokeWidth={2.5}
+                                                    color={PRIMARY_ORANGE}
+                                                    style={{
+                                                        flexShrink: 0,
+                                                    }}
+                                                />
+                                            </Group>
+                                        </UnstyledButton>
                                     )}
 
                                     {showHint && !installed && (
@@ -272,22 +375,6 @@ export default function LoginPage() {
                     </Center>
 
                     {/* BOTTOM SECTION: Security Box */}
-                    <Box
-                        p="sm"
-                        style={{
-                            borderRadius: rem(12),
-                            border: '1px solid #eee',
-                            backgroundColor: '#fff',
-                            marginBottom: rem(10), // Small buffer from bottom edge
-                        }}
-                    >
-                        <Group gap="xs" wrap="nowrap" align="center" justify="center">
-                            <ShieldCheck size={18} color={PRIMARY_ORANGE} strokeWidth={2} />
-                            <Text fz={11} fw={600} c="dark.3" ta="center">
-                                Your information is encrypted and securely protected.
-                            </Text>
-                        </Group>
-                    </Box>
 
                 </Stack>
             </Paper>

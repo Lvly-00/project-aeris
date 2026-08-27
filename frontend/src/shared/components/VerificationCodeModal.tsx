@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Modal, Stack, Text, Button, Group, Divider, PinInput, Alert, Center, Image, Box, rem,
 } from '@mantine/core';
-import { Info, Mail } from 'lucide-react';
+import { Envelope, InfoCircle, User } from '@boxicons/react';
 
 const ORANGE = '#FF6B00';
 const CODE_TTL_SECONDS = 300;
@@ -194,7 +194,7 @@ export default function VerificationCodeModal({
               justifyContent: 'center',
             }}
           >
-            <Mail size={38} color="#00C853" strokeWidth={2.5} />
+            <Envelope  width={38} height={38} color="#00C853" strokeWidth={2.5} />
           </Box>
           <Text ta="center" fw={700} fz="sm">
             Verification successful. You may now continue.
@@ -233,7 +233,7 @@ export default function VerificationCodeModal({
                   justifyContent: 'center',
                 }}
               >
-                <Mail size={38} color="#00C853" strokeWidth={2.5} />
+                <Envelope  width={38} height={38} color="#00C853" strokeWidth={2.5} />
               </Box>
 
               <Text ta="center" fw={700} fz="sm">
@@ -246,7 +246,7 @@ export default function VerificationCodeModal({
               </Text>
 
               {error && (
-                <Alert icon={<Info size={16} />} color="red" variant="light" radius="md">
+                <Alert icon={<InfoCircle  width={ 16 } height={ 16 } />} color="red" variant="light" radius="md">
                   {error}
                 </Alert>
               )}

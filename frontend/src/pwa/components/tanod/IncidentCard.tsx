@@ -11,7 +11,7 @@ import {
     useMantineTheme,
     useMantineColorScheme
 } from '@mantine/core';
-import { LucideIcon } from 'lucide-react';
+import type { BoxIconProps } from '@boxicons/react';
 
 interface IncidentCardProps {
     title: string;
@@ -19,7 +19,7 @@ interface IncidentCardProps {
     description: string;
     time: string;
     isNew: boolean;
-    icon: LucideIcon;
+    icon: React.ComponentType<BoxIconProps>;
     unread?: boolean;
     onClick?: () => void; // Added for navigation
 }
@@ -84,7 +84,7 @@ export const IncidentCard = ({
                             flexShrink: 0, // Prevents the icon box from squishing on long text
                         }}
                     >
-                        <Icon size={32} color="var(--mantine-color-orange-6)" strokeWidth={2.5} />
+                        <Icon width={32} height={32} color="var(--mantine-color-orange-6)" strokeWidth={2.5} />
                     </Box>
 
                     {/* Content Area */}

@@ -1,5 +1,5 @@
 import React from 'react';
-import { Users, Video, ShieldAlert, FileWarning, FileText, Flame, Car, UsersRound } from 'lucide-react';
+import { Car, File, Flame, Group, ShieldAlt, UserCircle, Video } from '@boxicons/react';
 import { StatCard } from '../../components/Dashboard/StatCard';
 import { Banner } from '../../components/Dashboard/Banner';
 import { ConfidenceIndex } from '../../components/Dashboard/ConfidenceIndex';
@@ -20,25 +20,25 @@ export default function DashboardPage() {
             label="Total Users"
             value="10"
             description="Manage and monitor all registered users."
-            icon={<Users size={32} color="#f15a24" />}
+            icon={<Group  width={ 32 } height={ 32 } color="#f15a24" />}
           />
           <StatCard
             label="Total Cameras"
             value="10"
             description="Manage and monitor all registered cameras."
-            icon={<Video size={32} color="#f15a24" />}
+            icon={<Video  width={ 32 } height={ 32 } color="#f15a24" />}
           />
           <StatCard
             label="Total Tanods"
             value="10"
             description="Manage and monitor all registered tanods."
-            icon={<ShieldAlert size={32} color="#f15a24" />}
+            icon={<ShieldAlt  width={ 32 } height={ 32 } color="#f15a24" />}
           />
           <StatCard
             label="Total Incidents"
             value="10"
             description="Manage and monitor all reported incidents."
-            icon={<FileText size={32} color="#f15a24" />}
+            icon={<File  width={ 32 } height={ 32 } color="#f15a24" />}
           />
         </SimpleGrid>
 

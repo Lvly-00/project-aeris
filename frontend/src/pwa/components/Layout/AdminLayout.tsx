@@ -3,15 +3,15 @@ import {
     AppShell, Group, ActionIcon, Text, Stack, UnstyledButton,
     Container, rem, Image, Avatar, Indicator, useMantineTheme
 } from '@mantine/core';
-import { Bell, Home, ShieldAlert, ClipboardList, User } from 'lucide-react';
+import { Bell, Clipboard, Home, ShieldAlt, User } from '@boxicons/react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { authAPI, notificationsAPI } from '../../../shared/services/api';
 import { NotificationsModal } from '../NotificationsModal';
 
 const navData = [
     { icon: Home, label: 'Dashboard', path: '/pwa/admin/dashboard' },
-    { icon: ShieldAlert, label: 'Incidents', path: '/pwa/admin/incidents' },
-    { icon: ClipboardList, label: 'History', path: '/pwa/admin/history' },
+    { icon: ShieldAlt, label: 'Incidents', path: '/pwa/admin/incidents' },
+    { icon: Clipboard, label: 'History', path: '/pwa/admin/history' },
     { icon: User, label: 'Profile', path: '/pwa/admin/profile', isAvatar: true },
 ];
 
@@ -126,7 +126,7 @@ export function AdminLayout() {
                                     size="lg"
                                     onClick={() => setNotifOpen(true)}
                                 >
-                                    <Bell size={28} strokeWidth={1.5} />
+                                    <Bell  width={28} height={28} strokeWidth={1.5} />
                                 </ActionIcon>
                             </Indicator>
                         </Group>
@@ -164,10 +164,10 @@ export function AdminLayout() {
                                                 border: isActive ? `2px solid ${activeColor}` : '1px solid var(--mantine-color-default-border)',
                                             }}
                                         >
-                                            {user?.first_name?.charAt(0).toUpperCase() || <User size={16} />}
+                                            {user?.first_name?.charAt(0).toUpperCase() || <User  width={16} height={16} />}
                                         </Avatar>
                                     ) : (
-                                        <item.icon size={24} strokeWidth={isActive ? 2.5 : 1.5} color={isActive ? 'var(--mantine-color-orange-filled)' : 'var(--mantine-color-dimmed)'} />
+                                        <item.icon width={24} height={24} strokeWidth={isActive ? 2.5 : 1.5} color={isActive ? 'var(--mantine-color-orange-filled)' : 'var(--mantine-color-dimmed)'} />
                                     )}
                                     <Text size="xs" fw={isActive ? 700 : 500} c={isActive ? 'orange' : 'dimmed'} style={{ fontSize: rem(11) }}>
                                         {item.label}

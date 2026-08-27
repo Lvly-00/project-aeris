@@ -18,28 +18,15 @@ import {
     useMantineTheme,
     useMantineColorScheme,
 } from '@mantine/core';
-import {
-    ChevronLeft,
-    MapPin,
-    Flame,
-    Car,
-    CloudFog,
-    ShieldAlert,
-    Hash,
-    Clock,
-    Activity,
-    AlignLeft,
-    Gauge,
-    Camera,
-    LucideIcon,
-} from 'lucide-react';
+import type { BoxIconProps } from '@boxicons/react';
+import { AlignLeft, Camera, Car, ChevronLeft, Clock, Cloud, Flame, Hashtag, LocationPin, Pulse, ShieldAlt, Timer } from '@boxicons/react';
 import { dispatchMessagesAPI } from '../../../shared/services/api';
 import { formatDate, formatConfidence } from '../../../shared/utils/helpers';
 import { SEVERITY_COLORS, STATUS_COLORS } from '../../../shared/utils/constants';
 import type { DispatchMessage, IncidentType } from '../../../shared/types';
 
 interface DetailRowProps {
-    icon: LucideIcon;
+    icon: React.ComponentType<BoxIconProps>;
     label: string;
     value: string;
     iconColor?: string;
@@ -59,7 +46,8 @@ const DetailRow = ({ icon: Icon, label, value, iconColor }: DetailRowProps) => {
                 }}
             >
                 <Icon
-                    size={32}
+                    width={32}
+                    height={32}
                     color={iconColor || theme.colors.orange[6]}
                     strokeWidth={1.5}
                 />
@@ -81,7 +69,7 @@ function getIncidentIcon(type: IncidentType) {
         case 'Fire':
             return Flame;
         case 'Smoke':
-            return CloudFog;
+            return Cloud;
         case 'Vehicle_Accident':
             return Car;
         default:
@@ -147,7 +135,7 @@ export default function DispatchMessagePage() {
                         size="lg"
                         onClick={() => navigate('/pwa/tanod/messages')}
                     >
-                        <ChevronLeft size={24} />
+                        <ChevronLeft  width={24} height={24} />
                     </ActionIcon>
                     <Title order={3} style={{ flex: 1, textAlign: 'center', marginRight: rem(40) }}>
                         Dispatch Message
@@ -181,7 +169,8 @@ export default function DispatchMessagePage() {
                         }}
                     >
                         <IncidentTypeIcon
-                            size={32}
+                            width={32}
+                            height={32}
                             color={theme.colors.orange[6]}
                             fill={theme.colors.orange[6]}
                         />
@@ -207,7 +196,7 @@ export default function DispatchMessagePage() {
             <Stack gap={0}>
                 <Divider />
                 <DetailRow
-                    icon={MapPin}
+                    icon={LocationPin}
                     label="Location"
                     value={incident.camera_name || 'Unknown location'}
                 />
@@ -221,7 +210,7 @@ export default function DispatchMessagePage() {
 
                 <Divider />
                 <DetailRow
-                    icon={ShieldAlert}
+                    icon={ShieldAlt}
                     label="Severity"
                     value={incident.severity}
                     iconColor={SEVERITY_COLORS[incident.severity] || theme.colors.orange[6]}
@@ -229,14 +218,14 @@ export default function DispatchMessagePage() {
 
                 <Divider />
                 <DetailRow
-                    icon={Hash}
+                    icon={Hashtag}
                     label="Incident No."
                     value={formatIncidentId(incident.id)}
                 />
 
                 <Divider />
                 <DetailRow
-                    icon={Activity}
+                    icon={Pulse}
                     label="Status"
                     value={incident.status.replace(/_/g, ' ')}
                     iconColor={STATUS_COLORS[incident.status] || theme.colors.orange[6]}
@@ -258,7 +247,7 @@ export default function DispatchMessagePage() {
 
                 <Divider />
                 <DetailRow
-                    icon={Gauge}
+                    icon={Timer}
                     label="Confidence"
                     value={formatConfidence(incident.confidence_score)}
                 />

@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@mantine/core';
-import { Zap } from 'lucide-react';
+import { BoltCircle } from '@boxicons/react';
 import { incidentsAPI } from '../../../shared/services/api';
 import { notifications } from '@mantine/notifications';
 
@@ -52,7 +52,7 @@ export function SimulateIncidentBtn({ cameras }: Props) {
           ? `Alert generated for ${randomCam.name}`
           : 'Alert generated (simulated)',
         color: 'orange',
-        icon: <Zap size={16} />,
+        icon: <BoltCircle  width={16} height={16} />,
       });
     } catch (error: any) {
       console.error(
@@ -79,7 +79,7 @@ export function SimulateIncidentBtn({ cameras }: Props) {
       type="button"
       variant="filled"
       color="orange"
-      leftSection={<Zap size={18} fill="white" />}
+      leftSection={<BoltCircle  width={ 18 } height={ 18 } fill="white" />}
       onClick={handleSimulate}
       loading={loading}
       // disabled={loading || cameras.length === 0}

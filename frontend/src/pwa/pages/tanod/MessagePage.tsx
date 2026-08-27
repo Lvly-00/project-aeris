@@ -2,7 +2,7 @@ import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 import { Container, Title, Text, Stack, Group, ActionIcon, Box, Center, Loader } from '@mantine/core';
-import { MoreVertical, Flame, Car, CloudFog, Inbox } from 'lucide-react';
+import { Car, Cloud, DotsVerticalRounded, Flame, Inbox } from '@boxicons/react';
 import { IncidentCard } from '../../components/tanod/IncidentCard';
 import { dispatchMessagesAPI } from '../../../shared/services/api';
 import { formatRelativeTime } from '../../../shared/utils/helpers';
@@ -17,7 +17,7 @@ function getMessageIcon(type: IncidentType) {
         case 'Fire':
             return Flame;
         case 'Smoke':
-            return CloudFog;
+            return Cloud;
         case 'Vehicle_Accident':
             return Car;
         default:
@@ -49,7 +49,7 @@ export default function MessagesPage() {
                 </Box>
 
                 <ActionIcon variant="default" size="lg" radius="md">
-                    <MoreVertical size={20} />
+                    <DotsVerticalRounded  width={20} height={20} />
                 </ActionIcon>
             </Group>
 
@@ -61,7 +61,7 @@ export default function MessagesPage() {
             ) : messages.length === 0 ? (
                 <Center py="xl">
                     <Stack align="center" gap="sm">
-                        <Inbox size={48} color="var(--mantine-color-gray-5)" />
+                        <Inbox  width={48} height={48} color="var(--mantine-color-gray-5)" />
                         <Text c="dimmed" fw={500}>
                             No dispatch messages yet.
                         </Text>

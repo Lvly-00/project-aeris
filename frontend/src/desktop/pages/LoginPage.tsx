@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import {
   Paper,
@@ -17,7 +17,7 @@ import {
   rem,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { ShieldCheck, Info, Eye, EyeOff } from 'lucide-react';
+import { CheckShield, Eye, EyeSlash, InfoCircle } from '@boxicons/react';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { AUTH_MESSAGES, mapLoginError } from '../../shared/utils/authErrors';
 import VerificationCodeModal from '../../shared/components/VerificationCodeModal';
@@ -31,6 +31,23 @@ export default function LoginPage() {
   const [twoFAOpen, setTwoFAOpen] = useState(false);
   const [twoFAEmail, setTwoFAEmail] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
+  const [throttleSeconds, setThrottleSeconds] = useState(0);
+
+  // Countdown for rate-limit (429) cooldown while the login button is disabled.
+  useEffect(() => {
+    if (throttleSeconds <= 0) return;
+    const id = setInterval(() => {
+      setThrottleSeconds((s) => {
+        if (s <= 1) {
+          clearInterval(id);
+          setError('');
+          return 0;
+        }
+        return s - 1;
+      });
+    }, 1000);
+    return () => clearInterval(id);
+  }, [throttleSeconds]);
 
   // Session expired after token refresh failure (interceptor adds ?expired=1)
   const sessionExpired = searchParams.get('expired') === '1';
@@ -42,8 +59,13 @@ export default function LoginPage() {
       remember: false,
     },
     validate: {
-      email: (v: string) =>
-        !v || !v.trim() ? AUTH_MESSAGES.MISSING_EMAIL : null,
+      email: (v: string) => {
+        if (!v || !v.trim()) return AUTH_MESSAGES.MISSING_EMAIL;
+        if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v.trim())) {
+          return AUTH_MESSAGES.INVALID_EMAIL;
+        }
+        return null;
+      },
       password: (v: string) =>
         !v ? AUTH_MESSAGES.MISSING_PASSWORD : null,
     },
@@ -52,6 +74,8 @@ export default function LoginPage() {
   const handleSubmit = async (values: any) => {
     setLoading(true);
     setError('');
+    form.clearFieldError('email');
+    form.clearFieldError('password');
     try {
       const result = await login(values);
 
@@ -65,7 +89,16 @@ export default function LoginPage() {
 
       navigate('/desktop/cameras', { replace: true });
     } catch (err: any) {
-      setError(mapLoginError(err));
+      const mapped = mapLoginError(err);
+      if (mapped.fieldError) {
+        form.setFieldError(mapped.fieldError.field, mapped.fieldError.message);
+      }
+      if (mapped.bannerError) {
+        setError(mapped.bannerError);
+      }
+      if (mapped.throttleSeconds) {
+        setThrottleSeconds(mapped.throttleSeconds);
+      }
     } finally {
       setLoading(false);
     }
@@ -96,17 +129,20 @@ export default function LoginPage() {
       }}
     >
       <Paper
-        radius={24}
-        p={40}
+        radius={15}
+        px={40}
+        py={52}
         withBorder
         shadow="xl"
         style={{
           width: '100%',
           maxWidth: rem(480),
+          height: rem(660),
+          minHeight: rem(660),
           backgroundColor: 'rgba(255, 255, 255, 0.98)',
         }}
       >
-        <Stack gap="xl">
+        <Stack gap="xl" justify="center">
           {/* LOGO AREA */}
           <Center flex={1} style={{ flexDirection: 'column' }}>
             <Image
@@ -131,7 +167,7 @@ export default function LoginPage() {
                 withAsterisk={false}
                 {...form.getInputProps('email')}
                 styles={{
-                  input: { height: rem(54) },
+                  input: { height: rem(50) },
                   ...labelStyles,
                 }}
               />
@@ -144,10 +180,10 @@ export default function LoginPage() {
                 withAsterisk={false}
                 {...form.getInputProps('password')}
                 visibilityToggleIcon={({ reveal }) =>
-                  reveal ? <EyeOff size={18} /> : <Eye size={18} />
+                  reveal ? <EyeSlash  width={18} height={18} /> : <Eye  width={18} height={18} />
                 }
                 styles={{
-                  input: { height: rem(54) },
+                  input: { height: rem(50) },
                   ...labelStyles,
                 }}
               />
@@ -155,14 +191,14 @@ export default function LoginPage() {
               <Group justify="space-between">
                 <Checkbox
                   label="Remember Me"
-                  size="xs"
+                  // size="xl"
                   color={ORANGE}
                   {...form.getInputProps('remember', { type: 'checkbox' })}
                 />
                 <Anchor
                   href="#"
-                  size="xs"
-                  fw={600}
+                  size="sm"
+                  fw={500}
                   c={ORANGE}
                   onClick={(e) => {
                     e.preventDefault();
@@ -173,6 +209,17 @@ export default function LoginPage() {
                 </Anchor>
               </Group>
 
+              {(error || sessionExpired) && (
+                <Alert
+                  icon={<InfoCircle  width={ 16 } height={ 16 } />}
+                  color={sessionExpired && !error ? 'orange' : 'red'}
+                  variant="light"
+                  radius="md"
+                >
+                  {error || AUTH_MESSAGES.SESSION_EXPIRED}
+                </Alert>
+              )}
+
               <Button
                 type="submit"
                 fullWidth
@@ -181,41 +228,17 @@ export default function LoginPage() {
                 radius="md"
                 mt="md"
                 loading={loading}
-                color={ORANGE}
+                disabled={throttleSeconds > 0}
+                color="#FA5401"
                 style={{ fontSize: rem(16), fontWeight: 700 }}
               >
-                Log In
+                {throttleSeconds > 0 ? `Retry in ${throttleSeconds}s` : 'Log In'}
               </Button>
 
-              {(error || sessionExpired) && (
-                <Alert
-                  icon={<Info size={16} />}
-                  color={sessionExpired && !error ? 'orange' : 'red'}
-                  variant="light"
-                  radius="md"
-                >
-                  {error || AUTH_MESSAGES.SESSION_EXPIRED}
-                </Alert>
-              )}
+
             </Stack>
           </form>
 
-          {/* SECURITY FOOTER */}
-          <Box
-            p="sm"
-            style={{
-              backgroundColor: '#FFF0E6',
-              borderRadius: rem(12),
-              border: '1px solid #FFE0CC',
-            }}
-          >
-            <Group gap="xs" wrap="nowrap">
-              <ShieldCheck size={18} color={ORANGE} />
-              <Text fz={11} fw={500} c="#994400">
-                Your information is encrypted and securely protected.
-              </Text>
-            </Group>
-          </Box>
         </Stack>
       </Paper>
 

@@ -3,9 +3,7 @@ import {
   Container, Grid, Paper, Text, Title, Avatar, Divider,
   Stack, Group, Switch, Box, LoadingOverlay, rem, FileButton, Badge, Button,
 } from '@mantine/core';
-import {
-  ChevronLeft, Bell, ShieldCheck, Languages, Camera, EyeOff,
-} from 'lucide-react';
+import { Bell, Camera, CheckShield, ChevronLeft, EyeSlash, GlobeAlt } from '@boxicons/react';
 import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../../shared/services/api';
 import { useAuth } from '../../shared/hooks/useAuth';
@@ -103,7 +101,7 @@ export default function ProfilePage() {
               display: 'flex', alignItems: 'center',
             }}
           >
-            <ChevronLeft size={32} strokeWidth={2.5} color="var(--mantine-color-dimmed)" />
+            <ChevronLeft  width={32} height={32} strokeWidth={2.5} color="var(--mantine-color-dimmed)" />
           </Box>
           <Stack gap={0}>
             <Title order={2} style={{ fontSize: rem(22), fontWeight: 900, letterSpacing: '-0.5px' }}>
@@ -151,7 +149,7 @@ export default function ProfilePage() {
                         border: '3px solid white',
                       }}
                     >
-                      <Camera size={18} color="white" />
+                      <Camera  width={18} height={18} color="white" />
                     </Box>
                   )}
                 </FileButton>
@@ -211,7 +209,7 @@ export default function ProfilePage() {
                       <Text fw={700} fz="sm" c="dark.4">Email</Text>
                       <Group gap="xs">
                         <Text fz="sm" fw={500} c="gray.7">{maskedEmail(userData.email)}</Text>
-                        <EyeOff size={14} color="gray" />
+                        <EyeSlash  width={14} height={14} color="gray" />
                       </Group>
                     </Stack>
                     <Button variant="filled" color="orange" size="xs" radius="sm" px="xl" h={28}
@@ -246,7 +244,7 @@ export default function ProfilePage() {
                 <Group justify="space-between">
                   <Group gap="md">
                     <Box bg="#FFF0E6" p={8} style={{ borderRadius: 8 }}>
-                      <Bell size={20} color={ORANGE} fill={ORANGE} />
+                      <Bell  width={20} height={20} color={ORANGE} fill={ORANGE} />
                     </Box>
                     <Stack gap={0}>
                       <Text size="sm" fw={700}>Receive Notifications</Text>
@@ -264,7 +262,7 @@ export default function ProfilePage() {
                 <Group justify="space-between">
                   <Group gap="md">
                     <Box bg="#FFF0E6" p={8} style={{ borderRadius: 8 }}>
-                      <ShieldCheck size={20} color={userData.two_factor_enabled ? ORANGE : 'gray'} />
+                      <CheckShield  width={20} height={20} color={userData.two_factor_enabled ? ORANGE : 'gray'} />
                     </Box>
                     <Stack gap={0}>
                       <Text size="sm" fw={700}>Two-Factor Authentication</Text>
@@ -286,7 +284,7 @@ export default function ProfilePage() {
                 <Group justify="space-between">
                   <Group gap="md">
                     <Box bg="#FFF0E6" p={8} style={{ borderRadius: 8 }}>
-                      <Languages size={20} color={ORANGE} />
+                      <GlobeAlt  width={20} height={20} color={ORANGE} />
                     </Box>
                     <Stack gap={0}>
                       <Text size="sm" fw={700}>Language</Text>

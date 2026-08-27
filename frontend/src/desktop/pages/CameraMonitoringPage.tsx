@@ -2,7 +2,7 @@ import { useState, useCallback, useEffect } from 'react';
 import { Box, SimpleGrid, Paper, Text, Button, Stack, Group } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import { Plus, Camera, Phone } from 'lucide-react';
+import { Camera, Phone, Plus } from '@boxicons/react';
 
 import { SimulateIncidentBtn } from '../components/Camera/SimulateIncidentBtn';
 import { camerasAPI, contactsAPI } from '../../shared/services/api';
@@ -85,7 +85,7 @@ export default function CameraMonitoringPage() {
             <SimulateIncidentBtn cameras={cameras} />
             <Button
               bg="#ff5700"
-              leftSection={<Plus size={20} strokeWidth={3} />}
+              leftSection={<Plus  width={ 20 } height={ 20 } strokeWidth={3} />}
               onClick={() => { setEditingCamera(null); setModalOpen(true); }}
             >
               Add Camera
@@ -105,7 +105,7 @@ export default function CameraMonitoringPage() {
       {cameras.length === 0 && !isLoading ? (
         <Paper p={50} ta="center" withBorder radius="md" bg="gray.0">
           <Stack align="center" gap="xs">
-            <Camera size={48} color="#adb5bd" />
+            <Camera  width={48} height={48} color="#adb5bd" />
             <Text fw={600} c="dimmed">No cameras found.</Text>
             <Button variant="light" onClick={() => setModalOpen(true)}>Add your first camera</Button>
           </Stack>

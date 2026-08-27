@@ -24,27 +24,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 
-import {
-  ArrowLeft,
-  Bell,
-  Flame,
-  Clock,
-  Maximize,
-  Video,
-  MapPin,
-  Sparkles,
-  Truck,
-  ShieldCheck,
-  XCircle,
-  CheckCircle,
-  EyeOff,
-  Check,
-  RotateCcw,
-  Car,
-  CloudFog,
-  Siren,
-  AlertTriangle,
-} from 'lucide-react';
+import { AlertCircle, ArrowLeft, Bell, Car, Check, CheckCircle, CheckShield, Clock, Cloud, EyeSlash, Flame, LocationPin, Maximize, RotateCcw, Siren, Star, Video, XCircle } from '@boxicons/react';
 
 import { incidentsAPI } from '../../../shared/services/api';
 import { STATUS_COLORS, SEVERITY_COLORS } from '../../../shared/utils/constants';
@@ -54,11 +34,11 @@ import type { Incident, IncidentStatus } from '../../../shared/types';
 
 const STATUS_ACTIONS: Record<string, { label: string; next: IncidentStatus; color: string; variant?: string; icon: any }[]> = {
   Detected: [
-    { label: 'Incident Verified', next: 'Verified', color: 'orange', icon: ShieldCheck },
+    { label: 'Incident Verified', next: 'Verified', color: 'orange', icon: CheckShield },
     { label: 'Dismiss Incident', next: 'Dismissed', color: 'red', variant: 'outline', icon: XCircle },
   ],
   Verified: [
-    { label: 'Dispatch Tanod', next: 'Dispatched', color: 'red', icon: Truck },
+    { label: 'Dispatch Tanod', next: 'Dispatched', color: 'red', icon: Car },
     { label: 'Dismiss', next: 'Dismissed', color: 'gray', variant: 'subtle', icon: XCircle },
   ],
   Dispatched: [
@@ -85,7 +65,7 @@ const TYPE_INFO: Record<string, { label: string; Icon: any; recommendation: stri
   },
   Smoke: {
     label: 'SMOKE',
-    Icon: CloudFog,
+    Icon: Cloud,
     recommendation: 'Continue Monitoring',
     responder: 'Barangay Tanod',
   },
@@ -192,7 +172,7 @@ export default function IncidentDetailPage() {
       <Container size="xs" py="xl">
         <Stack align="center" gap="md" py="xl" style={{ textAlign: 'center' }}>
           <ThemeIcon size={80} radius="xl" color={isDark ? 'gray.9' : 'gray.1'}>
-            <AlertTriangle size={40} color={isDark ? theme.colors.gray[4] : theme.colors.gray[5]} />
+            <AlertCircle  width={40} height={40} color={isDark ? theme.colors.gray[4] : theme.colors.gray[5]} />
           </ThemeIcon>
           <Text fw={700} fz="xl">Incident Not Found</Text>
           <Text c="dimmed">This incident does not exist.</Text>
@@ -253,7 +233,7 @@ export default function IncidentDetailPage() {
       <Group justify="space-between" mb="lg">
         <Group>
           <ActionIcon variant="subtle" color="gray" onClick={goBack}>
-            <ArrowLeft size={20} />
+            <ArrowLeft  width={20} height={20} />
           </ActionIcon>
           <Text fw={700} fz="lg">INC-2026-{String(incident.id).padStart(6, '0')}</Text>
         </Group>
@@ -349,7 +329,7 @@ export default function IncidentDetailPage() {
             {/* Detected Time */}
             <Group gap={5} mt={2} wrap="nowrap">
               <Clock
-                size={16}
+                 width={16} height={16}
                 color={theme.colors.gray[6]}
                 style={{ flexShrink: 0 }}
               />
@@ -389,7 +369,7 @@ export default function IncidentDetailPage() {
                   variant="filled"
                   color={step.color || (step.done ? 'green' : 'gray')}
                 >
-                  <Check size={16} />
+                  <Check  width={16} height={16} />
                 </ThemeIcon>
 
                 <Text
@@ -449,7 +429,7 @@ export default function IncidentDetailPage() {
               {incident.incident_type} {formatConfidence(incident.confidence_score)}
             </Badge>
             <ActionIcon pos="absolute" bottom={4} right={4} variant="transparent" color="white">
-              <Maximize size={14} />
+              <Maximize  width={14} height={14} />
             </ActionIcon>
           </Box>
         </Card>
@@ -458,12 +438,12 @@ export default function IncidentDetailPage() {
       {/* Camera Information */}
       <Card withBorder radius="lg" p="md" mb="md">
         <Group gap={6} mb="sm">
-          <Video size={14} color={theme.colors.gray[6]} />
+          <Video  width={14} height={14} color={theme.colors.gray[6]} />
           <Text fw={700} fz={11} c="dimmed" tt="uppercase">Camera Information</Text>
         </Group>
         <Group grow preventGrowOverflow={false}>
           <Group gap="xs">
-            <ThemeIcon color="orange.0" variant="light" radius="xl"><Video size={16} color="orange" /></ThemeIcon>
+            <ThemeIcon color="orange.0" variant="light" radius="xl"><Video  width={16} height={16} color="orange" /></ThemeIcon>
             <Box style={{ minWidth: 0 }}>
               <Text fz={9} c="dimmed">Camera</Text>
               <Text fz={11} fw={700} truncate>{incident.camera_name || `Camera #${incident.camera}`}</Text>
@@ -471,7 +451,7 @@ export default function IncidentDetailPage() {
           </Group>
           <Divider orientation="vertical" />
           <Group gap="xs">
-            <ThemeIcon color="orange.0" variant="light" radius="xl"><MapPin size={16} color="orange" /></ThemeIcon>
+            <ThemeIcon color="orange.0" variant="light" radius="xl"><LocationPin  width={16} height={16} color="orange" /></ThemeIcon>
             <Box style={{ minWidth: 0 }}>
               <Text fz={9} c="dimmed">Location</Text>
               <Text fz={11} fw={700} truncate>
@@ -512,7 +492,7 @@ export default function IncidentDetailPage() {
             radius="md"
             style={{ flexShrink: 0 }}
           >
-            <Sparkles size={20} />
+            <Star  width={20} height={20} />
           </ThemeIcon>
 
           {/* Recommendation */}
@@ -562,7 +542,7 @@ export default function IncidentDetailPage() {
 
             <Group gap={3} wrap="nowrap">
               <Siren
-                size={18}
+                 width={18} height={18}
                 color="orange"
               />
 
@@ -583,7 +563,7 @@ export default function IncidentDetailPage() {
         <Stack gap="sm">
           <Card withBorder radius="lg" p="lg" bg={isDark ? 'green.9' : 'green.0'} style={{ textAlign: 'center' }}>
             <ThemeIcon size={48} radius="xl" color={isDark ? 'green.9' : 'green.1'} mx="auto" mb="xs">
-              <CheckCircle size={28} color={isDark ? theme.colors.green[3] : theme.colors.green[6]} />
+              <CheckCircle  width={28} height={28} color={isDark ? theme.colors.green[3] : theme.colors.green[6]} />
             </ThemeIcon>
             <Text fw={700}>Incident Resolved</Text>
             <Text fz={12} c="dimmed">

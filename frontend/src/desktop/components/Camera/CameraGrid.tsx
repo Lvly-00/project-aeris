@@ -4,7 +4,7 @@
  */
 import { useState, useEffect, useRef } from 'react';
 import { Box, Text, Button, Badge, Paper } from '@mantine/core';
-import { Camera, Maximize, LayoutGrid, Pencil, Trash2, Monitor } from 'lucide-react';
+import { Camera, Desktop, Grid, Maximize, Pencil, Trash } from '@boxicons/react';
 import { CameraFeed } from './CameraFeed';
 import type { IncidentDetectedData } from './DetectionOverlay';
 
@@ -87,7 +87,7 @@ function FullscreenExitBadge({ onExit }: { onExit: () => void }) {
       opacity: visible ? 1 : 0, transition: 'opacity 300ms',
       pointerEvents: visible ? 'auto' : 'none',
     }}>
-      <Button size="xs" variant="filled" color="dark" leftSection={<Monitor size={14} />}
+      <Button size="xs" variant="filled" color="dark" leftSection={<Desktop  width={ 14 } height={ 14 } />}
         onClick={onExit} style={{
           backgroundColor: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(8px)',
           border: '1px solid rgba(255,255,255,0.15)',
@@ -136,7 +136,7 @@ export function CameraGrid({ cameras, layout, onIncidentDetected, onFullscreen, 
     return (
       <Box style={{ display: 'flex', flexDirection: 'column', gap: 2, height: 'calc(100vh - 160px)', minHeight: 500 }}>
         <Box style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 4 }}>
-          <Button variant="subtle" size="xs" leftSection={<LayoutGrid size={14} />} onClick={() => setFocusedCamera(null)}>
+          <Button variant="subtle" size="xs" leftSection={<Grid  width={ 14 } height={ 14 } />} onClick={() => setFocusedCamera(null)}>
             Back to Grid
           </Button>
           <Box style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
@@ -145,8 +145,8 @@ export function CameraGrid({ cameras, layout, onIncidentDetected, onFullscreen, 
             <Badge size="xs" variant="filled" color="dark">{focusedCamera.stream_type}</Badge>
           </Box>
           <Box style={{ display: 'flex', gap: 4 }}>
-            <Button variant="subtle" size="xs" leftSection={<Pencil size={14} />} onClick={() => onEdit(focusedCamera)}>Edit</Button>
-            <Button variant="subtle" size="xs" color="red" leftSection={<Trash2 size={14} />} onClick={() => onDelete(focusedCamera.id)}>Delete</Button>
+            <Button variant="subtle" size="xs" leftSection={<Pencil  width={ 14 } height={ 14 } />} onClick={() => onEdit(focusedCamera)}>Edit</Button>
+            <Button variant="subtle" size="xs" color="red" leftSection={<Trash  width={ 14 } height={ 14 } />} onClick={() => onDelete(focusedCamera.id)}>Delete</Button>
           </Box>
         </Box>
         <Box style={{ flex: 1, backgroundColor: '#0a0a0a', borderRadius: 6, overflow: 'hidden', position: 'relative' }}
@@ -161,11 +161,11 @@ export function CameraGrid({ cameras, layout, onIncidentDetected, onFullscreen, 
         </Box>
         {ctxMenu && (
           <ContextPortal x={ctxMenu.x} y={ctxMenu.y}>
-            <ContextMenuItem icon={<LayoutGrid size={14} />} label="Back to Grid" onClick={() => { setFocusedCamera(null); setCtxMenu(null); }} />
-            <ContextMenuItem icon={<Maximize size={14} />} label="Full Screen" onClick={() => { onFullscreen(ctxMenu.camera); setCtxMenu(null); }} />
-            <ContextMenuItem icon={<Pencil size={14} />} label="Edit" onClick={() => { onEdit(ctxMenu.camera); setCtxMenu(null); }} />
+            <ContextMenuItem icon={<Grid  width={ 14 } height={ 14 } />} label="Back to Grid" onClick={() => { setFocusedCamera(null); setCtxMenu(null); }} />
+            <ContextMenuItem icon={<Maximize  width={ 14 } height={ 14 } />} label="Full Screen" onClick={() => { onFullscreen(ctxMenu.camera); setCtxMenu(null); }} />
+            <ContextMenuItem icon={<Pencil  width={ 14 } height={ 14 } />} label="Edit" onClick={() => { onEdit(ctxMenu.camera); setCtxMenu(null); }} />
             <Box style={{ height: 1, backgroundColor: 'var(--mantine-color-dark-4)', margin: '4px 0' }} />
-            <ContextMenuItem icon={<Trash2 size={14} />} label="Delete" color="red" onClick={() => { onDelete(ctxMenu.camera.id); setCtxMenu(null); }} />
+            <ContextMenuItem icon={<Trash  width={ 14 } height={ 14 } />} label="Delete" color="red" onClick={() => { onDelete(ctxMenu.camera.id); setCtxMenu(null); }} />
           </ContextPortal>
         )}
       </Box>
@@ -181,7 +181,7 @@ export function CameraGrid({ cameras, layout, onIncidentDetected, onFullscreen, 
             return (
               <Box key={`empty-${i}`} style={{ backgroundColor: '#0a0a0a', display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden' }}>
                 <Box style={{ textAlign: 'center', opacity: 0.3 }}>
-                  <Camera size={cols <= 2 ? 32 : 24} color="#555" />
+                  <Camera width={cols <= 2 ? 32 : 24} height={cols <= 2 ? 32 : 24} color="#555" />
                   <Text size="xs" c="dimmed" mt={4}>No Signal</Text>
                 </Box>
                 <Box style={{ position: 'absolute', bottom: 0, left: 0, right: 0, padding: '4px 8px', background: 'linear-gradient(transparent, rgba(0,0,0,0.8))' }}>
@@ -211,12 +211,12 @@ export function CameraGrid({ cameras, layout, onIncidentDetected, onFullscreen, 
       </Box>
       {ctxMenu && (
         <ContextPortal x={ctxMenu.x} y={ctxMenu.y}>
-          <ContextMenuItem icon={<Maximize size={14} />} label="Full Screen" onClick={() => { onFullscreen(ctxMenu.camera); setCtxMenu(null); }} />
-          <ContextMenuItem icon={<LayoutGrid size={14} />} label="Focus Camera" onClick={() => { setFocusedCamera(ctxMenu.camera); setCtxMenu(null); }} />
-          {!fullscreenGrid && <ContextMenuItem icon={<Monitor size={14} />} label="Fullscreen Grid" onClick={() => { setFullscreenGrid(true); setCtxMenu(null); }} />}
-          <ContextMenuItem icon={<Pencil size={14} />} label="Edit" onClick={() => { onEdit(ctxMenu.camera); setCtxMenu(null); }} />
+          <ContextMenuItem icon={<Maximize  width={ 14 } height={ 14 } />} label="Full Screen" onClick={() => { onFullscreen(ctxMenu.camera); setCtxMenu(null); }} />
+          <ContextMenuItem icon={<Grid  width={ 14 } height={ 14 } />} label="Focus Camera" onClick={() => { setFocusedCamera(ctxMenu.camera); setCtxMenu(null); }} />
+          {!fullscreenGrid && <ContextMenuItem icon={<Desktop  width={ 14 } height={ 14 } />} label="Fullscreen Grid" onClick={() => { setFullscreenGrid(true); setCtxMenu(null); }} />}
+          <ContextMenuItem icon={<Pencil  width={ 14 } height={ 14 } />} label="Edit" onClick={() => { onEdit(ctxMenu.camera); setCtxMenu(null); }} />
           <Box style={{ height: 1, backgroundColor: 'var(--mantine-color-dark-4)', margin: '4px 0' }} />
-          <ContextMenuItem icon={<Trash2 size={14} />} label="Delete" color="red" onClick={() => { onDelete(ctxMenu.camera.id); setCtxMenu(null); }} />
+          <ContextMenuItem icon={<Trash  width={ 14 } height={ 14 } />} label="Delete" color="red" onClick={() => { onDelete(ctxMenu.camera.id); setCtxMenu(null); }} />
         </ContextPortal>
       )}
     </>

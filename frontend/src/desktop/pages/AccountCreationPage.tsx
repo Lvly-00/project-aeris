@@ -4,7 +4,7 @@ import {
     Table, ScrollArea, Avatar, Box, Badge, ActionIcon, Menu,
     Pagination, Center, useMantineTheme
 } from '@mantine/core';
-import { Plus, Search, Edit2, MoreVertical } from 'lucide-react';
+import { DotsVerticalRounded, EditAlt, Plus, Search } from '@boxicons/react';
 import { PageHeader } from '../components/Layout/PageHeader';
 import { authAPI } from '../../shared/services/api';
 import { UserFormModal } from '../components/common/UserFormModal';
@@ -75,7 +75,7 @@ export default function UserManagement() {
                 subtitle="Manage user accounts and role assignments."
                 actions={
                     <Button
-                        leftSection={<Plus size={18} />}
+                        leftSection={<Plus  width={ 18 } height={ 18 } />}
                         color="orange"
                         radius="md"
                         onClick={() => { setSelectedUser(null); setFormOpened(true); }}
@@ -121,7 +121,7 @@ export default function UserManagement() {
                 <Group p="md">
                     <TextInput
                         placeholder="Search by name or email..."
-                        leftSection={<Search size={16} />}
+                        leftSection={<Search  width={ 16 } height={ 16 } />}
                         style={{ flex: 1, maxWidth: 400 }}
                         radius="md"
                         value={searchQuery}
@@ -165,11 +165,11 @@ export default function UserManagement() {
                                         <Table.Td>
                                             <Group justify="flex-end" gap={4}>
                                                 <ActionIcon variant="subtle" color="gray" onClick={() => { setSelectedUser(user); setFormOpened(true); }}>
-                                                    <Edit2 size={16} />
+                                                    <EditAlt  width={16} height={16} />
                                                 </ActionIcon>
                                                 <Menu position="bottom-end" withinPortal>
                                                     <Menu.Target>
-                                                        <ActionIcon variant="subtle" color="gray"><MoreVertical size={16} /></ActionIcon>
+                                                        <ActionIcon variant="subtle" color="gray"><DotsVerticalRounded  width={16} height={16} /></ActionIcon>
                                                     </Menu.Target>
                                                     <Menu.Dropdown>
                                                         <Menu.Item onClick={() => { setSelectedUser(user); setDeleteOpened(true); }} color="red">

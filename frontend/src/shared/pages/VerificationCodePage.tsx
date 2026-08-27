@@ -16,7 +16,7 @@ import {
     rem,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
-import { Info, Mail } from 'lucide-react';
+import { AlertCircle, Envelope, InfoCircle } from '@boxicons/react';
 import { authAPI } from '../services/api';
 
 const ORANGE = '#FF6B00';
@@ -59,10 +59,12 @@ export default function VerificationCodePage() {
 
     const handleResend = async () => {
         if (resendTimer > 0 || !email) return;
+        setError('');
         try {
             await authAPI.requestPasswordReset(email);
-        } catch {
-            // Intentionally swallow errors — never reveal account existence
+        } catch (err: any) {
+            setError(err?.response?.data?.detail || 'Could not resend the code. Please try again.');
+            return;
         }
         setResendTimer(RESEND_COOLDOWN_SECONDS);
         setExpirySeconds(CODE_TTL_SECONDS);
@@ -86,7 +88,7 @@ export default function VerificationCodePage() {
             } else {
                 setError(
                     err?.response?.data?.detail ??
-                        'Invalid or expired verification code.'
+                    'Invalid or expired verification code.'
                 );
             }
         } finally {
@@ -114,151 +116,208 @@ export default function VerificationCodePage() {
         return <Navigate to={`/forgot-password?app=${app}`} replace />;
     }
 
-    return (
-        <Box
-            style={{
-                height: '100vh',
-                width: '100vw',
-                backgroundImage: `url('/BACKGROUND.png')`,
-                backgroundSize: 'cover',
-                backgroundPosition: 'center',
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-            }}
-        >
-            <Paper
-                radius={24}
-                p={40}
-                withBorder
-                shadow="xl"
+    const isPwa = app === 'pwa';
+
+    const cardContent = (
+        <Stack align="center" gap="md" w="100%" justify="center">
+
+            {/* Header Icon */}
+            <Box
+                bg="#fdf2e8"
                 style={{
-                    width: '100%',
-                    maxWidth: rem(480),
-                    backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                    borderRadius: '50%',
+                    width: isPwa ? rem(72) : rem(86),
+                    height: isPwa ? rem(72) : rem(86),
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
                 }}
             >
-                <Stack align="center" gap="md" w="100%">
-                    <Center w="100%" style={{ flexDirection: 'column' }}>
-                        <Image src="/icon.png" alt="Aeris Logo" w={140} mb="sm" />
-                    </Center>
+                <Envelope size="lg" color="#FA5401" strokeWidth={1} />
+            </Box>
 
-                    {/* Header Icon */}
+
+            <Title order={3} fw={700} ta="center">
+                Verification code sent
+            </Title>
+            <Text ta="center" c="dimmed" fz="sm" px={10}>
+                A 6-digit verification code has been sent to{" "}
+                <Text component="span" fz="sm" fw={700} c="var(--mantine-color-text)">
+                    {maskEmail(email)}
+                </Text>
+            </Text>
+
+            <PinInput
+                length={6}
+                size="md"
+                type="number"
+                placeholder=""
+                value={form.values.code}
+                onChange={(val) => {
+                    const digits = val.replace(/\D/g, '').slice(0, 6);
+                    form.setFieldValue('code', digits);
+                }}
+                styles={{
+                    input: {
+                        width: isPwa ? rem(42) : rem(46),
+                        height: isPwa ? rem(46) : rem(48),
+                        fontSize: rem(18),
+                        fontWeight: 700,
+                        borderRadius: rem(8),
+                        '&:focus': { borderColor: ORANGE },
+                    },
+                }}
+            />
+
+            <Text fz="xs" c="dimmed">
+                Code expires in{' '}
+                <Text span c={expirySeconds > 0 ? 'red' : 'dimmed'} fz="sm" fw={600}>
+                    {formatClock(expirySeconds)}
+                </Text>
+            </Text>
+
+            <Text fz="sm" c="dimmed" >
+                Didn't receive the code?{' '}
+                <Anchor
+                    component="button"
+                    c={resendTimer > 0 ? 'dimmed' : ORANGE}
+                    fz="sm"
+                    fw={600}
+                    disabled={resendTimer > 0}
+                    onClick={handleResend}
+                >
+                    Resend code {resendTimer > 0 && `(${resendTimer}s)`}
+                </Anchor>
+            </Text>
+
+            <Divider w="100%" my="sm" color="#EEEEEE" />
+
+            <Alert
+                variant="light"
+                color={error ? 'red' : 'orange'}
+                radius="md"
+                p="md"
+                w="100%"
+                styles={{
+                    root: {
+                        backgroundColor: error ? '#FFF1F0' : '#FFF5F0',
+                        border: 'none',
+                    },
+                    message: { color: '#666', fontSize: rem(13), lineHeight: 1.4 },
+                }}
+                icon={
+                    error ? (
+                        <AlertCircle width={24} height={24} color="red" />
+                    ) : (
+                        <InfoCircle width={24} height={24} color={ORANGE} />
+                    )
+                }
+            >
+                {error ||
+                    'Please check your inbox and spam folder for the verification code.'}
+            </Alert>
+
+            <Button
+                fullWidth
+                h={54}
+                mt="sm"
+                radius="md"
+                color="#FA5401"
+                onClick={handleVerifyCode}
+                loading={loading}
+                style={{ fontSize: rem(16), fontWeight: 700 }}
+            >
+                Continue
+            </Button>
+
+            <Anchor
+                component="button"
+                type="button"
+                onClick={() => navigate(`/${app}/login`, { replace: true })}
+                c={ORANGE}
+                fz="sm"
+                fw={600}
+            >
+                Back to Log in
+            </Anchor>
+        </Stack>
+    );
+
+    return (
+        <>
+            {isPwa ? (
+                /* PWA mobile bottom-sheet format (matches PWA Login) */
+                <Box
+                    style={{
+                        height: '100dvh',
+                        width: '100%',
+                        overflow: 'hidden',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        backgroundColor: '#f8f9fa',
+                    }}
+                >
                     <Box
-                        bg="#E8FDF0"
                         style={{
-                            borderRadius: '50%',
-                            width: rem(80),
-                            height: rem(80),
-                            display: 'flex',
-                            alignItems: 'center',
-                            justifyContent: 'center',
-                        }}
-                    >
-                        <Mail size={38} color="#00C853" strokeWidth={2.5} />
-                    </Box>
-
-                    <Title order={3} fw={800} ta="center">
-                        Verification code sent
-                    </Title>
-                    <Text ta="center" c="dimmed" fz="sm" px={10}>
-                        A 6-digit verification code has been sent to your registered email
-                        address.
-                    </Text>
-
-                    <Text fw={700} fz="sm" mb="xs">
-                        {maskEmail(email)}
-                    </Text>
-
-                    {error && (
-                        <Alert icon={<Info size={16} />} color="red" variant="light" radius="md">
-                            {error}
-                        </Alert>
-                    )}
-
-                    <PinInput
-                        length={6}
-                        size="md"
-                        type="number"
-                        placeholder=""
-                        value={form.values.code}
-                        onChange={(val) => {
-                            const digits = val.replace(/\D/g, '').slice(0, 6);
-                            form.setFieldValue('code', digits);
-                        }}
-                        styles={{
-                            input: {
-                                width: rem(46),
-                                height: rem(48),
-                                fontSize: rem(18),
-                                fontWeight: 700,
-                                borderRadius: rem(8),
-                                '&:focus': { borderColor: ORANGE },
-                            },
+                            height: '28%',
+                            backgroundImage: `url('/loginBG.png')`,
+                            backgroundSize: 'cover',
+                            backgroundPosition: 'center',
+                            flexShrink: 0,
                         }}
                     />
-
-                    <Text fz="xs" c="dimmed" mt={5}>
-                        Code expires in{' '}
-                        <Text span c={expirySeconds > 0 ? 'red' : 'dimmed'} fw={600}>
-                            {formatClock(expirySeconds)}
-                        </Text>
-                    </Text>
-
-                    <Text fz="sm" c="dimmed" mt="sm">
-                        Didn't receive the code?{' '}
-                        <Anchor
-                            component="button"
-                            c={resendTimer > 0 ? 'dimmed' : ORANGE}
-                            fw={700}
-                            disabled={resendTimer > 0}
-                            onClick={handleResend}
-                        >
-                            Resend code {resendTimer > 0 && `(${resendTimer}s)`}
-                        </Anchor>
-                    </Text>
-
-                    <Divider w="100%" my="lg" color="#EEEEEE" />
-
-                    <Alert
-                        variant="light"
-                        color="orange"
-                        radius="md"
-                        p="md"
-                        styles={{
-                            root: { backgroundColor: '#FFF5F0', border: 'none' },
-                            message: { color: '#666', fontSize: rem(13), lineHeight: 1.4 },
+                    <Paper
+                        radius="32px 32px 0 0"
+                        p="xl"
+                        style={{
+                            flex: 1,
+                            marginTop: rem(-40),
+                            display: 'flex',
+                            flexDirection: 'column',
+                            zIndex: 1,
+                            overflowY: 'auto',
                         }}
-                        icon={<Info size={24} color={ORANGE} />}
                     >
-                        Please check your inbox and spam folder for the verification code.
-                    </Alert>
+                        <Stack align="center" gap="sm" pt="md" style={{ flex: 1 }}>
 
-                    <Button
-                        fullWidth
-                        h={54}
-                        mt="md"
-                        radius="md"
-                        color={ORANGE}
-                        onClick={handleVerifyCode}
-                        loading={loading}
-                        style={{ fontSize: rem(16), fontWeight: 700 }}
+                            <Center style={{ flex: 1, width: '100%' }}>
+                                <Box w="100%">{cardContent}</Box>
+                            </Center>
+                        </Stack>
+                    </Paper>
+                </Box>
+            ) : (
+                /* Desktop centered card format */
+                <Box
+                    style={{
+                        height: '100vh',
+                        width: '100vw',
+                        backgroundImage: `url('/BACKGROUND.png')`,
+                        backgroundSize: 'cover',
+                        backgroundPosition: 'center',
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                >
+                    <Paper
+                        radius={15}
+                        px={40}
+                        py={52}
+                        withBorder
+                        shadow="xl"
+                        style={{
+                            width: '100%',
+                            maxWidth: rem(480),
+                            height: rem(660),
+                            minHeight: rem(660),
+                            backgroundColor: 'rgba(255, 255, 255, 0.98)',
+                        }}
                     >
-                        Continue
-                    </Button>
-
-                    <Anchor
-                        component="button"
-                        type="button"
-                        onClick={() => navigate(`/${app}/login`, { replace: true })}
-                        c={ORANGE}
-                        fz="sm"
-                        fw={600}
-                    >
-                        Back to Log in
-                    </Anchor>
-                </Stack>
-            </Paper>
-        </Box>
+                        {cardContent}
+                    </Paper>
+                </Box>
+            )}
+        </>
     );
 }

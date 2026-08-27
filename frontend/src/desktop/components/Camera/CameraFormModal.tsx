@@ -4,7 +4,7 @@ import {
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useEffect } from 'react';
-import { FolderOpen } from 'lucide-react';
+import { FolderOpen } from '@boxicons/react';
 
 interface CameraFormModalProps {
   opened: boolean;
@@ -123,7 +123,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
                       variant="outline"
                       color="gray"
                       style={{ height: '45px', borderColor: 'var(--mantine-color-default-border)' }}
-                      leftSection={<FolderOpen size={18} />}
+                      leftSection={<FolderOpen  width={ 18 } height={ 18 } />}
                     >
                       Locate File
                     </Button>

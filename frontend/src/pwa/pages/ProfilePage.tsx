@@ -4,9 +4,7 @@ import {
   Select, Button, Box, LoadingOverlay, useMantineColorScheme,
   useComputedColorScheme, FileButton, Divider, Badge,
 } from '@mantine/core';
-import {
-  Settings, Globe, Moon, Sun, Camera, Lock, Mail, User as UserIcon,
-} from 'lucide-react';
+import { Camera, Cog, Envelope, Globe, Lock, Moon, Sun, UserCircle } from '@boxicons/react';
 import { authAPI } from '../../shared/services/api';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { User } from '../../shared/types';
@@ -137,7 +135,7 @@ export default function ProfilePage() {
                         border: '2px solid white',
                       }}
                     >
-                      <Camera size={16} color="white" />
+                      <Camera  width={16} height={16} color="white" />
                     </Box>
                   )}
                 </FileButton>
@@ -162,7 +160,7 @@ export default function ProfilePage() {
             <Stack gap="sm">
               <Group gap="sm">
                 <ThemeIcon color="orange" variant="light">
-                  <UserIcon size={18} />
+                  <UserCircle  width={18} height={18} />
                 </ThemeIcon>
                 <Text fw={700} fz="sm">Personal Information</Text>
               </Group>
@@ -207,7 +205,7 @@ export default function ProfilePage() {
             <Stack gap="lg">
               <Group gap="sm">
                 <ThemeIcon color="orange" variant="light">
-                  <Settings size={18} />
+                  <Cog  width={18} height={18} />
                 </ThemeIcon>
                 <Text fw={700} fz="sm">Preferences</Text>
               </Group>
@@ -227,7 +225,7 @@ export default function ProfilePage() {
               <Group justify="space-between">
                 <Box>
                   <Group gap={6}>
-                    {computedColorScheme === 'dark' ? <Moon size={14} /> : <Sun size={14} />}
+                    {computedColorScheme === 'dark' ? <Moon  width={14} height={14} /> : <Sun  width={14} height={14} />}
                     <Text fw={700} fz="sm">Dark Mode</Text>
                   </Group>
                   <Text fz="xs" c="dimmed">Switch between dark and light theme</Text>
@@ -242,7 +240,7 @@ export default function ProfilePage() {
               <Group justify="space-between">
                 <Box>
                   <Group gap={6}>
-                    <Lock size={14} />
+                    <Lock  width={14} height={14} />
                     <Text fw={700} fz="sm">Two-Factor Authentication</Text>
                   </Group>
                   <Text fz="xs" c="dimmed">
@@ -259,7 +257,7 @@ export default function ProfilePage() {
               <Box>
                 <Text fw={700} fz="xs" c="dimmed" mb={5}>Language</Text>
                 <Select
-                  leftSection={<Globe size={16} />}
+                  leftSection={<Globe  width={ 16 } height={ 16 } />}
                   value={user?.preferred_language || 'English'}
                   onChange={(val) => handleUpdate('preferred_language', val)}
                   data={['English', 'Filipino']}

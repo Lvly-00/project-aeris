@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Card, Text, Group, Badge, ActionIcon, Box, Menu, Transition } from '@mantine/core';
-import { Maximize, MoreVertical, Pencil, Trash2 } from 'lucide-react';
+import { DotsVerticalRounded, Maximize, Pencil, Trash } from '@boxicons/react';
 import { CameraFeed } from './CameraFeed';
 
 interface CameraCardProps {
@@ -47,14 +47,14 @@ export function CameraCard({ camera, onFullscreen, onEdit, onDelete }: CameraCar
           {(styles) => (
             <Box style={{ ...styles, position: 'absolute', inset: 0, backgroundColor: 'rgba(0,0,0,0.3)', zIndex: 6, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
               <Group gap="sm">
-                <ActionIcon variant="filled" color="dark" size="xl" onClick={() => onFullscreen(camera)}><Maximize size={20} /></ActionIcon>
+                <ActionIcon variant="filled" color="dark" size="xl" onClick={() => onFullscreen(camera)}><Maximize  width={20} height={20} /></ActionIcon>
                 <Menu position="bottom" shadow="md">
                   <Menu.Target>
-                    <ActionIcon variant="filled" color="dark" size="xl"><MoreVertical size={20} /></ActionIcon>
+                    <ActionIcon variant="filled" color="dark" size="xl"><DotsVerticalRounded  width={20} height={20} /></ActionIcon>
                   </Menu.Target>
                   <Menu.Dropdown>
-                    <Menu.Item leftSection={<Pencil size={14} />} onClick={() => onEdit(camera)}>Edit</Menu.Item>
-                    <Menu.Item color="red" leftSection={<Trash2 size={14} />} onClick={() => onDelete(camera.id)}>Delete</Menu.Item>
+                    <Menu.Item leftSection={<Pencil  width={ 14 } height={ 14 } />} onClick={() => onEdit(camera)}>Edit</Menu.Item>
+                    <Menu.Item color="red" leftSection={<Trash  width={ 14 } height={ 14 } />} onClick={() => onDelete(camera.id)}>Delete</Menu.Item>
                   </Menu.Dropdown>
                 </Menu>
               </Group>

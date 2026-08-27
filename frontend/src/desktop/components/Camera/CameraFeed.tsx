@@ -4,7 +4,7 @@
  */
 import { useState, useRef, useEffect } from 'react';
 import { Box, Text } from '@mantine/core';
-import { Video } from 'lucide-react';
+import { Video } from '@boxicons/react';
 import { FpsOverlay, useFps } from './FpsOverlay';
 import { DetectionOverlay } from './DetectionOverlay';
 import { RTSPCameraFeed } from './RTSPCameraFeed';
@@ -79,7 +79,7 @@ export function CameraFeed({ camera, onIncidentDetected }: CameraFeedProps) {
   if (hasError) {
     return (
       <Box ta="center" p="md">
-        <Video size={48} color="#444" />
+        <Video  width={48} height={48} color="#444" />
         <Text size="xs" c="dimmed" mt="xs">Stream unavailable</Text>
         {errorMsg && (
           <Text size="xs" c="red" mt={4} style={{ wordBreak: 'break-all' }}>

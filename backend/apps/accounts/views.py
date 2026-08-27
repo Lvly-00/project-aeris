@@ -417,12 +417,12 @@ class UserViewSet(viewsets.ModelViewSet):
     def password_reset(self, request):
         """
         Password reset request (FR-LG-003 / FR-LG-015 / NFR-LG-003).
-        The response is IDENTICAL whether or not the account exists, so the
-        endpoint can never be used to enumerate registered users.
 
-        For known accounts a single-use 6-digit code is generated (only its
-        hash is stored) and emailed via EMAIL_BACKEND — currently the console
-        backend until SMTP credentials are added.
+        If no account exists for the supplied email a 404 error is returned so
+        the caller can surface a clear message. For known accounts a single-use
+        6-digit code is generated (only its hash is stored) and emailed via
+        EMAIL_BACKEND — currently the console backend until SMTP credentials
+        are added.
         """
         requested_for = ""
         user = None
@@ -431,57 +431,72 @@ class UserViewSet(viewsets.ModelViewSet):
         if requested_for:
             user = User.objects.filter(email__iexact=requested_for).first()
 
-        if user is not None:
-            # Invalidate any outstanding codes before issuing a fresh one.
-            user.password_reset_codes.filter(is_used=False).update(is_used=True)
-            code = _generate_code()
-            PasswordResetCode.objects.create(
-                user=user,
-                code_hash=_hash_code(code),
-                expires_at=timezone.now()
-                + timedelta(seconds=PASSWORD_RESET_CODE_TTL_SECONDS),
+        if user is None:
+            # No registered account for this email — surface an error instead of
+            # silently sending a (non-existent) code (FR-LG-003).
+            _audit_action(
+                None,
+                request,
+                "PASSWORD_RESET_REQUESTED",
+                {"requested_for": requested_for, "reason": "account_not_found"},
             )
-            # Dev-only: log the plaintext code so the team can smoke-test
-            # without mailbox access. This is harmless in production where
-            # settings.DEBUG is False.
-            if settings.DEBUG:
-                logger.info("[DEV] Password reset code for %s: %s", user.email, code)
-            try:
-                html_body = (
-                    "<p>Hello,</p>"
-                    "<p>Use the verification code below to reset your AERIS password:</p>"
-                    f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
-                    f'margin:16px 0">{code}</p>'
-                    f"<p>This code expires in "
-                    f"{PASSWORD_RESET_CODE_TTL_SECONDS // 60} minutes. "
-                    "If you did not request a password reset, you can safely "
-                    "ignore this email.</p>"
-                )
-                text_body = (
-                    "Hello,\n\n"
-                    "Use the verification code below to reset your AERIS password:\n\n"
-                    f"{code}\n\n"
-                    f"This code expires in "
-                    f"{PASSWORD_RESET_CODE_TTL_SECONDS // 60} minutes. "
-                    "If you did not request a password reset, you can safely "
-                    "ignore this email.\n"
-                )
-                send_email(
-                    to_email=user.email,
-                    subject="Your AERIS password reset code",
-                    html_content=html_body,
-                    text_content=text_body,
-                )
-            except Exception:
-                logger.warning("Password reset email failed for %s", user.email)
+            return Response(
+                {
+                    "detail": (
+                        "No account is registered with that email address. "
+                        "Please check the email or create an account first."
+                    )
+                },
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # Invalidate any outstanding codes before issuing a fresh one.
+        user.password_reset_codes.filter(is_used=False).update(is_used=True)
+        code = _generate_code()
+        PasswordResetCode.objects.create(
+            user=user,
+            code_hash=_hash_code(code),
+            expires_at=timezone.now()
+            + timedelta(seconds=PASSWORD_RESET_CODE_TTL_SECONDS),
+        )
+        # Dev-only: log the plaintext code so the team can smoke-test
+        # without mailbox access. This is harmless in production where
+        # settings.DEBUG is False.
+        if settings.DEBUG:
+            logger.info("[DEV] Password reset code for %s: %s", user.email, code)
+        try:
+            html_body = (
+                "<p>Hello,</p>"
+                "<p>Use the verification code below to reset your AERIS password:</p>"
+                f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
+                f'margin:16px 0">{code}</p>'
+                f"<p>This code expires in "
+                f"{PASSWORD_RESET_CODE_TTL_SECONDS // 60} minutes. "
+                "If you did not request a password reset, you can safely "
+                "ignore this email.</p>"
+            )
+            text_body = (
+                "Hello,\n\n"
+                "Use the verification code below to reset your AERIS password:\n\n"
+                f"{code}\n\n"
+                f"This code expires in "
+                f"{PASSWORD_RESET_CODE_TTL_SECONDS // 60} minutes. "
+                "If you did not request a password reset, you can safely "
+                "ignore this email.\n"
+            )
+            send_email(
+                to_email=user.email,
+                subject="Your AERIS password reset code",
+                html_content=html_body,
+                text_content=text_body,
+            )
+        except Exception:
+            logger.warning("Password reset email failed for %s", user.email)
 
         _audit_action(user, request, "PASSWORD_RESET_REQUESTED", {"requested_for": requested_for})
 
         return Response({
-            "detail": (
-                "If an account exists for the provided information, "
-                "password reset instructions will be sent."
-            )
+            "detail": "Password reset instructions have been sent to your email address."
         })
 
     def _get_active_code(self, email: str) -> PasswordResetCode | None:
@@ -514,8 +529,10 @@ class UserViewSet(viewsets.ModelViewSet):
     def password_reset_verify(self, request):
         """
         Step 2 of the forgot-password flow: check the 6-digit code.
-        Wrong/expired codes share one generic message; repeated wrong codes
-        exhaust the attempt budget and invalidate the code.
+
+        Expired codes and wrong codes are reported separately so the caller
+        can show a distinct message. Repeated wrong codes exhaust the attempt
+        budget and invalidate the code.
         """
         serializer = PasswordResetVerifySerializer(data=request.data)
         if not serializer.is_valid():
@@ -524,17 +541,40 @@ class UserViewSet(viewsets.ModelViewSet):
         email = serializer.validated_data["email"].strip().lower()
         code = serializer.validated_data["code"]
 
-        reset_code = self._get_active_code(email)
-        if reset_code is None or not hmac.compare_digest(reset_code.code_hash, _hash_code(code)):
-            if reset_code is not None:
-                reset_code.attempts += 1
-                update_fields = ["attempts"]
-                if reset_code.attempts >= PASSWORD_RESET_MAX_ATTEMPTS:
-                    reset_code.is_used = True
-                    update_fields.append("is_used")
-                reset_code.save(update_fields=update_fields)
+        user = User.objects.filter(email__iexact=email).first()
+
+        # The most recent (still unused) code issued for this email, if any.
+        latest = None
+        if user is not None:
+            latest = (
+                user.password_reset_codes.filter(is_used=False)
+                .order_by("-created_at")
+                .first()
+            )
+
+        # Code exists but the time window has passed → explicit expired message.
+        if latest is not None and latest.is_expired:
             return Response(
-                {"detail": "Invalid or expired verification code."},
+                {
+                    "detail": (
+                        "This verification code has expired. "
+                        "Please request a new one."
+                    )
+                },
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # No outstanding code, or the code value is wrong → explicit invalid message.
+        if latest is None or not hmac.compare_digest(latest.code_hash, _hash_code(code)):
+            if latest is not None:
+                latest.attempts += 1
+                update_fields = ["attempts"]
+                if latest.attempts >= PASSWORD_RESET_MAX_ATTEMPTS:
+                    latest.is_used = True
+                    update_fields.append("is_used")
+                latest.save(update_fields=update_fields)
+            return Response(
+                {"detail": "Invalid verification code. Please check and try again."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
 

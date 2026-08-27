@@ -1,10 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
-import { 
-  LogOut, Settings, User, History, Camera, 
-  PlusSquare, ShieldCheck, ShieldAlert, ChevronDown,
-  Sun, Moon 
-} from 'lucide-react';
+import { Camera, CheckShield, ChevronDown, Cog, DoorOpen, History, Moon, PlusCircle, ShieldAlt, Sun, User } from '@boxicons/react';
 import { useAuth } from '../../../shared/hooks/useAuth';
 import { authAPI } from '../../../shared/services/api';
 import { 
@@ -78,7 +74,7 @@ export default function DesktopLayout() {
 
   const navItems = [
     { label: 'Camera', icon: Camera, path: '/desktop/cameras', roles: ['Admin', 'Operator', 'Barangay Tanod'] },
-    { label: 'Account', icon: PlusSquare, path: '/desktop/accounts', roles: ['Admin'] },
+    { label: 'Account', icon: PlusCircle, path: '/desktop/accounts', roles: ['Admin'] },
     { label: 'Audit', icon: History, path: '/desktop/audit', roles: ['Admin'] },
   ];
 
@@ -134,8 +130,8 @@ export default function DesktopLayout() {
                   onChange={(event) => handleModeToggle(event.currentTarget.checked)}
                   color="orange"
                   size="sm"
-                  onLabel={<ShieldCheck size={12} />}
-                  offLabel={<ShieldAlert size={12} />}
+                  onLabel={<CheckShield  width={12} height={12} />}
+                  offLabel={<ShieldAlt  width={12} height={12} />}
                 />
                 <Text size="xs" fw={700} c={viewMode === 'Admin' ? 'orange' : 'dimmed'}>CHIEF</Text>
               </Group>
@@ -175,9 +171,9 @@ export default function DesktopLayout() {
               radius="md"
             >
               {computedColorScheme === 'dark' ? (
-                <Sun size={18} strokeWidth={1.5} />
+                <Sun  width={18} height={18} strokeWidth={1.5} />
               ) : (
-                <Moon size={18} strokeWidth={1.5} />
+                <Moon  width={18} height={18} strokeWidth={1.5} />
               )}
             </ActionIcon>
 
@@ -190,13 +186,13 @@ export default function DesktopLayout() {
                       <Text fz={13} fw={700}>{user?.full_name || user?.email}</Text>
                       <Badge size="xs" variant="light" color="gray">{viewMode === 'Admin' ? 'Chief' : 'CCTV Operator'} Mode</Badge>
                     </Box>
-                    <ChevronDown size={14} />
+                    <ChevronDown  width={14} height={14} />
                   </Group>
                 </UnstyledButton>
               </Menu.Target>
               <Menu.Dropdown miw={200}>
                 <Menu.Item
-                  leftSection={<User size={14} />}
+                  leftSection={<User  width={ 14 } height={ 14 } />}
                   onClick={() => navigate('/desktop/profile')}
                   disabled={isAdminLocked}
                 >
@@ -204,14 +200,14 @@ export default function DesktopLayout() {
                 </Menu.Item>
 
                 <Menu.Item
-                  leftSection={<Settings size={14} />}
+                  leftSection={<Cog  width={ 14 } height={ 14 } />}
                   onClick={() => navigate('/desktop/settings')}
                   disabled={isAdminLocked}
                 >
                   Settings {isAdminLocked && '(Locked)'}
                 </Menu.Item>
                 <Menu.Divider />
-                <Menu.Item leftSection={<LogOut size={14} />} color="orange" onClick={logout}>Logout</Menu.Item>
+                <Menu.Item leftSection={<DoorOpen  width={ 14 } height={ 14 } />} color="orange" onClick={logout}>Logout</Menu.Item>
               </Menu.Dropdown>
             </Menu>
           </Group>

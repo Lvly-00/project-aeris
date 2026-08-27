@@ -13,7 +13,7 @@ import {
   UnstyledButton,
   ScrollArea,
 } from '@mantine/core';
-import { CheckCheck, Inbox } from 'lucide-react';
+import { Check, Inbox } from '@boxicons/react';
 import { notifications } from '@mantine/notifications';
 
 import { AppNotification } from '../../shared/types/index';
@@ -206,7 +206,7 @@ export function NotificationsModal({
         <Button
           variant="light"
           size="compact-sm"
-          leftSection={<CheckCheck size={14} />}
+          leftSection={<Check  width={ 14 } height={ 14 } />}
           onClick={handleMarkAllRead}
           loading={markingAll}
           disabled={unreadCount === 0}
@@ -224,7 +224,7 @@ export function NotificationsModal({
           <Center py="xl">
             <Stack align="center" gap="xs">
               <Inbox
-                size={40}
+                 width={40} height={40}
                 color="var(--mantine-color-dimmed)"
               />
               <Text c="dimmed">

@@ -8,7 +8,7 @@ import {
   Box,
 } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
-import { ArrowLeft, ShieldAlert } from 'lucide-react';
+import { ArrowLeft, ShieldAlt } from '@boxicons/react';
 
 const PRIMARY = '#FA5401';
 
@@ -161,7 +161,7 @@ export default function UnauthorizedPage() {
           <Button
             size="md"
             radius="sm"
-            leftSection={<ArrowLeft size={18} strokeWidth={2.5} />}
+            leftSection={<ArrowLeft  width={ 18 } height={ 18 } strokeWidth={2.5} />}
             onClick={handleReturn}
             style={{
               marginTop: 30,
@@ -194,8 +194,8 @@ export default function UnauthorizedPage() {
               marginTop: 22,
             }}
           >
-            <ShieldAlert
-              size={15}
+            <ShieldAlt
+               width={15} height={15}
               strokeWidth={2}
               color="#FA5401"
             />

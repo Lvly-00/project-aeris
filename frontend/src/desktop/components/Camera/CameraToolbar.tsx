@@ -1,5 +1,5 @@
 import { Group, Text, Select, ActionIcon, Menu } from '@mantine/core';
-import { ChevronDown, MoreVertical, RefreshCcw, Settings } from 'lucide-react';
+import { ChevronDown, Cog, DotsVerticalRounded, RefreshCcw } from '@boxicons/react';
 
 interface CameraToolbarProps {
   count: number;
@@ -24,7 +24,7 @@ export function CameraToolbar({ count, layout, onLayoutChange }: CameraToolbarPr
             { label: 'Grid: 3×3', value: 'cctv-3x3' },
             { label: 'Grid: 4×4', value: 'cctv-4x4' },
           ]}
-          rightSection={<ChevronDown size={14} />}
+          rightSection={<ChevronDown  width={14} height={14} />}
           size="xs"
           variant="filled"
           styles={{
@@ -41,12 +41,12 @@ export function CameraToolbar({ count, layout, onLayoutChange }: CameraToolbarPr
         <Menu position="bottom-end" shadow="md">
             <Menu.Target>
                 <ActionIcon variant="subtle" color="gray" size="lg">
-                    <MoreVertical size={20} />
+                    <DotsVerticalRounded  width={20} height={20} />
                 </ActionIcon>
             </Menu.Target>
             <Menu.Dropdown>
-                <Menu.Item leftSection={<RefreshCcw size={14} />}>Reconnect All</Menu.Item>
-                <Menu.Item leftSection={<Settings size={14} />}>Grid Settings</Menu.Item>
+                <Menu.Item leftSection={<RefreshCcw  width={ 14 } height={ 14 } />}>Reconnect All</Menu.Item>
+                <Menu.Item leftSection={<Cog  width={ 14 } height={ 14 } />}>Grid Settings</Menu.Item>
             </Menu.Dropdown>
         </Menu>
       </Group>

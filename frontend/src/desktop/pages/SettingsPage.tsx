@@ -24,19 +24,7 @@ import {
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import {
-  Settings,
-  Brain,
-  Camera,
-  Bell,
-  Info,
-  Plus,
-  Trash2,
-  Save,
-  Phone,
-  PhoneCall,
-  Pencil,
-} from 'lucide-react';
+import { Bell, Brain, Camera, Cog, InfoCircle, Pencil, Phone, PhoneRing, Plus, Save, Trash } from '@boxicons/react';
 import { aiAPI, contactsAPI } from '../../shared/services/api';
 
 const INCIDENT_TYPES = [
@@ -144,13 +132,13 @@ export default function SettingsPage() {
 
       <Tabs value={activeTab} onChange={(v) => { setActiveTab(v || 'ai'); setSearchParams({ tab: v || 'ai' }); }}>
         <Tabs.List mb="md">
-          <Tabs.Tab value="ai" leftSection={<Brain size={14} />}>
+          <Tabs.Tab value="ai" leftSection={<Brain  width={ 14 } height={ 14 } />}>
             AI Configuration
           </Tabs.Tab>
-          <Tabs.Tab value="contacts" leftSection={<Phone size={14} />}>
+          <Tabs.Tab value="contacts" leftSection={<Phone  width={ 14 } height={ 14 } />}>
             Emergency Contacts
           </Tabs.Tab>
-          <Tabs.Tab value="system" leftSection={<Info size={14} />}>
+          <Tabs.Tab value="system" leftSection={<InfoCircle  width={ 14 } height={ 14 } />}>
             System Info
           </Tabs.Tab>
         </Tabs.List>
@@ -207,7 +195,7 @@ export default function SettingsPage() {
           </Card>
 
           <Button
-            leftSection={<Save size={16} />}
+            leftSection={<Save  width={ 16 } height={ 16 } />}
             onClick={handleSaveConfig}
             loading={saveConfigMutation.isPending}
           >
@@ -220,7 +208,7 @@ export default function SettingsPage() {
             <Text fw={600} size="sm">Emergency Contacts</Text>
             <Button
               size="sm"
-              leftSection={<Plus size={14} />}
+              leftSection={<Plus  width={ 14 } height={ 14 } />}
               onClick={() => {
                 setEditingContact(null);
                 setContactName('');
@@ -238,7 +226,7 @@ export default function SettingsPage() {
               <Card key={contact.id} withBorder padding="md" radius="md">
                 <Group justify="space-between" mb="xs">
                   <Group gap="xs">
-                    <PhoneCall size={16} color="#e74c3c" />
+                    <PhoneRing  width={16} height={16} color="#e74c3c" />
                     <Text fw={600} size="sm">{contact.name}</Text>
                   </Group>
                   <Group gap={4}>
@@ -254,7 +242,7 @@ export default function SettingsPage() {
                         setContactModalOpen(true);
                       }}
                     >
-                      <Pencil size={14} />
+                      <Pencil  width={14} height={14} />
                     </ActionIcon>
                     <ActionIcon
                       variant="subtle"
@@ -262,7 +250,7 @@ export default function SettingsPage() {
                       size="sm"
                       onClick={() => deleteContactMutation.mutate(contact.id)}
                     >
-                      <Trash2 size={14} />
+                      <Trash  width={14} height={14} />
                     </ActionIcon>
                   </Group>
                 </Group>
@@ -275,7 +263,7 @@ export default function SettingsPage() {
             ))}
             {(!contacts || (Array.isArray(contacts) && contacts.length === 0)) && (
               <Paper p="xl" ta="center" withBorder style={{ gridColumn: '1 / -1' }}>
-                <Phone size={48} color="#444" />
+                <Phone  width={48} height={48} color="#444" />
                 <Text mt="md" size="sm" c="dimmed">No emergency contacts configured</Text>
               </Paper>
             )}

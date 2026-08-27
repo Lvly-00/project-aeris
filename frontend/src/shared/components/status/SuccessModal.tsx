@@ -1,5 +1,5 @@
 import { Modal, Stack, Box, Title, Text, Button, Divider, rem } from '@mantine/core';
-import { BadgeCheck } from 'lucide-react';
+import { Check } from '@boxicons/react';
 
 const GREEN_SUCCESS = '#2FB300';
 
@@ -47,22 +47,33 @@ export default function SuccessModal({
             opened={opened}
             onClose={() => (onClose ? onClose() : undefined)}
             centered
-            radius={28}
+            radius={15}
             padding={40}
             size={440}
             overlayProps={{ blur: 4, opacity: 0.4 }}
         >
-            <Stack align="center" gap={0} w="100%">
-                <Box mb="xl">
-                    {icon ?? <BadgeCheck size={120} color={GREEN_SUCCESS} strokeWidth={1.5} />}
+            <Stack align="center" gap="lg" w="100%">
+
+                <Box
+                    bg="#e8fdeb"
+                    style={{
+                        borderRadius: '50%',
+                        width: rem(86),
+                        height: rem(86),
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                    }}
+                >
+                    {icon ?? <Check size="lg" color="#00C853" strokeWidth={1.5} />}
                 </Box>
 
-                <Title order={2} fw={800} ta="center" style={{ lineHeight: 1.2 }}>
+                <Title order={3} fw={700} ta="center" style={{ lineHeight: 1.2 }}>
                     {title}
                 </Title>
 
                 {subtitle && (
-                    <Text c={buttonColor} fw={800} fz={rem(28)} ta="center" mb="md">
+                    <Text c={buttonColor} fw={700} fz={rem(28)} ta="center" mb="md" px={20}>
                         {subtitle}
                     </Text>
                 )}
@@ -71,7 +82,7 @@ export default function SuccessModal({
                     {message}
                 </Text>
 
-                <Divider w="100%" my={30} color="#E0E0E0" />
+                <Divider w="100%" color="#E0E0E0" />
 
                 <Button
                     fullWidth

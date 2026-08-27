@@ -5,7 +5,7 @@ import {
   Badge, Paper, Grid, Loader, Center, Tooltip,
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
-import { Search, RefreshCw, FilterX, Info } from 'lucide-react';
+import { Filter, InfoCircle, RefreshCcw, Search } from '@boxicons/react';
 import { useQuery } from '@tanstack/react-query';
 import { auditAPI } from '../../shared/services/api';
 import { PageHeader } from '../components/Layout/PageHeader';
@@ -56,7 +56,7 @@ export default function AuditLogPage() {
         actions={
           <Group gap="sm">
             {isFetching && <Loader size="xs" color="orange" />}
-            <Button variant="outline" color="gray" leftSection={<RefreshCw size={16} className={isFetching ? 'animate-spin' : ''} />} onClick={() => refetch()}>Refresh</Button>
+            <Button variant="outline" color="gray" leftSection={<RefreshCcw  width={ 16 } height={ 16 } className={isFetching ? 'animate-spin' : ''} />} onClick={() => refetch()}>Refresh</Button>
           </Group>
         }
       />
@@ -64,7 +64,7 @@ export default function AuditLogPage() {
       <Paper p="md" withBorder radius="md" mb="xl" shadow="xs" bg="var(--mantine-color-body)">
         <Grid gutter="md" align="flex-end">
           <Grid.Col span={{ base: 12, md: 3 }}>
-            <TextInput label="Search" placeholder="Search user, IP..." leftSection={<Search size={16} />} value={search} onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }} />
+            <TextInput label="Search" placeholder="Search user, IP..." leftSection={<Search  width={ 16 } height={ 16 } />} value={search} onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }} />
           </Grid.Col>
           <Grid.Col span={{ base: 6, md: 2 }}>
             <Select label="Date" placeholder="All Time" data={['today', 'yesterday', '7d', '30d']} value={dateRangeKey} onChange={(val) => { setDateRangeKey(val); setPage(1); }} clearable />
@@ -79,7 +79,7 @@ export default function AuditLogPage() {
             <Select label="Status" placeholder="All" data={['Success', 'Failed']} value={status} onChange={(val) => { setStatus(val); setPage(1); }} clearable />
           </Grid.Col>
           <Grid.Col span={{ base: 12, md: 1 }}>
-            <Button variant="light" color="gray" fullWidth onClick={handleReset}><FilterX size={18} /></Button>
+            <Button variant="light" color="gray" fullWidth onClick={handleReset}><Filter  width={18} height={18} /></Button>
           </Grid.Col>
         </Grid>
       </Paper>
@@ -115,7 +115,7 @@ export default function AuditLogPage() {
                   <Tooltip label={JSON.stringify(log.details)} multiline w={300}>
                     <Group gap={4} style={{ cursor: 'help' }}>
                       <Text size="sm" lineClamp={1} maw={200}>{typeof log.details === 'string' ? log.details : `Modified ${log.resource_type}`}</Text>
-                      <Info size={14} color="var(--mantine-color-dimmed)" />
+                      <InfoCircle  width={14} height={14} color="var(--mantine-color-dimmed)" />
                     </Group>
                   </Tooltip>
                 </Table.Td>

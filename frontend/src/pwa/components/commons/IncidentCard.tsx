@@ -1,5 +1,5 @@
 import { Paper, Group, Stack, Text, Box, Progress, Badge, rem, useMantineTheme } from '@mantine/core';
-import { Flame, Car, CloudFog, ChevronRight } from 'lucide-react';
+import { Car, ChevronRight, Cloud, Flame } from '@boxicons/react';
 import { Incident } from '../../../shared/types/index';
 import { STATUS_COLORS, SEVERITY_COLORS } from '../../../shared/utils/constants';
 import { formatRelativeTime } from '../../../shared/utils/helpers';
@@ -40,7 +40,7 @@ const TYPE_LABEL: Record<string, string> = {
 
 const TYPE_ICON: Record<string, any> = {
     Fire: Flame,
-    Smoke: CloudFog,
+    Smoke: Cloud,
     Vehicle_Accident: Car,
 };
 
@@ -136,7 +136,7 @@ export const IncidentCard = ({ incident, onClick }: IncidentCardProps) => {
                                 <Text fw={700} size="md">
                                     {Math.round(incident.confidence_score * 100)}%
                                 </Text>
-                                {onClick && <ChevronRight size={20} color={theme.colors.gray[5]} strokeWidth={3} />}
+                                {onClick && <ChevronRight  width={20} height={20} color={theme.colors.gray[5]} strokeWidth={3} />}
                             </Group>
                         </Group>
                     </Box>

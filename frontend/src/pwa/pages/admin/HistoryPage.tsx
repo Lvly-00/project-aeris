@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Container, Title, Text, Group, Stack, Loader, Center, rem, Select, Alert, ActionIcon, Menu } from '@mantine/core';
-import { Filter, MoreVertical, History } from 'lucide-react';
+import { DotsVerticalRounded, Filter, History } from '@boxicons/react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
 
@@ -58,7 +58,7 @@ export default function HistoryPage() {
             {/* Page Header */}
             <Stack mb="lg" gap={4}>
                 <Group align="center" gap={6}>
-                    <History size={26} color="var(--mantine-color-dimmed)" />
+                    <History  width={26} height={26} color="var(--mantine-color-dimmed)" />
                     <Title order={1} fz={rem(38)} fw={700} style={{ letterSpacing: rem(-1) }}>
                         History
                     </Title>
@@ -76,7 +76,7 @@ export default function HistoryPage() {
                     value={filter}
                     onChange={(value) => setFilter((value as StatusFilter) || 'all')}
                     data={FILTER_OPTIONS}
-                    leftSection={<Filter size={16} />}
+                    leftSection={<Filter  width={16} height={16} />}
                     w={180}
                     allowDeselect={false}
                 />
@@ -87,7 +87,7 @@ export default function HistoryPage() {
                     onClick={() => refetch()}
                     title="Refresh history"
                 >
-                    <MoreVertical size={24} />
+                    <DotsVerticalRounded  width={24} height={24} />
                 </ActionIcon>
             </Group>
 

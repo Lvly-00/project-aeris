@@ -17,12 +17,7 @@ import {
   Box,
   Checkbox,
 } from '@mantine/core';
-import {
-  MoreVertical,
-  Trash2,
-  AlertTriangle,
-  Filter,
-} from 'lucide-react';
+import { AlertCircle, DotsVerticalRounded, Filter, Trash } from '@boxicons/react';
 import { notifications } from '@mantine/notifications';
 
 import { Incident } from '../../../shared/types/index';
@@ -294,7 +289,7 @@ export default function IncidentsPage() {
           <Button
             variant="outline"
             color="gray"
-            leftSection={<Filter size={18} />}
+            leftSection={<Filter  width={ 18 } height={ 18 } />}
             radius="sm"
           >
             Filter
@@ -313,7 +308,7 @@ export default function IncidentsPage() {
 
             <Button
               color="red"
-              leftSection={<Trash2 size={16} />}
+              leftSection={<Trash  width={ 16 } height={ 16 } />}
               disabled={selectedIds.length === 0}
               onClick={() => setDeleteSelectedModal(true)}
             >
@@ -332,7 +327,7 @@ export default function IncidentsPage() {
                 color="gray"
                 size="lg"
               >
-                <MoreVertical size={24} />
+                <DotsVerticalRounded  width={24} height={24} />
               </ActionIcon>
             </Menu.Target>
 
@@ -343,7 +338,7 @@ export default function IncidentsPage() {
 
               <Menu.Item
                 color="red"
-                leftSection={<Trash2 size={16} />}
+                leftSection={<Trash  width={ 16 } height={ 16 } />}
                 disabled={incidents.length === 0}
                 onClick={() => setSelectMode(true)}
               >
@@ -426,8 +421,8 @@ export default function IncidentsPage() {
           gap="md"
           py="md"
         >
-          <AlertTriangle
-            size={48}
+          <AlertCircle
+             width={48} height={48}
             color="var(--mantine-color-red-6)"
           />
 

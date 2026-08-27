@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import {
   Modal, Stack, TextInput, PasswordInput, Button, Text, Group, Divider, PinInput, Alert,
 } from '@mantine/core';
-import { Info } from 'lucide-react';
+import { InfoCircle } from '@boxicons/react';
 import { authAPI } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import SuccessModal from '../status/SuccessModal';
@@ -209,7 +209,7 @@ export default function ChangeEmailModal({
               />
             </Group>
             {errors.code && (
-              <Alert icon={<Info size={14} />} color="red" variant="light" radius="md">
+              <Alert icon={<InfoCircle  width={ 14 } height={ 14 } />} color="red" variant="light" radius="md">
                 {errors.code}
               </Alert>
             )}
