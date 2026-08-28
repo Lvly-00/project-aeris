@@ -51,6 +51,8 @@ class User(AbstractUser):
     )
     two_factor_enabled = models.BooleanField(default=False)
     receive_notifications = models.BooleanField(default=True)
+    agreement_accepted = models.BooleanField(default=False)
+    agreement_accepted_at = models.DateTimeField(null=True, blank=True)
     preferred_language = models.CharField(
         max_length=10,
         default="English",

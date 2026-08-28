@@ -16,6 +16,7 @@ class UserAdmin(BaseUserAdmin):
             {"fields": ("is_active", "is_staff", "is_superuser", "groups", "user_permissions")},
         ),
         ("Profile", {"fields": ("role", "two_factor_enabled", "receive_notifications", "preferred_language", "profile_picture")}),
+        ("Agreement", {"fields": ("agreement_accepted", "agreement_accepted_at")}),
         ("Important dates", {"fields": ("last_login", "created_at")}),
     )
     add_fieldsets = (

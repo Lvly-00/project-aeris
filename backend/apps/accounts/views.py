@@ -130,7 +130,7 @@ class RegisterView(generics.CreateAPIView):
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
         return Response(
-            UserSerializer(user).data,
+            UserSerializer(user, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
         )
 
@@ -372,7 +372,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 return Response({
                     "refresh": str(refresh),
                     "access": str(refresh.access_token),
-                    "user": UserSerializer(user).data,
+                    "user": UserSerializer(user, context={"request": request}).data,
                 })
 
             # New device — require 2FA.
@@ -434,7 +434,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-            "user": UserSerializer(user).data,
+            "user": UserSerializer(user, context={"request": request}).data,
         })
 
     @action(detail=False, methods=["POST"], url_path="logout")
@@ -765,7 +765,7 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-            "user": UserSerializer(user).data,
+            "user": UserSerializer(user, context={"request": request}).data,
         })
 
     @action(detail=False, methods=["GET"], url_path="dispatchers")
@@ -787,6 +787,18 @@ class UserViewSet(viewsets.ModelViewSet):
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
             
         return Response({"detail": "Password verified successfully"}, status=status.HTTP_200_OK)
+
+    # ── Agreement: First-login Terms & Privacy acknowledgment ──────────────
+
+    @action(detail=False, methods=["POST"], url_path="accept-agreement")
+    def accept_agreement(self, request):
+        user = request.user
+        if not user.agreement_accepted:
+            user.agreement_accepted = True
+            user.agreement_accepted_at = timezone.now()
+            user.save(update_fields=["agreement_accepted", "agreement_accepted_at"])
+            _audit_action(user, request, "Agreement_Accepted", {})
+        return Response(UserSerializer(user, context={"request": request}).data)
 
     # ── Profile: Change Password (FR-PP-004 / FR-PP-005) ──────────────────────
 

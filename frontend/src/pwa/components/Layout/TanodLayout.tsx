@@ -6,6 +6,7 @@ import {
 import { Bell, Clipboard, Home, ShieldAlt, User } from '@boxicons/react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { authAPI, notificationsAPI } from '../../../shared/services/api';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 import { NotificationsModal } from '../NotificationsModal';
 
 const navData = [
@@ -155,7 +156,7 @@ export function TanodLayout() {
                                 <Stack gap={4} align="center" justify="center">
                                     {item.isAvatar ? (
                                         <Avatar
-                                            src={user?.profile_picture || undefined}
+                                            src={resolveMediaUrl(user?.profile_picture)}
                                             size={28}
                                             radius="xl"
                                             style={{

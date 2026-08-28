@@ -1,11 +1,17 @@
 import { useState } from 'react';
 import {
-  Modal, Stack, TextInput, PasswordInput, Button, Text, Group, Divider,
+  Modal, Stack, PasswordInput, Button, Text, Group, Box, Title, ActionIcon, Divider
 } from '@mantine/core';
 import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import SuccessModal from '../status/SuccessModal';
+import { Envelope, X, Lock } from '@boxicons/react';
+import PasswordRequirements from '../PasswordRequirements';
+import { validatePassword } from '../../utils/password';
+
+
+const ORANGE = '#FF5722';
 
 interface ChangePasswordModalProps {
   opened: boolean;
@@ -46,8 +52,13 @@ export default function ChangePasswordModal({ opened, onClose }: ChangePasswordM
       setErrors({ new_password: 'New password is required.' });
       return;
     }
-    if (newPassword.length < 8) {
-      setErrors({ new_password: 'Password must be at least 8 characters.' });
+    if (currentPassword === newPassword) {
+      setErrors({ new_password: 'New password must be different from current password.' });
+      return;
+    }
+    const passwordError = validatePassword(newPassword);
+    if (passwordError) {
+      setErrors({ new_password: passwordError });
       return;
     }
     if (newPassword !== confirmPassword) {
@@ -94,55 +105,159 @@ export default function ChangePasswordModal({ opened, onClose }: ChangePasswordM
       <Modal
         opened={opened}
         onClose={handleClose}
-        title="Change Password"
+        withCloseButton={false} // Use custom header close button
         centered
-        radius={16}
-        size={480}
-        overlayProps={{ blur: 4, opacity: 0.4 }}
+        radius="lg"
+        size="md"
+        padding="xl"
       >
-        <Stack gap="md">
-          <TextInput
-            label="Current Password"
+        {/* Custom Header Section */}
+        <Group
+          justify="space-between"
+          align="flex-start"
+          mb="lg"
+          wrap="nowrap"
+        >
+          <Box
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              minWidth: 0,
+              flex: 1,
+            }}
+          >
+            <Box
+              bg={ORANGE}
+              p={10}
+              style={{
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Envelope width={28} height={28} style={{ color: 'white' }} />
+            </Box>
+
+            <Box style={{ minWidth: 0, flex: 1 }}>
+              <Title
+                order={3}
+                fw={700}
+                style={{
+                  overflowWrap: 'break-word',
+                }}
+              >
+                Update your password
+              </Title>
+
+              <Text
+                fz="sm"
+                c="dimmed"
+                style={{
+                  overflowWrap: 'break-word',
+                }}
+              >
+                Enter your current password and new password.
+              </Text>
+            </Box>
+          </Box>
+
+          <ActionIcon
+            variant="transparent"
+            color="gray"
+            onClick={handleClose}
+            style={{
+              flexShrink: 0,
+              marginLeft: 8,
+            }}
+          >
+            <X width={24} height={24} />
+          </ActionIcon>
+        </Group>
+
+
+        <Divider my="lg" />
+
+        <Stack gap="lg">
+          <PasswordInput
+            label={
+              <Text size="sm" fw={600} mb={5}>
+                Current Password <span style={{ color: 'red' }}>*</span>
+              </Text>
+            }
             placeholder="Enter your current password"
-            type="password"
             value={currentPassword}
             onChange={(e) => setCurrentPassword(e.currentTarget.value)}
             error={errors.current_password}
-            required
+            radius="md"
+            size="md"
+            leftSection={<Lock width={18} height={18} style={{ color: '#888' }} />}
+            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
           />
 
-          <TextInput
-            label="New Password"
+          <PasswordInput
+            label={
+              <Text size="sm" fw={600} mb={5}>
+                New Password <span style={{ color: 'red' }}>*</span>
+              </Text>
+            }
             placeholder="Enter a new password"
-            type="password"
             value={newPassword}
             onChange={(e) => setNewPassword(e.currentTarget.value)}
             error={errors.new_password}
-            required
+            radius="md"
+            size="md"
+            leftSection={<Lock width={18} height={18} style={{ color: '#888' }} />}
+            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
           />
 
-          <TextInput
-            label="Confirm New Password"
+          <PasswordRequirements password={newPassword} />
+
+          <PasswordInput
+            label={
+              <Text size="sm" fw={600} mb={5}>
+                Confirm New Password <span style={{ color: 'red' }}>*</span>
+              </Text>
+            }
             placeholder="Re-enter your new password"
-            type="password"
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.currentTarget.value)}
             error={errors.confirm_password}
-            required
+            radius="md"
+            size="md"
+            leftSection={<Lock width={18} height={18} style={{ color: '#888' }} />}
+            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
           />
 
-          <Divider />
-
-          <Group justify="flex-end" gap="sm">
-            <Button variant="default" onClick={handleClose}>
+          {/* Footer Actions */}
+          <Group grow mt="lg">
+            <Button
+              variant="outline"
+              color="gray"
+              radius="md"
+              size="md"
+              h={48}
+              onClick={handleClose}
+              styles={{ root: { border: '1.5px solid #E0E0E0', color: '#333' } }}
+            >
               Cancel
             </Button>
-            <Button color="orange" loading={loading} onClick={handleSubmit}>
+            <Button
+              bg={ORANGE}
+              radius="md"
+              size="md"
+              h={48}
+              onClick={handleSubmit}
+              loading={loading}
+              styles={{ root: { backgroundColor: ORANGE } }}
+            >
               Update Password
             </Button>
           </Group>
         </Stack>
-      </Modal>
+      </Modal >
 
       <SuccessModal
         opened={successOpened}

@@ -14,6 +14,8 @@ export interface User {
   two_factor_enabled: boolean;
   receive_notifications: boolean;
   preferred_language: string;
+  agreement_accepted: boolean;
+  agreement_accepted_at?: string | null;
 }
 
 export interface LoginRequest {
@@ -212,7 +214,8 @@ export type AuditAction =
   | 'Email_Change_Requested' | 'Email_Change_Completed'
   | 'Chief_Mode_Entered' | 'Chief_Mode_Exited'
   | 'Two_Factor_Enabled' | 'Two_Factor_Disabled'
-  | 'Two_Factor_Verified' | 'Two_Factor_Failed';
+  | 'Two_Factor_Verified' | 'Two_Factor_Failed'
+  | 'Agreement_Accepted';
 
 export interface AuditLog {
   id: number;

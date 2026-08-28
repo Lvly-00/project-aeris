@@ -36,6 +36,7 @@ class AuditLog(models.Model):
         TWO_FACTOR_DISABLED = "Two_Factor_Disabled", "Two-Factor Authentication Disabled"
         TWO_FACTOR_VERIFIED = "Two_Factor_Verified", "Two-Factor Verification Successful"
         TWO_FACTOR_FAILED = "Two_Factor_Failed", "Two-Factor Verification Failed"
+        AGREEMENT_ACCEPTED = "Agreement_Accepted", "Agreement Accepted"
 
     user = models.ForeignKey(
         settings.AUTH_USER_MODEL,

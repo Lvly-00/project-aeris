@@ -1,17 +1,20 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Container, Grid, Paper, Text, Title, Avatar, Divider,
-  Stack, Group, Switch, Box, LoadingOverlay, rem, FileButton, Badge, Button,
+  Stack, Group, Switch, Box, LoadingOverlay, rem, FileButton, Badge, Button, Anchor,
+  Menu, UnstyledButton,
 } from '@mantine/core';
-import { Bell, Camera, CheckShield, ChevronLeft, EyeSlash, GlobeAlt } from '@boxicons/react';
+import { Bell, Camera, Check, CheckShield, ChevronDown, ChevronLeft, GlobeAlt } from '@boxicons/react';
 import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../../shared/services/api';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { User } from '../../shared/types';
-import EditProfileModal from '../../shared/components/profile/EditProfileModal';
+import EditProfileModal from '../../shared/components/profile/EditNameModal';
 import ChangePasswordModal from '../../shared/components/profile/ChangePasswordModal';
 import ChangeEmailModal from '../../shared/components/profile/ChangeEmailModal';
 import VerificationCodeModal from '../../shared/components/VerificationCodeModal';
+import TermsAndConditionsModal from '../../shared/components/TermsAndConditionsModal';
+import PrivacyPolicyModal from '../../shared/components/PrivacyPolicyModal';
 
 const ORANGE = '#FF6B00';
 
@@ -28,6 +31,10 @@ export default function ProfilePage() {
   const [passwordOpened, setPasswordOpened] = useState(false);
   const [emailOpened, setEmailOpened] = useState(false);
   const [twoFAModalOpened, setTwoFAModalOpened] = useState(false);
+  const [twoFAIntent, setTwoFAIntent] = useState<'enable' | 'disable'>('enable');
+  const [termsOpened, setTermsOpened] = useState(false);
+  const [privacyOpened, setPrivacyOpened] = useState(false);
+  const [revealEmail, setRevealEmail] = useState(false);
 
   useEffect(() => { fetchProfile(); }, []);
 
@@ -103,10 +110,10 @@ export default function ProfilePage() {
               display: 'flex', alignItems: 'center',
             }}
           >
-            <ChevronLeft  width={32} height={32} strokeWidth={2.5} color="var(--mantine-color-dimmed)" />
+            <ChevronLeft width={32} height={32} strokeWidth={2.5} color="var(--mantine-color-dimmed)" />
           </Box>
           <Stack gap={0}>
-            <Title order={2} style={{ fontSize: rem(22), fontWeight: 900, letterSpacing: '-0.5px' }}>
+            <Title order={2} style={{ fontSize: rem(22), fontWeight: 700, letterSpacing: '-0.5px' }}>
               PROFILE
             </Title>
             <Text size="sm" c="dimmed" fw={500}>
@@ -119,7 +126,7 @@ export default function ProfilePage() {
       <Grid gutter={30}>
         {/* SIDEBAR */}
         <Grid.Col span={{ base: 12, md: 3 }}>
-          <Paper withBorder radius={16} p={40} style={{ height: '100%' }}>
+          <Paper withBorder radius={15} p={40} style={{ height: '100%' }}>
             <Stack align="center" gap="xs">
               <Box style={{ position: 'relative' }}>
                 <Avatar
@@ -151,34 +158,41 @@ export default function ProfilePage() {
                         border: '3px solid white',
                       }}
                     >
-                      <Camera  width={18} height={18} color="white" />
+                      <Camera width={18} height={18} color="white" />
                     </Box>
                   )}
                 </FileButton>
               </Box>
 
-              <Title order={3} c="orange" fw={900} mt="md" ta="center">
+              <Title order={3} c="orange" fw={700} mt="md" ta="center">
                 {userData.first_name} {userData.last_name}
               </Title>
               <Text c="dimmed" fz="sm" fw={600}>{userData.role}</Text>
 
               <Divider w="100%" my="xl" />
 
-              <Box w="100%">
-                <Text fz={10} fw={800} c="dimmed" mb={4}>ROLE</Text>
-                <Group gap="sm">
-                  <Badge variant="light" color={userData.role === 'CCTV Chief' ? 'orange' : 'gray'} size="lg" tt="uppercase" fw={700}>
-                    {userData.role || 'Staff'}
-                  </Badge>
-                </Group>
-              </Box>
-
-              <Box w="100%" mt="sm">
-                <Text fz={10} fw={800} c="dimmed" mb={4}>STATUS</Text>
-                <Badge variant="outline" color={userData.is_active ? 'green' : 'red'} size="sm">
-                  {userData.is_active ? 'Active' : 'Inactive'}
-                </Badge>
-              </Box>
+              <Button
+                variant="subtle"
+                color="gray"
+                size="sm"
+                fw={600}
+                w="100%"
+                onClick={() => setTermsOpened(true)}
+                styles={{ label: { justifyContent: 'flex-start' } }}
+              >
+                Terms and Conditions
+              </Button>
+              <Button
+                variant="subtle"
+                color="gray"
+                size="sm"
+                fw={600}
+                w="100%"
+                onClick={() => setPrivacyOpened(true)}
+                styles={{ label: { justifyContent: 'flex-start' } }}
+              >
+                Privacy Policy
+              </Button>
             </Stack>
           </Paper>
         </Grid.Col>
@@ -187,45 +201,56 @@ export default function ProfilePage() {
         <Grid.Col span={{ base: 12, md: 9 }}>
           <Stack gap="xl">
             {/* PERSONAL INFORMATION */}
-            <Paper withBorder radius={16} p={30}>
+            <Paper withBorder radius={15} p={30}>
               <Stack gap={0}>
-                <Title order={4} fw={800}>PERSONAL INFORMATION</Title>
+                <Title order={4} fw={700}>PERSONAL INFORMATION</Title>
                 <Text size="xs" c="dimmed" mb="xl">
                   Manage registrar attributes, contact emails, and secure account access settings
                 </Text>
 
                 <Stack gap="md">
-                  <Group justify="space-between" align="center" wrap="nowrap" py="xs">
+                  <Group justify="space-between" align="center" wrap="wrap" py="xs" style={{ rowGap: 12 }}>
                     <Stack gap={2}>
-                      <Text fw={700} fz="sm" c="var(--mantine-color-text)">Account Name</Text>
+                      <Text fw={700} fz="sm" c="var(--mantine-color-text)">Name</Text>
                       <Text fz="sm" fw={500} c="var(--mantine-color-dimmed)">{userData.first_name} {userData.last_name}</Text>
                     </Stack>
-                    <Button variant="filled" color="orange" size="xs" radius="sm" px="xl" h={28}
+                    <Button variant="filled" color="orange" size='sm' radius="sm" w={100} h={32}
                       onClick={() => setEditOpened(true)}>
                       Edit
                     </Button>
                   </Group>
 
-                  <Group justify="space-between" align="center" wrap="nowrap" py="xs">
+                  <Group justify="space-between" align="center" wrap="wrap" py="xs" style={{ rowGap: 12 }}>
                     <Stack gap={2}>
                       <Text fw={700} fz="sm" c="var(--mantine-color-text)">Email</Text>
-                      <Group gap="xs">
-                        <Text fz="sm" fw={500} c="var(--mantine-color-dimmed)">{maskedEmail(userData.email)}</Text>
-                        <EyeSlash  width={14} height={14} color="gray" />
-                      </Group>
+                      <Text fz="sm" fw={500} c="var(--mantine-color-dimmed)">
+                        {revealEmail ? userData.email : maskedEmail(userData.email)}
+                      </Text>
                     </Stack>
-                    <Button variant="filled" color="orange" size="xs" radius="sm" px="xl" h={28}
-                      onClick={() => setEmailOpened(true)}>
-                      Change
-                    </Button>
+                    <Group gap="md" wrap="nowrap">
+                      <Anchor
+                        component="button"
+                        type="button"
+                        fz="sm"
+                        fw={600}
+                        c="var(--mantine-color-orange-filled)"
+                        onClick={() => setRevealEmail((v) => !v)}
+                      >
+                        {revealEmail ? 'Hide' : 'Reveal'}
+                      </Anchor>
+                      <Button variant="filled" color="orange" size='sm'  fw={600} radius="sm" w={100} h={32}
+                        onClick={() => setEmailOpened(true)}>
+                        Change
+                      </Button>
+                    </Group>
                   </Group>
 
-                  <Group justify="space-between" align="center" wrap="nowrap" py="xs">
+                  <Group justify="space-between" align="center" wrap="wrap" py="xs" style={{ rowGap: 12 }}>
                     <Stack gap={2}>
                       <Text fw={700} fz="sm" c="var(--mantine-color-text)">Password</Text>
                       <Text fz="sm" fw={500} c="var(--mantine-color-dimmed)">••••••••</Text>
                     </Stack>
-                    <Button variant="filled" color="orange" size="xs" radius="sm" px="xl" h={28}
+                    <Button variant="filled" color="orange" size='sm' radius="sm" w={100} h={32}
                       onClick={() => setPasswordOpened(true)}>
                       Change
                     </Button>
@@ -235,9 +260,9 @@ export default function ProfilePage() {
             </Paper>
 
             {/* PREFERENCES */}
-            <Paper withBorder radius={16} p={30}>
+            <Paper withBorder radius={15} p={30}>
               <LoadingOverlay visible={updating} overlayProps={{ blur: 1 }} />
-              <Title order={4} fw={800}>Preferences</Title>
+              <Title order={4} fw={700}>PREFERENCES</Title>
               <Text size="xs" c="dimmed" mb="xl">
                 Customize your notification and display settings.
               </Text>
@@ -245,9 +270,10 @@ export default function ProfilePage() {
               <Stack gap="lg">
                 <Group justify="space-between">
                   <Group gap="md">
-                    <Box bg="var(--mantine-color-orange-light)" p={8} style={{ borderRadius: 8 }}>
-                      <Bell  width={20} height={20} color={ORANGE} fill={ORANGE} />
+                    <Box bg="var(--mantine-color-orange-light)" p={10}  style={{ borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <Bell width={20} height={20} color={ORANGE} fill={ORANGE} />
                     </Box>
+                    
                     <Stack gap={0}>
                       <Text size="sm" fw={700}>Receive Notifications</Text>
                       <Text size="xs" c="dimmed">Get alerts about important updates</Text>
@@ -263,8 +289,8 @@ export default function ProfilePage() {
 
                 <Group justify="space-between">
                   <Group gap="md">
-                    <Box bg="var(--mantine-color-orange-light)" p={8} style={{ borderRadius: 8 }}>
-                      <CheckShield  width={20} height={20} color={userData.two_factor_enabled ? ORANGE : 'gray'} />
+                    <Box bg="var(--mantine-color-orange-light)" p={8} style={{ borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <CheckShield width={20} height={20} color={userData.two_factor_enabled ? ORANGE : 'gray'} />
                     </Box>
                     <Stack gap={0}>
                       <Text size="sm" fw={700}>Two-Factor Authentication</Text>
@@ -277,7 +303,10 @@ export default function ProfilePage() {
                     color="orange"
                     size="md"
                     checked={userData.two_factor_enabled}
-                    onChange={() => setTwoFAModalOpened(true)}
+                    onChange={() => {
+                      setTwoFAIntent(userData.two_factor_enabled ? 'disable' : 'enable');
+                      setTwoFAModalOpened(true);
+                    }}
                   />
                 </Group>
 
@@ -285,32 +314,53 @@ export default function ProfilePage() {
 
                 <Group justify="space-between">
                   <Group gap="md">
-                    <Box bg="var(--mantine-color-orange-light)" p={8} style={{ borderRadius: 8 }}>
-                      <GlobeAlt  width={20} height={20} color={ORANGE} />
+                    <Box bg="var(--mantine-color-orange-light)" p={8} style={{ borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+                      <GlobeAlt width={20} height={20} color={ORANGE} />
                     </Box>
                     <Stack gap={0}>
                       <Text size="sm" fw={700}>Language</Text>
                       <Text size="xs" c="dimmed">Select your preferred language</Text>
                     </Stack>
                   </Group>
-                  <Box w={220}>
-                    <select
-                      value={userData.preferred_language}
-                      onChange={(e) => handlePreferenceUpdate('preferred_language', e.target.value)}
-                      style={{
-                        width: '100%',
-                        padding: '8px 12px',
-                        borderRadius: 8,
-                        border: '1px solid var(--mantine-color-default-border)',
-                        backgroundColor: 'var(--mantine-color-body)',
-                        color: 'var(--mantine-color-text)',
-                        fontSize: 14,
-                      }}
-                    >
-                      <option value="English">English</option>
-                      <option value="Filipino">Filipino</option>
-                    </select>
-                  </Box>
+                  <Menu position="bottom-end" withArrow width={220}>
+                    <Menu.Target>
+                      <UnstyledButton
+                        style={{
+                          width: '100%',
+                          maxWidth: 220,
+                          padding: '8px 12px',
+                          borderRadius: 8,
+                          border: '1px solid var(--mantine-color-default-border)',
+                          backgroundColor: 'var(--mantine-color-body)',
+                          color: 'var(--mantine-color-text)',
+                          fontSize: 14,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'space-between',
+                          cursor: 'pointer',
+                        }}
+                      >
+                        <Text fz="sm" fw={500}>{userData.preferred_language}</Text>
+                        <ChevronDown width={16} height={16} color="var(--mantine-color-dimmed)" />
+                      </UnstyledButton>
+                    </Menu.Target>
+                    <Menu.Dropdown>
+                      {['English', 'Filipino'].map((lang) => (
+                        <Menu.Item
+                          key={lang}
+                          fz="sm"
+                          onClick={() => handlePreferenceUpdate('preferred_language', lang)}
+                          rightSection={
+                            userData.preferred_language === lang ? (
+                              <Check width={16} height={16} color="var(--mantine-color-orange-filled)" />
+                            ) : null
+                          }
+                        >
+                          {lang}
+                        </Menu.Item>
+                      ))}
+                    </Menu.Dropdown>
+                  </Menu>
                 </Group>
               </Stack>
             </Paper>
@@ -349,9 +399,12 @@ export default function ProfilePage() {
         onVerify={async (code) => { await authAPI.verify2FACode(code); }}
         onVerified={fetchProfile}
         title="Two-Factor Authentication"
-        subtitle={userData.two_factor_enabled ? '2FA has been disabled.' : '2FA has been enabled. You will need to verify your identity on future logins.'}
-        verifyLabel={userData.two_factor_enabled ? 'Disable 2FA' : 'Enable 2FA'}
+        subtitle={twoFAIntent === 'disable' ? '2FA has been disabled.' : '2FA has been enabled. You will need to verify your identity on future logins.'}
+        verifyLabel={twoFAIntent === 'disable' ? 'Disable 2FA' : 'Enable 2FA'}
       />
+
+      <TermsAndConditionsModal opened={termsOpened} onClose={() => setTermsOpened(false)} />
+      <PrivacyPolicyModal opened={privacyOpened} onClose={() => setPrivacyOpened(false)} />
     </Container>
   );
 }

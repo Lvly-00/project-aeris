@@ -137,12 +137,13 @@ export default function LoginPage() {
         style={{
           width: '100%',
           maxWidth: rem(480),
-          height: rem(660),
           minHeight: rem(660),
+          display: 'flex',
+          flexDirection: 'column',
           backgroundColor: 'var(--mantine-color-body)',
         }}
       >
-        <Stack gap="xl" justify="center">
+        <Stack gap="xl" justify="center" style={{ flex: 1 }}>
           {/* LOGO AREA */}
           <Center flex={1} style={{ flexDirection: 'column' }}>
             <Image

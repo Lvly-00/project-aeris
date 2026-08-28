@@ -48,7 +48,7 @@ export function AdminVerificationModal({
             p={10}
             style={{ borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
           >
-            <User width={28} height={28} style={{ color: 'white', display: 'block' }} />
+            <Lock width={28} height={28} style={{ color: 'white', display: 'block' }} />
           </Box>
           <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
             <Title order={3} fw={700}>CCTV Chief Verification</Title>
@@ -67,7 +67,7 @@ export function AdminVerificationModal({
       <Stack gap="lg">
         <PasswordInput
           label={
-            <Text size="sm" fw={700} mb={5}>
+            <Text size="sm" fw={600} mb={5}>
               Password <span style={{ color: 'red' }}>*</span>
             </Text>
           }

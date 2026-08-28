@@ -161,6 +161,8 @@ export const authAPI = {
     api.post('/accounts/password-reset/confirm/', { email, code, password }),
   verifyPassword: (password: string) =>
     api.post('/accounts/verify-password/', { password }),
+  acceptAgreement: () =>
+    api.post('/accounts/accept-agreement/'),
   refresh: (refresh: string) =>
     api.post('/auth/token/refresh/', { refresh }),
   register: (data: any) =>

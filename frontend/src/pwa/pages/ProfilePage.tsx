@@ -8,7 +8,7 @@ import { Camera, Cog, Envelope, Globe, Lock, Moon, Sun, UserCircle } from '@boxi
 import { authAPI } from '../../shared/services/api';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { User } from '../../shared/types';
-import EditProfileModal from '../../shared/components/profile/EditProfileModal';
+import EditProfileModal from '../../shared/components/profile/EditNameModal';
 import ChangePasswordModal from '../../shared/components/profile/ChangePasswordModal';
 import ChangeEmailModal from '../../shared/components/profile/ChangeEmailModal';
 import VerificationCodeModal from '../../shared/components/VerificationCodeModal';
@@ -30,6 +30,7 @@ export default function ProfilePage() {
   const [passwordOpened, setPasswordOpened] = useState(false);
   const [emailOpened, setEmailOpened] = useState(false);
   const [twoFAModalOpened, setTwoFAModalOpened] = useState(false);
+  const [twoFAIntent, setTwoFAIntent] = useState<'enable' | 'disable'>('enable');
 
   const fetchProfile = () => {
     authAPI
@@ -250,7 +251,10 @@ export default function ProfilePage() {
                 <Switch
                   color="orange"
                   checked={user?.two_factor_enabled || false}
-                  onChange={() => setTwoFAModalOpened(true)}
+                  onChange={() => {
+                    setTwoFAIntent(user?.two_factor_enabled ? 'disable' : 'enable');
+                    setTwoFAModalOpened(true);
+                  }}
                 />
               </Group>
 
@@ -301,8 +305,8 @@ export default function ProfilePage() {
         onVerify={async (code) => { await authAPI.verify2FACode(code); }}
         onVerified={fetchProfile}
         title="Two-Factor Authentication"
-        subtitle={user?.two_factor_enabled ? '2FA has been disabled.' : '2FA has been enabled. You will need to verify your identity on future logins.'}
-        verifyLabel={user?.two_factor_enabled ? 'Disable 2FA' : 'Enable 2FA'}
+        subtitle={twoFAIntent === 'disable' ? '2FA has been disabled.' : '2FA has been enabled. You will need to verify your identity on future logins.'}
+        verifyLabel={twoFAIntent === 'disable' ? 'Disable 2FA' : 'Enable 2FA'}
       />
     </Box>
   );

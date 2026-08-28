@@ -1,6 +1,8 @@
 import React from 'react';
 import { Modal, Stack, Group, TextInput, PasswordInput, Select, Button, Box, LoadingOverlay } from '@mantine/core';
 import { useForm } from '@mantine/form';
+import PasswordRequirements from '../../../shared/components/PasswordRequirements';
+import { validatePassword } from '../../../shared/utils/password';
 
 interface UserFormModalProps {
     opened: boolean;
@@ -24,7 +26,7 @@ export function UserFormModal({ opened, onClose, onSubmit, initialValues, loadin
         validate: {
             email: (val) => (!val ? 'Email is required' : /^\S+@\S+$/.test(val) ? null : 'Invalid email'),
             // Password is only required when creating a new user
-            password: (val) => (!isEdit && val.length < 8 ? 'Password must be 8+ characters' : null),
+            password: (val) => (!isEdit ? validatePassword(val) : null),
             password2: (val, values) => (!isEdit && val !== values.password ? 'Passwords do not match' : null),
         },
     });
@@ -50,10 +52,15 @@ export function UserFormModal({ opened, onClose, onSubmit, initialValues, loadin
                         <TextInput label="Email" placeholder="juan@example.com" required {...form.getInputProps('email')} />
 
                         {!isEdit && (
-                            <Group grow>
-                                <PasswordInput label="Password" required {...form.getInputProps('password')} />
-                                <PasswordInput label="Confirm Password" required {...form.getInputProps('password2')} />
-                            </Group>
+                            <>
+                                <Group grow>
+                                    <PasswordInput label="Password" required {...form.getInputProps('password')} />
+                                    <PasswordInput label="Confirm Password" required {...form.getInputProps('password2')} />
+                                </Group>
+                                <Box w="100%">
+                                    <PasswordRequirements password={form.values.password} />
+                                </Box>
+                            </>
                         )}
 
                         <Select label="Role" data={['CCTV Chief', 'CCTV Operator', 'Barangay Tanod']} {...form.getInputProps('role')} />

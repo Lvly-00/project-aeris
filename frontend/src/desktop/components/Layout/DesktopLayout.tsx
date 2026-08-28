@@ -4,6 +4,7 @@ import { Camera, ChevronDown, Cog, DoorOpen, History, Moon, PlusCircle, Toggles,
 import { useAuth } from '../../../shared/hooks/useAuth';
 import { authAPI } from '../../../shared/services/api';
 import { parseThrottleSeconds } from '../../../shared/utils/authErrors';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 import { AdminVerificationModal } from './AdminVerificationModal';
 import { 
   Avatar, Box, Group, Menu, Text, UnstyledButton, Badge,
@@ -190,7 +191,7 @@ export default function DesktopLayout() {
                     <Avatar
                       size={45}
                       radius="xl"
-                      src={user?.profile_picture}
+                      src={resolveMediaUrl(user?.profile_picture)}
                       style={{ border: '1px solid var(--mantine-color-default-border)' }}
                     >
                       {user?.first_name?.[0]}

@@ -18,6 +18,8 @@ import { useForm } from '@mantine/form';
 import { Eye, EyeSlash, InfoCircle, Key, Check } from '@boxicons/react';
 import { authAPI } from '../services/api';
 import { AUTH_MESSAGES } from '../utils/authErrors';
+import { validatePassword } from '../utils/password';
+import PasswordRequirements from '../components/PasswordRequirements';
 import SuccessModal from '../components/status/SuccessModal';
 
 const ORANGE = '#FF6B00';
@@ -52,7 +54,7 @@ export default function ResetPasswordPage() {
     const form = useForm({
         initialValues: { password: '', confirmPassword: '' },
         validate: {
-            password: (v: string) => (!v ? AUTH_MESSAGES.MISSING_PASSWORD : null),
+            password: (v: string) => validatePassword(v),
             confirmPassword: (v: string, values: { password: string }) =>
                 v !== values.password ? 'Passwords do not match.' : null,
         },
@@ -138,6 +140,10 @@ export default function ResetPasswordPage() {
                             ...labelStyles,
                         }}
                     />
+
+                    <Box w="100%" px={2}>
+                        <PasswordRequirements password={form.values.password} />
+                    </Box>
 
                     <PasswordInput
                         label="Confirm Password *"

@@ -1,6 +1,7 @@
 import logging
+from django.core import exceptions
+from django.contrib.auth import get_user_model, authenticate, password_validation
 from rest_framework import serializers
-from django.contrib.auth import get_user_model, authenticate
 
 from apps.lookups.models import Role
 
@@ -23,8 +24,9 @@ class UserSerializer(serializers.ModelSerializer):
             "role", "role_display",
             "is_active", "created_at", "profile_picture",
             "two_factor_enabled", "receive_notifications", "preferred_language",
+            "agreement_accepted", "agreement_accepted_at",
         ]
-        read_only_fields = ["id", "is_active", "created_at", "role_display"]
+        read_only_fields = ["id", "is_active", "created_at", "role_display", "agreement_accepted", "agreement_accepted_at"]
         extra_kwargs = {
             "password": {"write_only": True, "required": False}
         }
@@ -68,6 +70,10 @@ class RegisterSerializer(serializers.ModelSerializer):
     def validate(self, attrs: dict) -> dict:
         if attrs["password"] != attrs.pop("password2"):
             raise serializers.ValidationError({"password2": "Passwords do not match."})
+        try:
+            password_validation.validate_password(attrs["password"])
+        except exceptions.ValidationError as exc:
+            raise serializers.ValidationError({"password": list(exc.messages)})
         return attrs
 
     def validate_email(self, value: str) -> str:
@@ -168,6 +174,13 @@ class PasswordResetConfirmSerializer(serializers.Serializer):
         },
     )
 
+    def validate(self, attrs):
+        try:
+            password_validation.validate_password(attrs["password"])
+        except exceptions.ValidationError as exc:
+            raise serializers.ValidationError({"password": list(exc.messages)})
+        return attrs
+
 
 class ChangePasswordSerializer(serializers.Serializer):
     """Validate the current password before allowing a password change (FR-PP-005)."""
@@ -210,6 +223,10 @@ class ChangePasswordSerializer(serializers.Serializer):
             raise serializers.ValidationError({"confirm_password": "Passwords do not match."})
         if attrs["current_password"] == attrs["new_password"]:
             raise serializers.ValidationError({"new_password": "New password must be different from current password."})
+        try:
+            password_validation.validate_password(attrs["new_password"], user=self.user)
+        except exceptions.ValidationError as exc:
+            raise serializers.ValidationError({"new_password": list(exc.messages)})
         return attrs
 
 

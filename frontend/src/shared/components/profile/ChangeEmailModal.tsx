@@ -1,12 +1,15 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import {
-  Modal, Stack, TextInput, PasswordInput, Button, Text, Group, Divider, PinInput, Alert,
+  Modal, Stack, TextInput, PasswordInput, Button, Text, Group, Box, Title, ActionIcon
 } from '@mantine/core';
-import { InfoCircle } from '@boxicons/react';
+import { Envelope, X, Lock } from '@boxicons/react';
 import { authAPI } from '../../services/api';
 import { useAuth } from '../../hooks/useAuth';
 import SuccessModal from '../status/SuccessModal';
+import VerificationCodeModal from '../VerificationCodeModal';
+
+const ORANGE = '#FF5722';
 
 interface ChangeEmailModalProps {
   opened: boolean;
@@ -23,116 +26,37 @@ export default function ChangeEmailModal({
 }: ChangeEmailModalProps) {
   const navigate = useNavigate();
   const { logout } = useAuth();
-  const [step, setStep] = useState<'sending' | 'verify' | 'details'>('sending');
-  const [code, setCode] = useState('');
+  const [verified, setVerified] = useState(false);
   const [newEmail, setNewEmail] = useState('');
   const [password, setPassword] = useState('');
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState(false);
   const [successOpened, setSuccessOpened] = useState(false);
 
-  const [countdown, setCountdown] = useState(300);
-  const timerRef = useRef<ReturnType<typeof setInterval> | null>(null);
-
-  const maskedEmail = (email: string) => {
-    const [name, domain] = email.split('@');
-    if (!domain) return email;
-    const visible = name.slice(0, 2);
-    return `${visible}${'*'.repeat(Math.max(name.length - 2, 3))}@${domain}`;
-  };
-
-  const startCountdown = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
-    setCountdown(300);
-    timerRef.current = setInterval(() => {
-      setCountdown((prev) => {
-        if (prev <= 1) {
-          if (timerRef.current) clearInterval(timerRef.current);
-          return 0;
-        }
-        return prev - 1;
-      });
-    }, 1000);
-  };
-
-  // Auto-send code when modal opens
   useEffect(() => {
-    if (!opened) return;
-    setStep('sending');
-    setCode('');
+    if (opened) {
+      setVerified(false);
+      setNewEmail('');
+      setPassword('');
+      setErrors({});
+      setSuccessOpened(false);
+    }
+  }, [opened]);
+
+  const handleClose = () => {
+    setVerified(false);
     setNewEmail('');
     setPassword('');
     setErrors({});
-    setSuccessOpened(false);
-
-    (async () => {
-      try {
-        await authAPI.initiateEmailChange();
-        setStep('verify');
-        startCountdown();
-      } catch {
-        setErrors({ code: 'Failed to send verification code. Please try again.' });
-        setStep('verify');
-      }
-    })();
-
-    return () => {
-      if (timerRef.current) clearInterval(timerRef.current);
-    };
-  }, [opened]);
-
-  const formatTime = (s: number) => {
-    const m = Math.floor(s / 60);
-    const sec = s % 60;
-    return `${String(m).padStart(2, '0')}:${String(sec).padStart(2, '0')}`;
-  };
-
-  const handleClose = () => {
-    if (timerRef.current) clearInterval(timerRef.current);
     onClose();
   };
 
-  // Step 2: verify code
-  const handleVerify = async () => {
-    setErrors({});
-    if (!code || code.length !== 6) {
-      setErrors({ code: 'Enter the 6-digit verification code.' });
-      return;
-    }
-
-    setLoading(true);
-    try {
-      await authAPI.verifyEmailChange(code);
-      if (timerRef.current) clearInterval(timerRef.current);
-      setStep('details');
-    } catch (err: any) {
-      const detail = err?.response?.data?.detail;
-      setErrors({ code: detail || 'Invalid or expired verification code.' });
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  // Step 3: apply change
   const handleConfirm = async () => {
     setErrors({});
-
-    if (!newEmail) {
-      setErrors({ new_email: 'New email address is required.' });
-      return;
-    }
-    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) {
-      setErrors({ new_email: 'Enter a valid email address.' });
-      return;
-    }
-    if (newEmail.toLowerCase() === currentEmail.toLowerCase()) {
-      setErrors({ new_email: 'New email must be different from current email.' });
-      return;
-    }
-    if (!password) {
-      setErrors({ password: 'Current password is required.' });
-      return;
-    }
+    if (!newEmail) { setErrors({ new_email: 'New email address is required.' }); return; }
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(newEmail)) { setErrors({ new_email: 'Enter a valid email address.' }); return; }
+    if (newEmail.toLowerCase() === currentEmail.toLowerCase()) { setErrors({ new_email: 'New email must be different.' }); return; }
+    if (!password) { setErrors({ password: 'Current password is required.' }); return; }
 
     setLoading(true);
     try {
@@ -140,130 +64,161 @@ export default function ChangeEmailModal({
       handleClose();
       setSuccessOpened(true);
       onEmailChanged?.();
-      // Force logout after email change — tokens are blacklisted server-side.
       setTimeout(() => {
         logout();
         navigate('/pwa/login', { replace: true });
       }, 2000);
     } catch (err: any) {
       const data = err?.response?.data;
-      if (data?.new_email) {
-        setErrors({ new_email: Array.isArray(data.new_email) ? data.new_email[0] : data.new_email });
-      } else if (data?.password) {
-        setErrors({ password: Array.isArray(data.password) ? data.password[0] : data.password });
-      } else {
-        setErrors({ new_email: data?.detail || 'Unable to update email. Please try again.' });
-      }
+      if (data?.new_email) setErrors({ new_email: Array.isArray(data.new_email) ? data.new_email[0] : data.new_email });
+      else if (data?.password) setErrors({ password: Array.isArray(data.password) ? data.password[0] : data.password });
+      else setErrors({ new_email: data?.detail || 'Unable to update email.' });
     } finally {
       setLoading(false);
     }
   };
 
-  const titles: Record<string, string> = {
-    sending: 'Change Email Address',
-    verify: 'Verify Your Identity',
-    details: 'Set New Email Address',
-  };
-
   return (
     <>
-      <Modal
-        opened={opened}
+      <VerificationCodeModal
+        opened={opened && !verified}
         onClose={handleClose}
-        title={titles[step]}
+        onVerified={() => setVerified(true)}
+        email={currentEmail}
+        title="Verify email address"
+        subtitle="Input a new email address to continue."
+        verifyLabel="Continue"
+        cancelLabel="Cancel"
+        autoRedirectMs={3000}
+        onSendCode={async () => {
+          await authAPI.initiateEmailChange();
+        }}
+        onVerify={async (code) => {
+          await authAPI.verifyEmailChange(code);
+        }}
+      />
+
+      <Modal
+        opened={opened && verified}
+        onClose={handleClose}
+        withCloseButton={false}
         centered
-        radius={16}
-        size={480}
-        overlayProps={{ blur: 4, opacity: 0.4 }}
+        radius="lg"
+        size="md"
+        padding="xl"
       >
-        {/* Step 1: sending (loading state while API call fires) */}
-        {step === 'sending' && (
-          <Stack gap="md" align="center" py="md">
-            <Text size="sm" c="dimmed" ta="center">
-              Sending verification code to {maskedEmail(currentEmail)}...
-            </Text>
-          </Stack>
-        )}
+        {/* Custom Header */}
+        <Group
+          justify="space-between"
+          align="flex-start"
+          mb="xl"
+          wrap="nowrap"
+        >
+          <Box
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 12,
+              minWidth: 0,
+              flex: 1,
+            }}
+          >
+            <Box
+              bg={ORANGE}
+              p={10}
+              style={{
+                borderRadius: '12px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                flexShrink: 0,
+              }}
+            >
+              <Envelope width={28} height={28} style={{ color: 'white' }} />
+            </Box>
 
-        {/* Step 2: verify code */}
-        {step === 'verify' && (
-          <Stack gap="md">
-            <Text size="sm" c="dimmed">
-              A 6-digit verification code has been sent to{' '}
-              <Text span fw={700}>{maskedEmail(currentEmail)}</Text>.
-              {countdown > 0 && (
-                <Text component="span" fw={700} c="orange" ml={4}>
-                  {formatTime(countdown)}
-                </Text>
-              )}
-            </Text>
+            <Box style={{ minWidth: 0, flex: 1 }}>
+              <Title
+                order={3}
+                fw={700}
+                style={{
+                  overflowWrap: 'break-word',
+                }}
+              >
+                Update your email
+              </Title>
 
-            <Group justify="center">
-              <PinInput
-                length={6}
-                value={code}
-                onChange={(val) => setCode(val.replace(/\D/g, '').slice(0, 6))}
-                size="lg"
-                type="number"
-                error={!!errors.code}
-              />
-            </Group>
-            {errors.code && (
-              <Alert icon={<InfoCircle  width={ 14 } height={ 14 } />} color="red" variant="light" radius="md">
-                {errors.code}
-              </Alert>
-            )}
+              <Text
+                fz="sm"
+                c="dimmed"
+                style={{
+                  overflowWrap: 'break-word',
+                }}
+              >
+                Enter your new email address and current password.
+              </Text>
+            </Box>
+          </Box>
 
-            <Divider />
+          <ActionIcon
+            variant="transparent"
+            color="gray"
+            onClick={handleClose}
+            style={{
+              flexShrink: 0,
+              marginLeft: 8,
+            }}
+          >
+            <X width={24} height={24} />
+          </ActionIcon>
+        </Group>
 
-            <Group justify="flex-end" gap="sm">
-              <Button variant="default" onClick={handleClose}>
-                Cancel
-              </Button>
-              <Button color="orange" loading={loading} onClick={handleVerify} disabled={countdown === 0}>
-                Verify Code
-              </Button>
-            </Group>
-          </Stack>
-        )}
+        <hr style={{ border: '0.5px solid #eee', marginBottom: '25px' }} />
 
-        {/* Step 3: new email + password */}
-        {step === 'details' && (
-          <Stack gap="md">
-            <Text size="sm" c="dimmed">
-              Identity verified. Enter your new email address and current password to finalize the change.
-            </Text>
+        <Stack gap="lg">
+          <TextInput
+            label={<Text size="sm" fw={600} mb={5}>New Email Address <span style={{ color: 'red' }}>*</span></Text>}
+            placeholder="Enter new email"
+            value={newEmail}
+            onChange={(e) => setNewEmail(e.currentTarget.value)}
+            error={errors.new_email}
+            radius="md" size="md"
+            leftSection={<Envelope width={18} height={18} color="#888" />}
+            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
+          />
 
-            <TextInput
-              label="New Email Address"
-              placeholder="Enter your new email"
-              value={newEmail}
-              onChange={(e) => setNewEmail(e.currentTarget.value)}
-              error={errors.new_email}
-              required
-            />
+          <PasswordInput
+            label={<Text size="sm" fw={600} mb={5}>Current Password <span style={{ color: 'red' }}>*</span></Text>}
+            placeholder="Enter password to confirm"
+            value={password}
+            onChange={(e) => setPassword(e.currentTarget.value)}
+            error={errors.password}
+            radius="md" size="md"
+            leftSection={<Lock width={18} height={18} color="#888" />}
+            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
+          />
 
-            <PasswordInput
-              label="Current Password"
-              placeholder="Enter your current password"
-              value={password}
-              onChange={(e) => setPassword(e.currentTarget.value)}
-              error={errors.password}
-              required
-            />
-
-            <Divider />
-
-            <Group justify="flex-end" gap="sm">
-              <Button variant="default" onClick={handleClose}>
-                Cancel
-              </Button>
-              <Button color="orange" loading={loading} onClick={handleConfirm}>
-                Update Email
-              </Button>
-            </Group>
-          </Stack>
-        )}
+          <Group grow mt="lg">
+            <Button variant="outline"
+              color="gray"
+              radius="md"
+              size="md"
+              h={48}
+              onClick={handleClose}
+              styles={{ root: { border: '1.5px solid #E0E0E0', color: '#333' } }}>
+              Cancel
+            </Button>
+            <Button bg={ORANGE}
+              radius="md"
+              size="md"
+              h={48}
+              loading={loading}
+              styles={{ root: { backgroundColor: ORANGE } }}
+              onClick={handleConfirm}>
+              Update Email
+            </Button>
+          </Group>
+        </Stack>
       </Modal>
 
       <SuccessModal
