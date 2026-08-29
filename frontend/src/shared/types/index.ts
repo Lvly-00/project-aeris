@@ -223,6 +223,8 @@ export interface AuditLog {
   id: number;
   user: number | null;
   username: string;
+  user_role: string;
+  profile_picture: string | null;
   action: AuditAction;
   resource_type: string;
   resource_id: number | null;

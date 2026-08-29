@@ -4,7 +4,7 @@ import {
     Table, ScrollArea, Avatar, Box, Badge, ActionIcon, Menu,
     Pagination, Center, useMantineTheme, Checkbox, Modal, Container
 } from '@mantine/core';
-import { DotsVerticalRounded, Plus, Search, Trash } from '@boxicons/react';
+import { DotsVerticalRounded, Eye, Pencil, Plus, Search, Trash } from '@boxicons/react';
 import { PageHeader } from '../components/Layout/PageHeader';
 import { authAPI } from '../../shared/services/api';
 import { resolveMediaUrl } from '../../shared/utils/mediaUrl';
@@ -387,7 +387,7 @@ export default function UserManagement() {
                                             <Text fz="md" lineClamp={1}>{user.email}</Text>
                                         </Table.Td>
                                         <Table.Td ta="center" style={{ width: 180 }}>
-                                            <Badge variant="light" color="orange" radius="xl" size="md" tt="capitalize" style={{ width: 150, height: 30, justifyContent: 'center', fontSize: 13.5 }}>{user.role_display || user.role}</Badge>
+                                            <Text size="xs" fw={700} c="orange" style={{ textTransform: 'uppercase' }}>{user.role_display || user.role}</Text>
                                         </Table.Td>
                                         <Table.Td style={{ width: 110 }}>
                                             <Group justify="flex-end" gap={4}>
@@ -396,13 +396,13 @@ export default function UserManagement() {
                                                         <ActionIcon variant="subtle" color="gray"><DotsVerticalRounded width={24} height={24} /></ActionIcon>
                                                     </Menu.Target>
                                                     <Menu.Dropdown>
-                                                        <Menu.Item onClick={() => { setSelectedUser(user); setIsViewing(true); setFormOpened(true); }}>
+                                                        <Menu.Item leftSection={<Eye width={18} height={18} />} onClick={() => { setSelectedUser(user); setIsViewing(true); setFormOpened(true); }}>
                                                             View User
                                                         </Menu.Item>
-                                                        <Menu.Item onClick={() => { setSelectedUser(user); setIsViewing(false); setFormOpened(true); }} color="blue">
+                                                        <Menu.Item leftSection={<Pencil width={18} height={18} />} onClick={() => { setSelectedUser(user); setIsViewing(false); setFormOpened(true); }}>
                                                             Edit User
                                                         </Menu.Item>
-                                                        <Menu.Item onClick={() => { setSelectedUser(user); setDeleteOpened(true); }} color="red">
+                                                        <Menu.Item leftSection={<Trash width={18} height={18} />} onClick={() => { setSelectedUser(user); setDeleteOpened(true); }} color="red">
                                                             Delete User
                                                         </Menu.Item>
                                                     </Menu.Dropdown>

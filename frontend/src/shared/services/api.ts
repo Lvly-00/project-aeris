@@ -265,6 +265,7 @@ export const dispatchMessagesAPI = {
 
 export const auditAPI = {
   list: (params?: any) => api.get('/audit/', { params }),
+  actions: () => api.get('/audit/actions/'),
   recent: () => api.get('/audit/recent/'),
 };
 
