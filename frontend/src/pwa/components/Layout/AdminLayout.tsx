@@ -7,6 +7,7 @@ import { Bell, Clipboard, Home, ShieldAlt, User } from '@boxicons/react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { authAPI, notificationsAPI } from '../../../shared/services/api';
 import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
+import { getAccessToken } from '../../../shared/utils/tokenStorage';
 import { NotificationsModal } from '../NotificationsModal';
 
 const navData = [
@@ -52,7 +53,7 @@ export function AdminLayout() {
      * notification_new events arrive over the WebSocket.
      */
     useEffect(() => {
-        const token = localStorage.getItem('access_token');
+        const token = getAccessToken();
         if (!token) return;
 
         const wsProtocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
@@ -184,6 +185,11 @@ export function AdminLayout() {
                 opened={notifOpen}
                 onClose={() => setNotifOpen(false)}
                 onUnreadChange={setUnreadCount}
+                onNavigate={(n) => {
+                    if (n.incident) {
+                        navigate(`/pwa/admin/incidents/${n.incident}`);
+                    }
+                }}
             />
         </AppShell>
     );

@@ -189,6 +189,10 @@ class UserViewSet(viewsets.ModelViewSet):
     authentication_classes = [JWTAuthentication] 
     permission_classes = [permissions.IsAuthenticated]
 
+    # The User Management dashboard renders every account (search + client-side
+    # tabs/pagination), so no server-side paging for this endpoint.
+    pagination_class = None
+
     # Actions that must be fully public — no JWT, no auth required.
     # Note: get_authenticators() is called BEFORE self.action is set, so we
     # match on the request path instead.
@@ -225,7 +229,10 @@ class UserViewSet(viewsets.ModelViewSet):
         return super().get_authenticators()
 
     def list(self, request):
-        qs = self.get_queryset()
+        # Soft-deleted (is_active=False) accounts are hidden from the User
+        # Management dashboard so a mass/single delete actually removes the
+        # row. The detail endpoint still resolves them if a stale id is used.
+        qs = self.get_queryset().filter(is_active=True)
         role = request.query_params.get("role")
         if role:
             qs = qs.filter(role__name=role)

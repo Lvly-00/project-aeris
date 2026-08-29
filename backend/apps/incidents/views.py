@@ -48,6 +48,9 @@ def broadcast_notification(notification):
     (user_{id}) — admins and tanods never receive each other's toasts.
     """
     try:
+        recipient = getattr(notification, "recipient", None)
+        if recipient is not None and not getattr(recipient, "receive_notifications", True):
+            return
         channel_layer = get_channel_layer()
         recipient_id = getattr(notification, "recipient_id", None)
         group = f"user_{recipient_id}" if recipient_id else "incidents"
@@ -74,8 +77,10 @@ def create_incident_notification(incident):
     alert_type = NotificationType.objects.get(name="Alert")
     type_name = incident.incident_type.name
 
+    # Skip users who have opted out of notifications (receive_notifications=False).
     for recipient in User.objects.filter(
-        role__name__in=["CCTV Chief", "CCTV Operator"]
+        role__name__in=["CCTV Chief", "CCTV Operator"],
+        receive_notifications=True,
     ):
         notification = Notification.objects.create(
             incident=incident,
@@ -91,7 +96,7 @@ def create_incident_notification(incident):
 
         broadcast_notification(notification)
 
-    return notification
+    return None
 
 
 def incident_location(incident):
@@ -138,8 +143,11 @@ def create_dispatch_message_and_notifications(incident, user):
     from apps.dispatch.views import broadcast_message
     broadcast_message(message)
 
-    # 2) Dispatch notifications — tanod users only
-    tanod_users = User.objects.filter(role__name="Barangay Tanod")
+    # 2) Dispatch notifications — tanod users only (opt-out users skipped)
+    tanod_users = User.objects.filter(
+        role__name="Barangay Tanod",
+        receive_notifications=True,
+    )
     for tanod in tanod_users:
         tanod_notification = Notification.objects.create(
             incident=incident,

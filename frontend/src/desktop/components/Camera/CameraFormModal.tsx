@@ -1,10 +1,13 @@
 import {
   Modal, Stack, TextInput, Select, Group, Button,
-  Text, FileButton, Box, useMantineTheme
+  Text, FileButton, Box, Title, ActionIcon
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { useEffect } from 'react';
-import { FolderOpen } from '@boxicons/react';
+import { Broadcast, Camera, FolderOpen, GlobeAlt, Video, X } from '@boxicons/react';
+
+const ORANGE = '#FF6B00';
+const SUBMIT = '#FF5722';
 
 interface CameraFormModalProps {
   opened: boolean;
@@ -15,8 +18,6 @@ interface CameraFormModalProps {
 }
 
 export function CameraFormModal({ opened, onClose, onSubmit, initialValues, loading }: CameraFormModalProps) {
-  const theme = useMantineTheme();
-
   const form = useForm({
     initialValues: {
       name: '',
@@ -44,59 +45,60 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
     }
   };
 
-  // Theme-aware styles for inputs
-  const inputStyles = {
-    label: {
-      fontWeight: 700,
-      marginBottom: 8,
-      fontSize: '14px',
-      color: 'var(--mantine-color-text)'
-    },
-    input: {
-      borderRadius: '8px',
-      height: '45px',
-      fontSize: '14px',
-      backgroundColor: 'var(--mantine-color-body)',
-      borderColor: 'var(--mantine-color-default-border)'
-    }
-  };
-
   return (
     <Modal
       opened={opened}
       onClose={onClose}
-      title={
-        <Text fw={700} size="lg">
-          {initialValues ? "Edit Camera" : "Add Camera"}
-        </Text>
-      }
+      withCloseButton={false} // Custom close button in header
       centered
-      size="lg"
+      radius="lg"
+      size="compact-lg"
       padding="xl"
-      radius="md"
-      styles={{
-        header: {
-          borderBottom: '1px solid var(--mantine-color-default-border)',
-          marginBottom: '20px',
-          paddingBottom: '15px'
-        },
-        content: {
-          backgroundColor: 'var(--mantine-color-body)',
-        }
-      }}
     >
+      {/* Custom Header Section */}
+      <Group justify="space-between" align="flex-start" mb="lg" wrap="wrap" gap="sm">
+        <Group align="center" gap="md" style={{ flex: 1, minWidth: 200 }}>
+          <Box
+            bg={ORANGE}
+            p={10}
+            style={{ borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
+          >
+            <Camera width={28} height={28} style={{ color: 'white', display: 'block' }} />
+          </Box>
+          <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+            <Title order={3} fw={700}>{initialValues ? 'Edit Camera' : 'Add Camera'}</Title>
+            <Text c="dimmed" fz="sm" fw={400} style={{ maxWidth: 300, lineHeight: 1.4 }}>
+              {initialValues
+                ? 'Update the camera details and stream settings.'
+                : 'Enter the camera details and stream settings.'}
+            </Text>
+          </Stack>
+        </Group>
+        <ActionIcon variant="transparent" color="gray" onClick={onClose} aria-label="Close">
+          <X width={24} height={24} />
+        </ActionIcon>
+      </Group>
+      <hr style={{ border: '0.5px solid #eee', marginBottom: '25px' }} />
+
       <form onSubmit={form.onSubmit(onSubmit)}>
         <Stack gap="lg">
           <TextInput
-            label="Camera Name *"
+            label={
+              <Text size="sm" fw={700} mb={5}>
+                Camera Name <span style={{ color: 'red' }}>*</span>
+              </Text>
+            }
             placeholder="Enter Camera Name"
             {...form.getInputProps('name')}
-            styles={inputStyles}
+            radius="md"
+            size="md"
+            leftSection={<Camera width={18} height={18} style={{ color: '#888' }} />}
+            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
           />
 
           <Box>
-            <Text fw={700} size="sm" mb={8} c="var(--mantine-color-text)">
-              Source URL / Path *
+            <Text size="sm" fw={700} mb={5}>
+              Source URL / Path <span style={{ color: 'red' }}>*</span>
             </Text>
 
             {form.values.stream_type === 'MP4' && (
@@ -109,10 +111,10 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
               <TextInput
                 placeholder={form.values.stream_type === 'MP4' ? "Select a file..." : "rtsp://..."}
                 {...form.getInputProps('stream_url')}
-                styles={{
-                  root: { flex: 1 },
-                  input: inputStyles.input
-                }}
+                radius="md"
+                size="md"
+                leftSection={<Broadcast width={18} height={18} style={{ color: '#888' }} />}
+                styles={{ root: { flex: 1 }, input: { border: '1.5px solid #E0E0E0' } }}
               />
 
               {form.values.stream_type === 'MP4' && (
@@ -122,8 +124,10 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
                       {...props}
                       variant="outline"
                       color="gray"
-                      style={{ height: '45px', borderColor: 'var(--mantine-color-default-border)' }}
-                      leftSection={<FolderOpen  width={ 18 } height={ 18 } />}
+                      h={42}
+                      radius="md"
+                      leftSection={<FolderOpen width={18} height={18} />}
+                      styles={{ root: { border: '1.5px solid #E0E0E0', color: '#333', flexShrink: 0 } }}
                     >
                       Locate File
                     </Button>
@@ -134,7 +138,11 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
           </Box>
 
           <Select
-            label="Stream Type"
+            label={
+              <Text size="sm" fw={700} mb={5}>
+                Stream Type <span style={{ color: 'red' }}>*</span>
+              </Text>
+            }
             placeholder="Select type"
             data={[
               { value: 'RTSP', label: 'RTSP Stream' },
@@ -143,33 +151,49 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
               { value: 'EMBED', label: 'Embedded Web Page' }
             ]}
             {...form.getInputProps('stream_type')}
-            styles={inputStyles}
+            radius="md"
+            size="md"
+            leftSection={<Video width={18} height={18} style={{ color: '#888' }} />}
+            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
           />
 
           <TextInput
-            label="Location Name"
+            label={
+              <Text size="sm" fw={700} mb={5}>
+                Location Name
+              </Text>
+            }
             placeholder="e.g., Barangay Hall Entrance"
             {...form.getInputProps('location_name')}
-            styles={inputStyles}
+            radius="md"
+            size="md"
+            leftSection={<GlobeAlt width={18} height={18} style={{ color: '#888' }} />}
+            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
           />
 
-          <Group justify="flex-end" mt="xl" gap="md">
+          {/* Footer Actions */}
+          <Group grow mt="lg">
             <Button
-              variant="subtle"
+              variant="outline"
               color="gray"
+              radius="md"
+              size="md"
+              h={48}
               onClick={onClose}
-              px="xl"
+              styles={{ root: { border: '1.5px solid #E0E0E0', color: '#333' } }}
             >
               Cancel
             </Button>
             <Button
+              bg={SUBMIT}
+              radius="md"
+              size="md"
+              h={48}
               type="submit"
-              color="orange"
-              px="xl"
               loading={loading}
-              fw={700}
+              styles={{ root: { backgroundColor: SUBMIT } }}
             >
-              {initialValues ? "Update Camera" : "Add Camera"}
+              {initialValues ? 'Update Camera' : 'Add Camera'}
             </Button>
           </Group>
         </Stack>

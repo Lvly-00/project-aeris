@@ -7,11 +7,13 @@ import {
 import { Camera, Cog, Envelope, Globe, Lock, Moon, Sun, UserCircle } from '@boxicons/react';
 import { authAPI } from '../../shared/services/api';
 import { useAuth } from '../../shared/hooks/useAuth';
+import { resolveMediaUrl } from '../../shared/utils/mediaUrl';
 import { User } from '../../shared/types';
 import EditProfileModal from '../../shared/components/profile/EditNameModal';
 import ChangePasswordModal from '../../shared/components/profile/ChangePasswordModal';
 import ChangeEmailModal from '../../shared/components/profile/ChangeEmailModal';
 import VerificationCodeModal from '../../shared/components/VerificationCodeModal';
+import NotificationPermissionModal from '../../shared/components/NotificationPermissionModal';
 
 const ORANGE = '#FF6B00';
 
@@ -19,7 +21,7 @@ export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
-  const { logout } = useAuth();
+  const { logout, setUser: setAuthUser } = useAuth();
   const fileResetRef = useRef<() => void | null>(null);
 
   const { setColorScheme } = useMantineColorScheme();
@@ -31,6 +33,8 @@ export default function ProfilePage() {
   const [emailOpened, setEmailOpened] = useState(false);
   const [twoFAModalOpened, setTwoFAModalOpened] = useState(false);
   const [twoFAIntent, setTwoFAIntent] = useState<'enable' | 'disable'>('enable');
+  const [notifConsentOpened, setNotifConsentOpened] = useState(false);
+  const [notifConfirming, setNotifConfirming] = useState(false);
 
   const fetchProfile = () => {
     authAPI
@@ -47,10 +51,35 @@ export default function ProfilePage() {
     try {
       const res = await authAPI.updateProfile({ [field]: value });
       setUser(res.data);
+      setAuthUser(res.data);
     } catch (err) {
       console.error('Update failed', err);
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleNotificationToggle = (checked: boolean) => {
+    if (checked) {
+      // Ask for consent first, like every website does
+      setNotifConsentOpened(true);
+      return;
+    }
+    // Turning off takes effect immediately
+    handleUpdate('receive_notifications', false);
+  };
+
+  const handleNotificationConfirm = async () => {
+    setNotifConfirming(true);
+    try {
+      const res = await authAPI.updateProfile({ receive_notifications: true });
+      setUser(res.data);
+      setAuthUser(res.data);
+      setNotifConsentOpened(false);
+    } catch (err) {
+      console.error('Update failed', err);
+    } finally {
+      setNotifConfirming(false);
     }
   };
 
@@ -73,6 +102,7 @@ export default function ProfilePage() {
       formData.append('profile_picture', file);
       const res = await authAPI.updateProfile(formData);
       setUser(res.data);
+      setAuthUser(res.data);
     } catch (err) {
       console.error('Upload failed', err);
     } finally {
@@ -111,7 +141,7 @@ export default function ProfilePage() {
             <Stack align="center" gap="xs">
               <Box style={{ position: 'relative' }}>
                 <Box p={4} style={{ border: `2px solid ${ORANGE}`, borderRadius: '100%' }}>
-                  <Avatar src={user?.profile_picture} size={120} radius={120} />
+                  <Avatar src={resolveMediaUrl(user?.profile_picture)} size={120} radius={120} />
                 </Box>
                 <FileButton
                   resetRef={fileResetRef as any}
@@ -218,7 +248,7 @@ export default function ProfilePage() {
                 </Box>
                 <Switch
                   checked={user?.receive_notifications}
-                  onChange={(e) => handleUpdate('receive_notifications', e.currentTarget.checked)}
+                  onChange={(e) => handleNotificationToggle(e.currentTarget.checked)}
                   color="orange"
                 />
               </Group>
@@ -295,6 +325,13 @@ export default function ProfilePage() {
         onClose={() => setEmailOpened(false)}
         currentEmail={user?.email || ''}
         onEmailChanged={fetchProfile}
+      />
+
+      <NotificationPermissionModal
+        opened={notifConsentOpened}
+        onClose={() => setNotifConsentOpened(false)}
+        onConfirm={handleNotificationConfirm}
+        confirming={notifConfirming}
       />
 
       <VerificationCodeModal

@@ -153,7 +153,7 @@ export default function IncidentDetailPage() {
     if (window.history.length > 1) {
       navigate(-1);
     } else {
-      navigate('/pwa/incidents');
+      navigate('/pwa/admin/incidents');
     }
   };
 

@@ -12,25 +12,33 @@ import {
   rem,
   UnstyledButton,
   ScrollArea,
+  Title,
+  ActionIcon,
+  Divider,
 } from '@mantine/core';
-import { Check, Inbox } from '@boxicons/react';
+import { Bell, Check, Inbox, LocationPin, Tag, X } from '@boxicons/react';
 import { notifications } from '@mantine/notifications';
 
 import { AppNotification } from '../../shared/types/index';
 import { notificationsAPI } from '../../shared/services/api';
 import { formatRelativeTime } from '../../shared/utils/helpers';
+import { getAccessToken } from '../../shared/utils/tokenStorage';
 import { PRIORITY_COLORS } from '../../shared/utils/constants';
+
+const ORANGE = '#FF6B00';
 
 interface NotificationsModalProps {
   opened: boolean;
   onClose: () => void;
   onUnreadChange?: Dispatch<SetStateAction<number>>;
+  onNavigate?: (notification: AppNotification) => void;
 }
 
 export function NotificationsModal({
   opened,
   onClose,
   onUnreadChange,
+  onNavigate,
 }: NotificationsModalProps) {
   const [items, setItems] = useState<AppNotification[]>([]);
   const [loading, setLoading] = useState(false);
@@ -87,7 +95,7 @@ export function NotificationsModal({
   useEffect(() => {
     if (!opened) return;
 
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
     if (!token) return;
 
     const wsProtocol =
@@ -190,14 +198,85 @@ export function NotificationsModal({
     }
   };
 
+  /*
+   * Clicking a notification marks it read, closes the tray, then
+   * redirects to its source (incident detail for admins, dispatch
+   * list for tanods) when one is attached.
+   */
+  const handleOpen = (n: AppNotification) => {
+    if (!n.is_read) {
+      void handleMarkRead(n);
+    }
+    onClose();
+    onNavigate?.(n);
+  };
+
   return (
     <Modal
       opened={opened}
       onClose={onClose}
-      title="Notifications"
-      size="sm"
+      withCloseButton={false} // Custom close button in header
       centered
+      radius="lg"
+      size="md"
+      padding="xl"
     >
+      {/* Custom Header Section */}
+      <Group
+        justify="space-between"
+        align="flex-start"
+        mb="lg"
+        wrap="wrap"
+        gap="sm"
+      >
+        <Group
+          align="center"
+          gap="md"
+          style={{ flex: 1, minWidth: 200 }}
+        >
+          <Box
+            bg={ORANGE}
+            p={10}
+            style={{
+              borderRadius: '12px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              flexShrink: 0,
+            }}
+          >
+            <Bell
+              width={28}
+              height={28}
+              style={{ color: 'white', display: 'block' }}
+            />
+          </Box>
+          <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
+            <Title order={3} fw={700}>
+              Notifications
+            </Title>
+            <Text
+              c="dimmed"
+              fz="sm"
+              fw={400}
+              style={{ maxWidth: 300, lineHeight: 1.4 }}
+            >
+              Review real-time incident alerts and dispatches.
+            </Text>
+          </Stack>
+        </Group>
+        <ActionIcon
+          variant="transparent"
+          color="gray"
+          onClick={onClose}
+          aria-label="Close"
+        >
+          <X width={24} height={24} />
+        </ActionIcon>
+      </Group>
+      <Divider my="lg" />
+
+      {/* Toolbar */}
       <Group justify="space-between" mb="md">
         <Text size="sm" c="dimmed">
           {unreadCount} unread
@@ -206,7 +285,7 @@ export function NotificationsModal({
         <Button
           variant="light"
           size="compact-sm"
-          leftSection={<Check  width={ 14 } height={ 14 } />}
+          leftSection={<Check width={14} height={14} />}
           onClick={handleMarkAllRead}
           loading={markingAll}
           disabled={unreadCount === 0}
@@ -224,12 +303,11 @@ export function NotificationsModal({
           <Center py="xl">
             <Stack align="center" gap="xs">
               <Inbox
-                 width={40} height={40}
+                width={40}
+                height={40}
                 color="var(--mantine-color-dimmed)"
               />
-              <Text c="dimmed">
-                No notifications yet.
-              </Text>
+              <Text c="dimmed">No notifications yet.</Text>
             </Stack>
           </Center>
         ) : (
@@ -241,7 +319,7 @@ export function NotificationsModal({
               return (
                 <UnstyledButton
                   key={n.id}
-                  onClick={() => handleMarkRead(n)}
+                  onClick={() => handleOpen(n)}
                   w="100%"
                   style={{
                     border:
@@ -253,56 +331,101 @@ export function NotificationsModal({
                       : 'var(--mantine-color-orange-light)',
                   }}
                 >
-                  <Group
-                    align="flex-start"
-                    wrap="nowrap"
-                    gap="sm"
-                  >
-                    <Box
-                      style={{
-                        width: 8,
-                        height: 8,
-                        borderRadius: '50%',
-                        backgroundColor: n.is_read
-                          ? 'var(--mantine-color-dimmed)'
-                          : color,
-                        marginTop: 6,
-                        flexShrink: 0,
-                      }}
-                    />
-
-                    <Stack
-                      gap={2}
-                      style={{ flex: 1 }}
-                      align="flex-start"
+                  <Stack gap={8} align="stretch">
+                    {/* Incident id + time */}
+                    <Group
+                      justify="space-between"
+                      wrap="nowrap"
+                      align="center"
                     >
                       <Group
-                        justify="space-between"
-                        w="100%"
+                        gap="xs"
                         wrap="nowrap"
+                        align="center"
+                        style={{ minWidth: 0 }}
                       >
-                        <Text fw={700} size="sm" lineClamp={1}>
-                          {n.title}
-                        </Text>
+                        <Box
+                          style={{
+                            width: 8,
+                            height: 8,
+                            borderRadius: '50%',
+                            backgroundColor: n.is_read
+                              ? 'var(--mantine-color-dimmed)'
+                              : color,
+                            flexShrink: 0,
+                          }}
+                        />
                         <Text
-                          size="xs"
-                          c="dimmed"
-                          style={{ whiteSpace: 'nowrap' }}
+                          fw={700}
+                          size="sm"
+                          lineClamp={1}
                         >
-                          {formatRelativeTime(n.created_at)}
+                          Incident #{n.incident ?? '—'}
                         </Text>
                       </Group>
+                      <Text
+                        size="xs"
+                        c="dimmed"
+                        style={{ whiteSpace: 'nowrap' }}
+                      >
+                        {formatRelativeTime(n.created_at)}
+                      </Text>
+                    </Group>
 
+                    <Divider />
+
+                    {/* Incident type */}
+                    <Group
+                      justify="space-between"
+                      wrap="nowrap"
+                      gap="sm"
+                    >
+                      <Group gap="xs" wrap="nowrap" align="center">
+                        <Tag
+                          width={15}
+                          height={15}
+                          color="var(--mantine-color-dimmed)"
+                        />
+                        <Text size="sm" c="dimmed" fw={500}>
+                          Incident Type
+                        </Text>
+                      </Group>
                       <Text
                         size="sm"
-                        c="dimmed"
-                        lineClamp={2}
-                        ta="left"
+                        fw={600}
+                        lineClamp={1}
+                        ta="right"
                       >
-                        {n.message}
+                        {n.incident_type ?? '—'}
                       </Text>
-                    </Stack>
-                  </Group>
+                    </Group>
+
+                    {/* Location */}
+                    <Group
+                      justify="space-between"
+                      wrap="nowrap"
+                      gap="sm"
+                    >
+                      <Group gap="xs" wrap="nowrap" align="center">
+                        <LocationPin
+                          width={15}
+                          height={15}
+                          color="var(--mantine-color-dimmed)"
+                        />
+                        <Text size="sm" c="dimmed" fw={500}>
+                          Location
+                        </Text>
+                      </Group>
+                      <Text
+                        size="sm"
+                        fw={600}
+                        lineClamp={1}
+                        ta="right"
+                      >
+                        {n.location ?? '—'}
+                      </Text>
+                    </Group>
+                  </Stack>
                 </UnstyledButton>
               );
             })}

@@ -23,6 +23,7 @@ import { notifications } from '@mantine/notifications';
 import { Incident } from '../../../shared/types/index';
 import { IncidentCard } from '../../components/commons/IncidentCard';
 import { incidentsAPI } from '../../../shared/services/api';
+import { getAccessToken } from '../../../shared/utils/tokenStorage';
 
 export default function IncidentsPage() {
   const navigate = useNavigate();
@@ -133,7 +134,7 @@ export default function IncidentsPage() {
    * Incident WebSocket
    */
   useEffect(() => {
-    const token = localStorage.getItem('access_token');
+    const token = getAccessToken();
 
     if (!token) {
       console.warn(

@@ -197,39 +197,43 @@ export default function ChangePasswordModal({ opened, onClose }: ChangePasswordM
             styles={{ input: { border: '1.5px solid #E0E0E0' } }}
           />
 
-          <PasswordInput
-            label={
-              <Text size="sm" fw={600} mb={5}>
-                New Password <span style={{ color: 'red' }}>*</span>
-              </Text>
-            }
-            placeholder="Enter a new password"
-            value={newPassword}
-            onChange={(e) => setNewPassword(e.currentTarget.value)}
-            error={errors.new_password}
-            radius="md"
-            size="md"
-            leftSection={<Lock width={18} height={18} style={{ color: '#888' }} />}
-            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
-          />
-
-          <PasswordRequirements password={newPassword} />
-
-          <PasswordInput
-            label={
-              <Text size="sm" fw={600} mb={5}>
-                Confirm New Password <span style={{ color: 'red' }}>*</span>
-              </Text>
-            }
-            placeholder="Re-enter your new password"
-            value={confirmPassword}
-            onChange={(e) => setConfirmPassword(e.currentTarget.value)}
-            error={errors.confirm_password}
-            radius="md"
-            size="md"
-            leftSection={<Lock width={18} height={18} style={{ color: '#888' }} />}
-            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
-          />
+          <Group grow align="flex-start">
+            <Stack gap="sm">
+              <PasswordInput
+                label={
+                  <Text size="sm" fw={600} mb={5}>
+                    New Password <span style={{ color: 'red' }}>*</span>
+                  </Text>
+                }
+                placeholder="Enter a new password"
+                value={newPassword}
+                onChange={(e) => setNewPassword(e.currentTarget.value)}
+                error={errors.new_password}
+                radius="md"
+                size="md"
+                leftSection={<Lock width={18} height={18} style={{ color: '#888' }} />}
+                styles={{ input: { border: '1.5px solid #E0E0E0' } }}
+              />
+              <Box>
+                <PasswordRequirements password={newPassword} />
+              </Box>
+            </Stack>
+            <PasswordInput
+              label={
+                <Text size="sm" fw={600} mb={5}>
+                  Confirm New Password <span style={{ color: 'red' }}>*</span>
+                </Text>
+              }
+              placeholder="Re-enter your new password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.currentTarget.value)}
+              error={errors.confirm_password}
+              radius="md"
+              size="md"
+              leftSection={<Lock width={18} height={18} style={{ color: '#888' }} />}
+              styles={{ input: { border: '1.5px solid #E0E0E0' } }}
+            />
+          </Group>
 
           {/* Footer Actions */}
           <Group grow mt="lg">

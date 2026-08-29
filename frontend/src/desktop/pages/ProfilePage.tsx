@@ -8,11 +8,13 @@ import { Bell, Camera, Check, CheckShield, ChevronDown, ChevronLeft, GlobeAlt } 
 import { useNavigate } from 'react-router-dom';
 import { authAPI } from '../../shared/services/api';
 import { useAuth } from '../../shared/hooks/useAuth';
+import { resolveMediaUrl } from '../../shared/utils/mediaUrl';
 import { User } from '../../shared/types';
 import EditProfileModal from '../../shared/components/profile/EditNameModal';
 import ChangePasswordModal from '../../shared/components/profile/ChangePasswordModal';
 import ChangeEmailModal from '../../shared/components/profile/ChangeEmailModal';
 import VerificationCodeModal from '../../shared/components/VerificationCodeModal';
+import NotificationPermissionModal from '../../shared/components/NotificationPermissionModal';
 import TermsAndConditionsModal from '../../shared/components/TermsAndConditionsModal';
 import PrivacyPolicyModal from '../../shared/components/PrivacyPolicyModal';
 
@@ -32,6 +34,8 @@ export default function ProfilePage() {
   const [emailOpened, setEmailOpened] = useState(false);
   const [twoFAModalOpened, setTwoFAModalOpened] = useState(false);
   const [twoFAIntent, setTwoFAIntent] = useState<'enable' | 'disable'>('enable');
+  const [notifConsentOpened, setNotifConsentOpened] = useState(false);
+  const [notifConfirming, setNotifConfirming] = useState(false);
   const [termsOpened, setTermsOpened] = useState(false);
   const [privacyOpened, setPrivacyOpened] = useState(false);
   const [revealEmail, setRevealEmail] = useState(false);
@@ -59,6 +63,30 @@ export default function ProfilePage() {
       console.error('Update failed', err);
     } finally {
       setUpdating(false);
+    }
+  };
+
+  const handleNotificationToggle = (checked: boolean) => {
+    if (checked) {
+      // Ask for consent first, like every website does
+      setNotifConsentOpened(true);
+      return;
+    }
+    // Turning off takes effect immediately
+    handlePreferenceUpdate('receive_notifications', false);
+  };
+
+  const handleNotificationConfirm = async () => {
+    setNotifConfirming(true);
+    try {
+      const res = await authAPI.updateProfile({ receive_notifications: true });
+      setUserData(res.data);
+      setUser(res.data);
+      setNotifConsentOpened(false);
+    } catch (err) {
+      console.error('Update failed', err);
+    } finally {
+      setNotifConfirming(false);
     }
   };
 
@@ -130,7 +158,7 @@ export default function ProfilePage() {
             <Stack align="center" gap="xs">
               <Box style={{ position: 'relative' }}>
                 <Avatar
-                  src={userData.profile_picture}
+                  src={resolveMediaUrl(userData.profile_picture)}
                   size={180}
                   radius={100}
                   style={{ border: `3px solid ${ORANGE}` }}
@@ -283,7 +311,7 @@ export default function ProfilePage() {
                     color="orange"
                     size="md"
                     checked={userData.receive_notifications}
-                    onChange={(e) => handlePreferenceUpdate('receive_notifications', e.currentTarget.checked)}
+                    onChange={(e) => handleNotificationToggle(e.currentTarget.checked)}
                   />
                 </Group>
 
@@ -401,6 +429,13 @@ export default function ProfilePage() {
         title="Two-Factor Authentication"
         subtitle={twoFAIntent === 'disable' ? '2FA has been disabled.' : '2FA has been enabled. You will need to verify your identity on future logins.'}
         verifyLabel={twoFAIntent === 'disable' ? 'Disable 2FA' : 'Enable 2FA'}
+      />
+
+      <NotificationPermissionModal
+        opened={notifConsentOpened}
+        onClose={() => setNotifConsentOpened(false)}
+        onConfirm={handleNotificationConfirm}
+        confirming={notifConfirming}
       />
 
       <TermsAndConditionsModal opened={termsOpened} onClose={() => setTermsOpened(false)} />

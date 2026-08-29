@@ -106,6 +106,8 @@ export type NotificationType = 'Alert' | 'Warning' | 'Info';
 export interface AppNotification {
   id: number;
   incident: number | null;
+  incident_type: string | null;
+  location: string | null;
   title: string;
   message: string;
   notification_type: NotificationType;

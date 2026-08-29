@@ -133,12 +133,14 @@ export class WebSocketService {
 
     if (action === 'notification_new') {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
-      if (data.priority) playAlertSound(data.priority);
-      if (data.title) {
+      // Payload carries the NotificationSerializer data (nested under 'payload').
+      const n = data.payload;
+      if (n?.priority) playAlertSound(n.priority);
+      if (n?.title) {
         notifications.show({
-          title: data.title,
-          message: data.message || '',
-          color: data.priority === 'Critical' ? 'red' : 'orange',
+          title: n.title,
+          message: n.message || '',
+          color: n.priority === 'Critical' ? 'red' : 'orange',
         });
       }
     }
