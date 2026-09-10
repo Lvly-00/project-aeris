@@ -6,9 +6,14 @@ export default defineConfig(({ mode }) => {
   // The third parameter '' allows loading all variables regardless of VITE_ prefix
   const env = loadEnv(mode, process.cwd(), '');
 
-  const BACKEND_URL = env.VITE_BACKEND_URL || 'http://localhost:8000';
-  const WS_BACKEND_URL = env.VITE_WS_BACKEND_URL || 'ws://localhost:8000';
-  const AI_URL = env.VITE_AI_URL || 'http://localhost:8005';
+  const APP_TARGET = env.VITE_APP_TARGET || 'pwa';
+  const isDesktop = APP_TARGET === 'desktop';
+
+  // Base URLs depend on target
+  // Desktop retains full paths; PWA strips any /pwa prefix
+  const BACKEND_URL = env.VITE_BACKEND_URL || (isDesktop ? 'http://localhost:8000' : 'http://localhost:8000');
+  const WS_BACKEND_URL = env.VITE_WS_BACKEND_URL || (isDesktop ? 'ws://localhost:8000' : 'ws://localhost:8000');
+  const AI_URL = env.VITE_AI_URL || (isDesktop ? 'http://localhost:8005' : 'http://localhost:8005');
 
   return {
     plugins: [react()],
