@@ -5,7 +5,7 @@ from apps.lookups.models import Role
 
 User = get_user_model()
 
-DEFAULT_EMAIL = "admin@barangay.local"
+DEFAULT_EMAIL = "lovelypintes@gmail.com"
 DEFAULT_PASSWORD = "admin123"
 DEFAULT_ROLE = "CCTV Chief"
 
