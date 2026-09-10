@@ -17,9 +17,8 @@ export function CameraToolbar({ count, layout, onLayoutChange }: CameraToolbarPr
       <Group gap={8}>
         <Select
           value={layout}
-          onChange={(v) => onLayoutChange(v || 'grid')}
+          onChange={(v) => onLayoutChange(v || 'cctv-2x2')}
           data={[
-            { label: 'Grid: Auto', value: 'grid' },
             { label: 'Grid: 2×2', value: 'cctv-2x2' },
             { label: 'Grid: 3×3', value: 'cctv-3x3' },
             { label: 'Grid: 4×4', value: 'cctv-4x4' },

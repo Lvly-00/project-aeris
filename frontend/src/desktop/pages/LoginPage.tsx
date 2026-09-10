@@ -154,7 +154,7 @@ export default function LoginPage() {
             />
 
             <Text ta="center" c="dimmed" fz="sm" fw={500} style={{ maxWidth: 300, lineHeight: 1.4 }}>
-              AI-Assisted Barangay CCTV Incident Monitoring & Decision Support System.
+              AI-Assisted Emergency Response and Incident Surveillance System.
             </Text>
           </Center>
 
@@ -181,7 +181,7 @@ export default function LoginPage() {
                 withAsterisk={false}
                 {...form.getInputProps('password')}
                 visibilityToggleIcon={({ reveal }) =>
-                  reveal ? <EyeSlash  width={18} height={18} /> : <Eye  width={18} height={18} />
+                  reveal ? <EyeSlash width={18} height={18} /> : <Eye width={18} height={18} />
                 }
                 styles={{
                   input: { height: rem(50) },
@@ -212,7 +212,7 @@ export default function LoginPage() {
 
               {(error || sessionExpired) && (
                 <Alert
-                  icon={<InfoCircle  width={ 16 } height={ 16 } />}
+                  icon={<InfoCircle width={16} height={16} />}
                   color={sessionExpired && !error ? 'orange' : 'red'}
                   variant="light"
                   radius="md"

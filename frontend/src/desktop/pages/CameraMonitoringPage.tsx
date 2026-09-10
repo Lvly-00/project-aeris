@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Box, SimpleGrid, Paper, Text, Button, Stack, Group } from '@mantine/core';
+import { Box, Paper, Text, Button, Stack, Group } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { Camera, Phone, Plus } from '@boxicons/react';
@@ -8,7 +8,6 @@ import { SimulateIncidentBtn } from '../components/Camera/SimulateIncidentBtn';
 import { camerasAPI, contactsAPI } from '../../shared/services/api';
 import { PageHeader } from '../components/Layout/PageHeader'; // Assuming this path
 import { CameraToolbar } from '../components/Camera/CameraToolbar';
-import { CameraCard } from '../components/Camera/CameraCard';
 import { CameraGrid } from '../components/Camera/CameraGrid';
 import { CameraFormModal } from '../components/Camera/CameraFormModal';
 // import { IncidentAlertModal } from '../../components/Camera/IncidentAlertModal'; 
@@ -16,8 +15,11 @@ import type { IncidentDetectedData } from '../components/Camera/DetectionOverlay
 
 export default function CameraMonitoringPage() {
   const queryClient = useQueryClient();
-  const [layout, setLayout] = useState<'grid' | 'cctv-2x2' | 'cctv-3x3' | 'cctv-4x4'>(
-    () => (localStorage.getItem('camera-layout') as any) || 'grid'
+  const [layout, setLayout] = useState<'cctv-2x2' | 'cctv-3x3' | 'cctv-4x4'>(
+    () => {
+      const saved = localStorage.getItem('camera-layout');
+      return saved === 'cctv-2x2' || saved === 'cctv-3x3' || saved === 'cctv-4x4' ? saved : 'cctv-2x2';
+    }
   );
 
   const [modalOpen, setModalOpen] = useState(false);
@@ -111,30 +113,14 @@ export default function CameraMonitoringPage() {
           </Stack>
         </Paper>
       ) : (
-        <>
-          {layout === 'grid' ? (
-            <SimpleGrid cols={{ base: 1, sm: 2, lg: 3, xl: 4 }} spacing="md">
-              {cameras.map((camera: any) => (
-                <CameraCard
-                  key={camera.id}
-                  camera={camera}
-                  onFullscreen={setFullscreenCamera}
-                  onEdit={(cam) => { setEditingCamera(cam); setModalOpen(true); }}
-                  onDelete={(id) => deleteMutation.mutate(id)}
-                />
-              ))}
-            </SimpleGrid>
-          ) : (
-            <CameraGrid
-              cameras={cameras}
-              layout={layout}
-              onIncidentDetected={handleIncidentDetected}
-              onFullscreen={setFullscreenCamera}
-              onEdit={(cam) => { setEditingCamera(cam); setModalOpen(true); }}
-              onDelete={(id) => deleteMutation.mutate(id)}
-            />
-          )}
-        </>
+        <CameraGrid
+          cameras={cameras}
+          layout={layout}
+          onIncidentDetected={handleIncidentDetected}
+          onFullscreen={setFullscreenCamera}
+          onEdit={(cam) => { setEditingCamera(cam); setModalOpen(true); }}
+          onDelete={(id) => deleteMutation.mutate(id)}
+        />
       )}
 
       {/* 4. Modals */}
