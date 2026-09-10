@@ -6,7 +6,7 @@ import {
   clearTokens,
 } from '../utils/tokenStorage';
 
-const API_BASE_URL = '/api';
+const API_BASE_URL = `${import.meta.env.VITE_BACKEND_URL}/api`;
 
 /** Public pages must never be hijacked by the expired-session redirect. */
 const PUBLIC_AUTH_PATHS = [
@@ -117,7 +117,7 @@ api.interceptors.response.use(
 
         // Use plain axios to avoid interceptor loop.
         const response = await axios.post(
-          '/api/auth/token/refresh/',
+          `${import.meta.env.VITE_BACKEND_URL}/api/auth/token/refresh/`,
           {
             refresh,
           }
