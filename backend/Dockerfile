@@ -35,5 +35,5 @@ USER appuser
 EXPOSE 8000
 
 # ── Production server ─────────────────────────────────────────────────────────
-# Run migrations before starting Gunicorn
-CMD ["sh", "-c", "python manage.py migrate --noinput && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"]
+# Run migrations, seed default admin, then start Gunicorn
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_default_admin && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"]
