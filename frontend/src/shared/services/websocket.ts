@@ -26,17 +26,27 @@ export class WebSocketService {
   private pingInterval: ReturnType<typeof setInterval> | null = null;
   private running = false;
 
-  constructor(private readonly options: WebSocketServiceOptions) {}
+  constructor(private readonly options: WebSocketServiceOptions) { }
 
   connect(): void {
     const token = getAccessToken();
     if (!token || this.ws) return;
 
     try {
-      const protocol = window.location.protocol === 'https:' ? 'wss' : 'ws';
-      // Connect to window.location.host (Vite port 5173) 
-      // Vite forwards this to 8000 because of your vite.config.ts proxy
-      const socket = new WebSocket(`${protocol}://${window.location.host}${WS_PATH}?token=${token}`);
+      const apiUrl = import.meta.env.VITE_API_URL;
+
+      if (!apiUrl) {
+        console.error('[WS] VITE_API_URL is not configured');
+        return;
+      }
+
+      const wsBaseUrl = apiUrl
+        .replace(/^https:/, 'wss:')
+        .replace(/^http:/, 'ws:');
+
+      const socket = new WebSocket(
+        `${wsBaseUrl}${WS_PATH}?token=${encodeURIComponent(token)}`
+      );
       this.ws = socket;
 
       socket.onopen = () => {
@@ -74,7 +84,7 @@ export class WebSocketService {
     this.running = false;
     this.stopPing();
     if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
-    
+
     if (this.ws) {
       // FIX: Prevent "closed before established" error
       // Only close if it's actually open. If it's still connecting, remove handlers.
