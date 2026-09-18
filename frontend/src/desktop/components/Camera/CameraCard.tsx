@@ -56,7 +56,7 @@ export function CameraCard({ camera, onFullscreen, onEdit, onDelete }: CameraCar
           onClick={() => onFullscreen(camera)}
           style={{ zIndex: 5, borderRadius: 6 }}
         >
-          <Maximize size={20} />
+          <Maximize width={20} height={20} />
         </ActionIcon>
       </Box>
 
@@ -65,7 +65,7 @@ export function CameraCard({ camera, onFullscreen, onEdit, onDelete }: CameraCar
         <Group gap="md" wrap="nowrap">
           {/* Camera Icon */}
           <Box c="gray.7">
-            <Video size={32} />
+            <Video width={32} height={32} />
           </Box>
 
           {/* Camera Labels */}
