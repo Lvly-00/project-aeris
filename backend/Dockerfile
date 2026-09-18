@@ -35,5 +35,6 @@ USER appuser
 EXPOSE 8000
 
 # ── Production server ─────────────────────────────────────────────────────────
-# Run migrations, seed default admin, then start Gunicorn
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_default_admin && gunicorn config.wsgi:application --bind 0.0.0.0:$PORT"]
+# Run migrations, seed default admin, then start Daphne (ASGI) so HTTP and
+# WebSockets (/ws/incidents/) both work. Gunicorn (WSGI) cannot serve Channels.
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_default_admin && daphne -b 0.0.0.0 -p $PORT config.asgi:application"]

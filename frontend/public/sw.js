@@ -6,6 +6,8 @@
  *   - Static assets (js/css/icons/images): cache-first with background fill.
  *   - NEVER intercept backend traffic: /api/, /ws/, /ai/, /media/ and any
  *     cross-origin request always go straight to the network.
+ *   - Every respondWith() is guaranteed to resolve to a Response so a
+ *     missed cache never rejects the FetchEvent ("network error response").
  */
 
 const CACHE_NAME = 'aeris-static-v1';
@@ -14,6 +16,7 @@ const APP_SHELL = [
   '/',
   '/pwa',
   '/manifest.webmanifest',
+  '/index.html',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
 ];
@@ -22,23 +25,42 @@ const BYPASS_PREFIXES = ['/api/', '/ws/', '/ai/', '/media/', '/admin/'];
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches
-      .open(CACHE_NAME)
-      .then((cache) => cache.addAll(APP_SHELL))
-      .then(() => self.skipWaiting())
+    (async () => {
+      const cache = await caches.open(CACHE_NAME);
+      // Cache each shell asset independently so one failing URL (e.g. a
+      // redirect) doesn't abort the whole install and leave us without a SW.
+      await Promise.all(
+        APP_SHELL.map((url) => cache.add(url).catch(() => {}))
+      );
+      await self.skipWaiting();
+    })()
   );
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches
-      .keys()
-      .then((keys) =>
-        Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k)))
-      )
-      .then(() => self.clients.claim())
+    (async () => {
+      const keys = await caches.keys();
+      await Promise.all(
+        keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))
+      );
+      await self.clients.claim();
+    })()
   );
 });
+
+async function offlineResponse() {
+  const cache = await caches.open(CACHE_NAME);
+  return (
+    (await cache.match('/index.html')) ||
+    (await cache.match('/')) ||
+    new Response('Offline', {
+      status: 503,
+      statusText: 'Offline',
+      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
+    })
+  );
+}
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;
@@ -51,33 +73,40 @@ self.addEventListener('fetch', (event) => {
   // SPA navigations: network-first so users always get the latest build.
   if (request.mode === 'navigate') {
     event.respondWith(
-      fetch(request)
-        .then((response) => {
+      (async () => {
+        try {
+          const response = await fetch(request);
           const copy = response.clone();
-          caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(request, copy);
           return response;
-        })
-        .catch(() =>
-          caches
-            .match(request)
-            .then((cached) => cached || caches.match('/'))
-        )
+        } catch {
+          const cached =
+            (await caches.match(request)) || (await caches.match('/'));
+          return cached || offlineResponse();
+        }
+      })()
     );
     return;
   }
 
-  // Static assets: cache-first.
+  // Static assets: cache-first with network fill.
   event.respondWith(
-    caches.match(request).then(
-      (cached) =>
-        cached ||
-        fetch(request).then((response) => {
-          if (response.ok && response.type === 'basic') {
-            const copy = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(request, copy));
-          }
-          return response;
-        })
-    )
+    (async () => {
+      const cached = await caches.match(request);
+      if (cached) return cached;
+
+      try {
+        const response = await fetch(request);
+        if (response.ok && response.type === 'basic') {
+          const copy = response.clone();
+          const cache = await caches.open(CACHE_NAME);
+          await cache.put(request, copy);
+        }
+        return response;
+      } catch {
+        return offlineResponse();
+      }
+    })()
   );
 });

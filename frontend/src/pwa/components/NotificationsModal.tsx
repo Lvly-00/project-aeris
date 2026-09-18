@@ -21,8 +21,8 @@ import { notifications } from '@mantine/notifications';
 
 import { AppNotification } from '../../shared/types/index';
 import { notificationsAPI } from '../../shared/services/api';
+import { onWebSocketMessage } from '../../shared/services/websocket';
 import { formatRelativeTime } from '../../shared/utils/helpers';
-import { getAccessToken } from '../../shared/utils/tokenStorage';
 import { PRIORITY_COLORS } from '../../shared/utils/constants';
 
 const ORANGE = '#FF6B00';
@@ -90,75 +90,24 @@ export function NotificationsModal({
   }, [opened, refreshCount]);
 
   /*
-   * Real-time updates: listen for notification_new over the WS
+   * Real-time updates: listen for notification_new over the single shared
+   * WebSocket (only while the tray is open).
    */
   useEffect(() => {
     if (!opened) return;
 
-    const token = getAccessToken();
-    if (!token) return;
+    return onWebSocketMessage((data) => {
+      if (data.action !== 'notification_new' || !data.payload?.id) return;
 
-    const wsProtocol =
-      window.location.protocol === 'https:' ? 'wss' : 'ws';
-    const wsUrl =
-      `${wsProtocol}://${window.location.host}/ws/incidents/?token=${token}`;
-
-    const ws = new WebSocket(wsUrl);
-    let disposed = false;
-
-    ws.onopen = () => {
-      if (disposed) {
-        ws.close();
-        return;
-      }
-      console.log('[NOTIF-WS] Connected');
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        if (disposed) return;
-
-        const data = JSON.parse(event.data);
-
-        if (data.action === 'notification_new') {
-          setItems((prev) => {
-            const exists = prev.some(
-              (n) => n.id === data.payload.id
-            );
-            if (exists) return prev;
-            return [data.payload, ...prev];
-          });
-        }
-      } catch {
-        /* ignore */
-      }
-    };
-
-    ws.onerror = () => {
-      if (!disposed) {
-        console.error('[NOTIF-WS] Socket error');
-      }
-    };
-
-    ws.onclose = () => {
-      if (!disposed) {
-        console.log('[NOTIF-WS] Socket closed');
-      }
-    };
-
-    return () => {
-      disposed = true;
-
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      } else {
-        ws.onopen = null;
-        ws.onmessage = null;
-        ws.onerror = null;
-        ws.onclose = null;
-      }
-    };
-  }, [opened, onUnreadChange]);
+      setItems((prev) => {
+        const exists = prev.some(
+          (n) => n.id === data.payload.id
+        );
+        if (exists) return prev;
+        return [data.payload, ...prev];
+      });
+    });
+  }, [opened]);
 
   const unreadCount = items.filter((n) => !n.is_read).length;
 

@@ -3,7 +3,26 @@ import type { QueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { playAlertSound } from '../utils/sounds';
 
-// 1. Use relative path so Vite's proxy handles the upgrade automatically
+// The backend origin for WebSockets. Prefer the explicit WS var, then derive
+// it from the API base URL, then fall back to the current origin (dev proxy).
+function resolveWsBaseUrl(): string | null {
+  const explicit = import.meta.env.VITE_WS_BACKEND_URL as string | undefined;
+  if (explicit) return explicit.replace(/\/+$/, '');
+
+  const apiUrl =
+    (import.meta.env.VITE_BACKEND_URL as string | undefined) ||
+    (import.meta.env.VITE_API_URL as string | undefined);
+
+  if (apiUrl) {
+    return apiUrl
+      .replace(/\/+$/, '')
+      .replace(/^https:/, 'wss:')
+      .replace(/^http:/, 'ws:');
+  }
+
+  return null;
+}
+
 const WS_PATH = '/ws/incidents/';
 
 export interface WSMessage {
@@ -20,6 +39,32 @@ export interface WebSocketServiceOptions {
   onMessage?: (data: WSMessage) => void;
 }
 
+/**
+ * Subscriber API — lets any component react to WebSocket events without
+ * opening its own connection. The single socket in WebSocketService fans
+ * every received message out to these listeners.
+ */
+export type WSListener = (data: WSMessage) => void;
+
+const listeners: Set<WSListener> = new Set();
+
+export function onWebSocketMessage(listener: WSListener): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function notifyListeners(data: WSMessage): void {
+  for (const listener of listeners) {
+    try {
+      listener(data);
+    } catch (e) {
+      console.error('[WS] Listener error', e);
+    }
+  }
+}
+
 export class WebSocketService {
   private ws: WebSocket | null = null;
   private reconnectTimer: ReturnType<typeof setTimeout> | null = null;
@@ -32,18 +77,13 @@ export class WebSocketService {
     const token = getAccessToken();
     if (!token || this.ws) return;
 
+    const wsBaseUrl = resolveWsBaseUrl();
+    if (!wsBaseUrl) {
+      console.error('[WS] VITE_WS_BACKEND_URL / VITE_BACKEND_URL is not configured');
+      return;
+    }
+
     try {
-      const apiUrl = import.meta.env.VITE_API_URL;
-
-      if (!apiUrl) {
-        console.error('[WS] VITE_API_URL is not configured');
-        return;
-      }
-
-      const wsBaseUrl = apiUrl
-        .replace(/^https:/, 'wss:')
-        .replace(/^http:/, 'ws:');
-
       const socket = new WebSocket(
         `${wsBaseUrl}${WS_PATH}?token=${encodeURIComponent(token)}`
       );
@@ -59,6 +99,7 @@ export class WebSocketService {
           const data: WSMessage = JSON.parse(event.data);
           this.handleMessage(data);
           this.options.onMessage?.(data);
+          notifyListeners(data);
         } catch (e) {
           console.error('[WS] Parse error', e);
         }

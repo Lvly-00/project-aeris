@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useState, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
@@ -23,7 +23,6 @@ import { notifications } from '@mantine/notifications';
 import { Incident } from '../../../shared/types/index';
 import { IncidentCard } from '../../components/commons/IncidentCard';
 import { incidentsAPI } from '../../../shared/services/api';
-import { getAccessToken } from '../../../shared/utils/tokenStorage';
 
 export default function IncidentsPage() {
   const navigate = useNavigate();
@@ -131,130 +130,11 @@ export default function IncidentsPage() {
   };
 
   /*
-   * Incident WebSocket
+   * Real-time incident updates are delivered by the single shared WebSocket
+   * (App-level useWebSocket). It invalidates ['incidents'] and
+   * ['incident-history'] on incident_created / incident_update, so the list
+   * below refetches instantly — no per-page socket needed.
    */
-  useEffect(() => {
-    const token = getAccessToken();
-
-    if (!token) {
-      console.warn(
-        '[WS] No access token. WebSocket not started.'
-      );
-      return;
-    }
-
-    /*
-     * WebSocket backend location.
-     *
-     * Go through the Vite dev proxy (/ws) so the socket
-     * reaches Django regardless of the host in use.
-     */
-    const wsProtocol =
-      window.location.protocol === 'https:'
-        ? 'wss'
-        : 'ws';
-
-    const wsUrl =
-      `${wsProtocol}://${window.location.host}/ws/incidents/?token=${token}`;
-
-    console.log(
-      '[WS] Connecting to incident socket...'
-    );
-
-    const ws = new WebSocket(wsUrl);
-
-    /*
-     * StrictMode mounts effects twice in dev. Track
-     * disposal so a stale socket is closed silently
-     * instead of logging a browser error.
-     */
-    let disposed = false;
-
-    ws.onopen = () => {
-      if (disposed) {
-        ws.close();
-        return;
-      }
-
-      console.log(
-        '[WS] Incident socket connected'
-      );
-    };
-
-    ws.onmessage = (event) => {
-      try {
-        if (disposed) return;
-
-        const data = JSON.parse(event.data);
-
-        console.log('[WS] Incident event:', data);
-
-        /*
-         * Any incident creation or status change refetches the
-         * list from the server — resolved/dismissed incidents
-         * drop out of the active list automatically.
-         */
-        if (
-          data.action === 'incident_created' ||
-          data.action === 'incident_update'
-        ) {
-          queryClient.invalidateQueries({ queryKey: ['incidents'] });
-          queryClient.invalidateQueries({ queryKey: ['incident-history'] });
-        }
-      } catch (error) {
-        console.error(
-          '[WS] Invalid WebSocket message:',
-          error
-        );
-      }
-    };
-
-    ws.onerror = (error) => {
-      if (disposed) return;
-
-      console.error(
-        '[WS] Incident socket error:',
-        error
-      );
-    };
-
-    ws.onclose = (event) => {
-      if (disposed) return;
-
-      console.log(
-        '[WS] Incident socket closed:',
-        event.code,
-        event.reason
-      );
-    };
-
-    /*
-     * Cleanup
-     */
-    return () => {
-      console.log(
-        '[WS] Cleaning up incident socket'
-      );
-
-      disposed = true;
-
-      if (ws.readyState === WebSocket.OPEN) {
-        ws.close();
-      } else {
-        /*
-         * Socket still connecting (e.g. StrictMode
-         * double-mount). Don't close() a CONNECTING
-         * socket (that logs a browser error). Keep
-         * onopen attached so the socket closes itself
-         * once the handshake completes; silence the
-         * other handlers.
-         */
-        ws.onmessage = null;
-        ws.onerror = null;
-        ws.onclose = null;
-      }
-    };
-  }, [queryClient]);
 
   return (
     <Container size="sm" py="lg">
