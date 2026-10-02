@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect } from 'react';
-import { Box, Paper, Text, Button, Stack, Group } from '@mantine/core';
+import { Box, Paper, Text, Button, Stack, Group, Modal } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { Camera, Phone, Plus } from '@boxicons/react';
@@ -26,6 +26,9 @@ export default function CameraMonitoringPage() {
   const [editingCamera, setEditingCamera] = useState<any>(null);
   const [fullscreenCamera, setFullscreenCamera] = useState<any>(null);
   const [incidentAlert, setIncidentAlert] = useState<IncidentDetectedData | null>(null);
+  // Deleting a camera takes its incidents with it, so it now needs a
+  // confirmation step instead of firing on a single click.
+  const [cameraPendingDelete, setCameraPendingDelete] = useState<any>(null);
 
   // Sync layout to local storage
   useEffect(() => {
@@ -47,7 +50,18 @@ export default function CameraMonitoringPage() {
     mutationFn: (id: number) => camerasAPI.delete(id),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['incident-history'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      setCameraPendingDelete(null);
       notifications.show({ title: 'Deleted', message: 'Camera removed successfully', color: 'red' });
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to delete camera',
+        color: 'red',
+      });
     },
   });
 
@@ -61,6 +75,9 @@ export default function CameraMonitoringPage() {
         notifications.show({ title: 'Success', message: 'Camera added', color: 'green' });
       }
       queryClient.invalidateQueries({ queryKey: ['cameras'] });
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['incident-history'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       setModalOpen(false);
       setEditingCamera(null);
     } catch (error: any) {
@@ -119,7 +136,7 @@ export default function CameraMonitoringPage() {
           onIncidentDetected={handleIncidentDetected}
           onFullscreen={setFullscreenCamera}
           onEdit={(cam) => { setEditingCamera(cam); setModalOpen(true); }}
-          onDelete={(id) => deleteMutation.mutate(id)}
+          onDelete={(id) => setCameraPendingDelete(cameras.find((c: any) => c.id === id) ?? { id })}
         />
       )}
 
@@ -137,6 +154,44 @@ export default function CameraMonitoringPage() {
         incident={incidentAlert} 
         onClose={() => setIncidentAlert(null)} 
       /> */}
+
+      <Modal
+        opened={cameraPendingDelete !== null}
+        onClose={() => setCameraPendingDelete(null)}
+        title="Delete camera?"
+        centered
+        overlayProps={{ backgroundOpacity: 0.6, blur: 3 }}
+      >
+        <Stack gap="md">
+          <Text size="sm">
+            <b>{cameraPendingDelete?.name ?? `Camera ${cameraPendingDelete?.id}`}</b> will
+            be removed, along with every incident, detection and notification it
+            raised. This cannot be undone.
+          </Text>
+
+          <Group grow>
+            <Button
+              variant="outline"
+              color="gray"
+              onClick={() => setCameraPendingDelete(null)}
+            >
+              Cancel
+            </Button>
+
+            <Button
+              color="red"
+              loading={deleteMutation.isPending}
+              onClick={() => {
+                if (cameraPendingDelete) {
+                  deleteMutation.mutate(cameraPendingDelete.id);
+                }
+              }}
+            >
+              Delete camera
+            </Button>
+          </Group>
+        </Stack>
+      </Modal>
     </Box>
   );
 }

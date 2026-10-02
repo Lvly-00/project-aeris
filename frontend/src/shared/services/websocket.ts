@@ -182,6 +182,24 @@ export class WebSocketService {
       queryClient.invalidateQueries({ queryKey: ['incident-history'] });
     }
 
+    if (action === 'stats_changed') {
+      // Backend hint for writes with no incident payload to send: camera and
+      // user changes, incident deletions. Refetch rather than patching a
+      // number locally, so the tiles stay consistent with the tables.
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    }
+
+    if (action === 'camera_changed') {
+      // Incident cards are labelled with their camera's name and location, and
+      // deleting a camera now takes its incidents with it, so both the camera
+      // list and the incident rows need to re-read rather than keep showing
+      // names of cameras that no longer exist.
+      queryClient.invalidateQueries({ queryKey: ['cameras'] });
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['incident-history'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+    }
+
     if (action === 'notification_new') {
       queryClient.invalidateQueries({ queryKey: ['notifications'] });
       // Payload carries the NotificationSerializer data (nested under 'payload').

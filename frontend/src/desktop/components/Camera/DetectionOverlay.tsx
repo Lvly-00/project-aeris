@@ -1,8 +1,10 @@
 /**
  * DetectionOverlay — canvas drawn over the camera feed showing bounding boxes.
  *
- * Polling logic (5 s interval, staggered by camera_id) and incident creation
- * are unchanged from the original CameraMonitoringPage implementation.
+ * Polling logic (5 s interval, staggered by camera_id) is unchanged from the
+ * original CameraMonitoringPage implementation. Incident creation is delegated
+ * to the backend, which groups repeat detections for a camera into the one
+ * open incident and only alerts once per incident.
  */
 import { useRef, useCallback, useEffect } from 'react';
 import { Box } from '@mantine/core';
@@ -18,6 +20,14 @@ export const SEVERITY_COLORS: Record<string, string> = {
 };
 
 export const VALID_INCIDENT_TYPES = new Set(['Fire', 'Smoke', 'Vehicle_Accident']);
+
+/**
+ * How often we re-post a detection for the same camera + type. The server owns
+ * the grouping decision, so this only throttles uploads; re-posting after the
+ * window is what lets a camera re-alert once its incident is resolved or
+ * dismissed.
+ */
+const GROUPING_WINDOW_MS = 15_000;
 
 export interface IncidentDetectedData {
   incidentType: string;
@@ -76,7 +86,7 @@ export function DetectionOverlay({
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const detectionsRef = useRef<any[]>([]);
   const intervalRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const reportedTypes = useRef<Set<string>>(new Set());
+  const lastReportedAt = useRef<Map<string, number>>(new Map());
   const mountedRef = useRef(true);
 
   const detectAndCapture = useCallback(async () => {
@@ -156,31 +166,43 @@ export function DetectionOverlay({
       const evidenceFile = new File([evidenceBlob], 'evidence.jpg', { type: 'image/jpeg' });
 
       for (const d of detectionsRef.current) {
+        if (!(d.confidence > 0.3) || !VALID_INCIDENT_TYPES.has(d.incident_type)) continue;
+
         const key = `${d.incident_type}-${cameraId}`;
-        if (d.confidence > 0.3 && VALID_INCIDENT_TYPES.has(d.incident_type) && !reportedTypes.current.has(key)) {
-          try {
-            const fd = new FormData();
-            fd.append('incident_type', d.incident_type);
-            fd.append('confidence_score', String(d.confidence));
-            fd.append('camera_id', String(cameraId));
-            fd.append('bbox', JSON.stringify(d.bbox));
-            fd.append('evidence', evidenceFile, 'evidence.jpg');
-            if (d.crowd_size != null) fd.append('crowd_size', String(d.crowd_size));
-            await incidentsAPI.createFromDetection(fd);
-            reportedTypes.current.add(key);
-            if (onIncidentDetected) {
-              const evUrl = URL.createObjectURL(evidenceBlob);
-              onIncidentDetected({
-                incidentType: d.incident_type,
-                confidence: d.confidence,
-                evidenceUrl: evUrl,
-                cameraId,
-                cameraName: cameraName || `Camera #${cameraId}`,
-              });
-            }
-          } catch (err) {
-            console.warn('Failed to create incident from detection:', err);
+        if (Date.now() - (lastReportedAt.current.get(key) ?? 0) < GROUPING_WINDOW_MS) continue;
+        lastReportedAt.current.set(key, Date.now());
+
+        try {
+          const fd = new FormData();
+          fd.append('incident_type', d.incident_type);
+          fd.append('confidence_score', String(d.confidence));
+          fd.append('camera_id', String(cameraId));
+          fd.append('source', 'ai');
+          fd.append('bbox', JSON.stringify(d.bbox));
+          fd.append('evidence', evidenceFile, 'evidence.jpg');
+          if (d.crowd_size != null) fd.append('crowd_size', String(d.crowd_size));
+
+          const res = await incidentsAPI.createFromDetection(fd);
+
+          // grouped === true: the server folded this detection into the
+          // camera's already-alerted incident. Nothing new to announce.
+          if (res.data?.grouped) continue;
+
+          if (onIncidentDetected) {
+            const evUrl = URL.createObjectURL(evidenceBlob);
+            onIncidentDetected({
+              incidentType: d.incident_type,
+              confidence: d.confidence,
+              evidenceUrl: evUrl,
+              cameraId,
+              cameraName: cameraName || `Camera #${cameraId}`,
+            });
           }
+        } catch (err) {
+          // Allow an immediate retry on the next poll instead of waiting out
+          // the throttle window.
+          lastReportedAt.current.delete(key);
+          console.warn('Failed to create incident from detection:', err);
         }
       }
     } catch {

@@ -15,6 +15,12 @@ export default defineConfig(({ mode }) => {
   const WS_BACKEND_URL = env.VITE_WS_BACKEND_URL || (isDesktop ? 'ws://localhost:8000' : 'ws://localhost:8000');
   const AI_URL = env.VITE_AI_URL || (isDesktop ? 'http://localhost:8005' : 'http://localhost:8005');
 
+  // Server-side key for the /ai dev proxy. Read from a non-VITE_-prefixed var
+  // so it is available to this config but excluded from import.meta.env — the
+  // secret is injected here, never shipped to the browser. In production nginx
+  // / Django's ai_proxy plays this role instead.
+  const AI_API_KEY = env.AI_SERVICE_API_KEY || '';
+
   return {
     plugins: [react()],
     server: {
@@ -47,6 +53,11 @@ export default defineConfig(({ mode }) => {
           configure: (proxy) => {
             proxy.on('proxyReq', (proxyReq) => {
               proxyReq.setHeader('Accept-Encoding', 'identity');
+              // The browser sends a placeholder X-API-Key; overwrite it with the
+              // real one so authenticated routes (/cameras/{id}/detect) don't 403.
+              if (AI_API_KEY) {
+                proxyReq.setHeader('X-API-Key', AI_API_KEY);
+              }
             });
           },
         },

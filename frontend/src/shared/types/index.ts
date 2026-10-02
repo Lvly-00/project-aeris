@@ -83,6 +83,34 @@ export interface Incident {
   evidence_gallery: string[];
   duration: string;
   created_at: string;
+  source?: 'ai' | 'simulation' | 'manual';
+  detection_count?: number;
+}
+
+/** Operator verdict on a single detection: real incident or false positive. */
+export type DetectionVerdict = 'pending' | 'true' | 'false';
+
+/** Review progress across an incident's detections. */
+export interface VerdictCounts {
+  pending: number;
+  true: number;
+  false: number;
+}
+
+/**
+ * One row on the Incidents page: a camera that has an open incident, plus how
+ * far the operator has got reviewing that camera's detections.
+ */
+export interface CameraIncidentRow {
+  /** `null` for the placeholder row holding camera-less incidents. */
+  camera: number | null;
+  camera_name: string;
+  location_name: string | null;
+  incident: Incident;
+  detection_count: number;
+  /** Every distinct incident type detected on this camera, first-seen first. */
+  incident_types: string[];
+  verdict_counts: VerdictCounts;
 }
 
 export interface Detection {
@@ -92,11 +120,15 @@ export interface Detection {
   camera_name?: string;
   incident_type: IncidentType;
   confidence_score: number;
-  bbox_coords: number[];
-  fps: number;
+  bbox_coords?: number[] | Record<string, number>;
+  fps?: number;
   frame_timestamp: string;
   snapshot_image: string | null;
   is_verified: boolean;
+  /** Operator verdict on this single hit. */
+  verdict: DetectionVerdict;
+  reviewed_by_name?: string;
+  reviewed_at: string | null;
   processed: boolean;
   created_at: string;
 }
@@ -155,15 +187,21 @@ export interface EmergencyContact {
   created_at: string;
 }
 
+export interface DashboardTally {
+  name: string;
+  count: number;
+}
+
 export interface DashboardStats {
-  active_incidents: number;
-  total_incidents: number;
-  today_incidents: number;
-  avg_response_time: number | null;
+  total_users: number;
   total_cameras: number;
-  by_status: { status__name: string; count: number }[];
-  by_type: { incident_type__name: string; count: number }[];
-  by_severity: { severity: string; count: number }[];
+  total_tanods: number;
+  total_incidents: number;
+  active_incidents: number;
+  today_incidents: number;
+  by_status: DashboardTally[];
+  by_type: DashboardTally[];
+  verdicts: VerdictCounts;
 }
 
 export interface PaginatedResponse<T> {

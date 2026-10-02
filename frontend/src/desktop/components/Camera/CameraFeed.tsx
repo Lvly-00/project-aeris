@@ -2,12 +2,13 @@
  * CameraFeed — dispatches to the right feed component based on stream_type.
  * HTTP/MP4 cameras use a <video> element; RTSP uses the canvas polling path.
  */
-import { useState, useRef, useEffect } from 'react';
+import { useRef } from 'react';
 import { Box, Text } from '@mantine/core';
 import { Video } from '@boxicons/react';
 import { FpsOverlay, useFps } from './FpsOverlay';
 import { DetectionOverlay } from './DetectionOverlay';
 import { RTSPCameraFeed } from './RTSPCameraFeed';
+import { useCameraFeed } from '../../../shared/hooks/useCameraFeed';
 import type { IncidentDetectedData } from './DetectionOverlay';
 
 interface CameraFeedProps {
@@ -18,49 +19,14 @@ interface CameraFeedProps {
 export function CameraFeed({ camera, onIncidentDetected }: CameraFeedProps) {
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
-  const [hasError, setHasError] = useState(false);
-  const [errorMsg, setErrorMsg] = useState('');
-  const [streamUrl, setStreamUrl] = useState('');
-  const retryRef = useRef(0);
   const { fps, tick } = useFps();
 
-  const buildStreamUrl = () => {
-    const token = localStorage.getItem('access_token');
-    return `/api/cameras/${camera.id}/stream/?token=${encodeURIComponent(token || '')}`;
-  };
-
-  useEffect(() => {
-    setStreamUrl(buildStreamUrl());
-    retryRef.current = 0;
-    setHasError(false);
-    setErrorMsg('');
-  }, [camera.id]);
-
-  const handleError = async (e?: any) => {
-    const mediaErr = e?.target?.error;
-    let details = mediaErr ? `Code ${mediaErr.code}: ${mediaErr.message}` : 'Unknown error';
-    if (!mediaErr && streamUrl) {
-      try {
-        const res = await fetch(streamUrl);
-        if (!res.ok) {
-          const body = await res.text();
-          try {
-            const json = JSON.parse(body);
-            details = json.error || json.detail || body;
-          } catch {
-            details = `${res.status} ${res.statusText}: ${body.slice(0, 200)}`;
-          }
-        }
-      } catch { /* network error */ }
-    }
-    if (retryRef.current < 2) {
-      retryRef.current += 1;
-      setTimeout(() => setStreamUrl(buildStreamUrl()), 1000 * retryRef.current);
-    } else {
-      setHasError(true);
-      setErrorMsg(details);
-    }
-  };
+  // Shared hook resolves the token from localStorage *and* sessionStorage, so
+  // MP4 keeps working when the user logged in without "Remember Me".
+  const { streamUrl, hasError, errorMsg, handleError } = useCameraFeed({
+    cameraId: camera.id,
+    streamType: camera.stream_type,
+  });
 
   if (camera.stream_type === 'EMBED') {
     return (

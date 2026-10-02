@@ -15,6 +15,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.incidents.views import broadcast_stats_changed
+
 from .models import PasswordResetCode, EmailChangeCode, TwoFactorCode, TrustedDevice
 from .email import send_email
 from .serializers import (
@@ -129,6 +131,8 @@ class RegisterView(generics.CreateAPIView):
         serializer = self.get_serializer(data=request.data)
         serializer.is_valid(raise_exception=True)
         user = serializer.save()
+        # Total Users / Total Tanods both move when an account is added.
+        broadcast_stats_changed()
         return Response(
             UserSerializer(user, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
@@ -171,6 +175,9 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
                 )
 
         response = super().partial_update(request, *args, **kwargs)
+
+        # This serializer also accepts `role`, which the dashboard tallies.
+        broadcast_stats_changed()
 
         # --- Audit trail (FR-PP-009) ---
         _audit_action(
@@ -265,6 +272,9 @@ class UserViewSet(viewsets.ModelViewSet):
         serializer.is_valid(raise_exception=True)
         serializer.save()
 
+        # `role` is writable here and the dashboard tallies tanods by role.
+        broadcast_stats_changed()
+
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
 
@@ -290,6 +300,9 @@ class UserViewSet(viewsets.ModelViewSet):
         
         user.is_active = False
         user.save()
+        # The dashboard counts active users and tanods, both of which this
+        # soft delete changes.
+        broadcast_stats_changed()
         
         # Logging the action
         try:

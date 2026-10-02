@@ -1,14 +1,16 @@
-import { Paper, Text, Group, ThemeIcon, Stack } from '@mantine/core';
+import { Paper, Text, Group, ThemeIcon, Stack, Skeleton } from '@mantine/core';
 import { ReactNode } from 'react';
 
 interface StatCardProps {
     label: string;
-    value: string;
+    /** Real count from the API. */
+    value?: number;
     description: string;
     icon: ReactNode;
+    loading?: boolean;
 }
 
-export const StatCard = ({ label, value, description, icon }: StatCardProps) => {
+export const StatCard = ({ label, value, description, icon, loading = false }: StatCardProps) => {
     return (
         <Paper
             withBorder
@@ -42,14 +44,18 @@ export const StatCard = ({ label, value, description, icon }: StatCardProps) => 
                             {label}
                         </Text>
 
-                        <Text
-                            fz={30}
-                            fw={700}
-                            style={{ lineHeight: 1 }}
-                            c="var(--mantine-color-text)"
-                        >
-                            {value}
-                        </Text>
+                        {loading ? (
+                            <Skeleton height={30} width={48} radius="sm" />
+                        ) : (
+                            <Text
+                                fz={30}
+                                fw={700}
+                                style={{ lineHeight: 1 }}
+                                c="var(--mantine-color-text)"
+                            >
+                                {value ?? 0}
+                            </Text>
+                        )}
                     </Stack>
                 </Group>
 

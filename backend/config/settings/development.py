@@ -1,6 +1,7 @@
 """
 Development settings — local machine only.
-DEBUG=True, SQLite, permissive CORS to localhost ports, console email.
+DEBUG=True, SQLite (or local PostgreSQL via DATABASE_URL), permissive CORS to
+localhost ports, console email.
 Never use these settings in production or Docker deployments.
 """
 from .base import *  # noqa: F401, F403
@@ -14,13 +15,30 @@ ALLOWED_HOSTS = config(
     cast=Csv(),
 )
 
-# ── Database — SQLite by default for local dev ────────────────────────────────
-DATABASES = {
-    "default": {
-        "ENGINE": "django.db.backends.sqlite3",
-        "NAME": BASE_DIR / "db.sqlite3",  # noqa: F405 — BASE_DIR from base.*
+# ── Database — PostgreSQL if DATABASE_URL is set, else SQLite ─────────────────
+# To use a local PostgreSQL (e.g. created in pgAdmin), install the driver:
+#   pip install "psycopg[binary]" dj-database-url
+# then set in backend/.env, e.g.:
+#   DATABASE_URL=postgresql://postgres:YOUR_PASSWORD@localhost:5432/aeris_dev
+DATABASE_URL = config("DATABASE_URL", default="")
+
+if DATABASE_URL:
+    import dj_database_url
+
+    DATABASES = {
+        "default": dj_database_url.config(
+            default=DATABASE_URL,
+            conn_max_age=600,
+            conn_health_checks=True,
+        )
     }
-}
+else:
+    DATABASES = {
+        "default": {
+            "ENGINE": "django.db.backends.sqlite3",
+            "NAME": BASE_DIR / "db.sqlite3",  # noqa: F405 — BASE_DIR from base.*
+        }
+    }
 
 # ── CORS — localhost frontend ports only, never wildcard ─────────────────────
 CORS_ALLOWED_ORIGINS = config(

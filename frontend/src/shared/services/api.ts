@@ -218,6 +218,16 @@ export const incidentsAPI = {
   statusTransition: (id: number, status: string) =>
     api.patch(`/incidents/${id}/status/`, { status }),
   dashboardStats: () => api.get('/incidents/dashboard-stats/'),
+  byCamera: () => api.get('/incidents/by-camera/'),
+
+  /**
+   * Clear every open incident on the given cameras. The list is one row per
+   * camera, so deleting a row has to clear all of that camera's batches, not
+   * just the newest one on display. Pass `null` to clear the camera-less
+   * incidents that a deleted camera left behind.
+   */
+  deleteByCameras: (cameraIds: (number | null)[]) =>
+    api.delete('/incidents/by-camera/', { data: { camera_ids: cameraIds } }),
   createFromDetection: (data: any) => api.post('/incidents/create-from-detection/', data, {
     headers: data instanceof FormData ? { 'Content-Type': 'multipart/form-data' } : {},
   }),
@@ -226,6 +236,8 @@ export const incidentsAPI = {
 export const detectionsAPI = {
   list: (params?: any) => api.get('/detections/', { params }),
   get: (id: number) => api.get(`/detections/${id}/`),
+  setVerdict: (id: number, verdict: 'pending' | 'true' | 'false') =>
+    api.patch(`/detections/${id}/verdict/`, { verdict }),
 };
 
 export const notificationsAPI = {

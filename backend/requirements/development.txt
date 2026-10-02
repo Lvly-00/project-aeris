@@ -2,6 +2,12 @@
 -r base.txt
 
 # Database — SQLite is built into Python, no extra driver needed for dev.
+# Uncomment/install these two if you use local PostgreSQL (pgAdmin) instead:
+#   pip install "psycopg[binary]" dj-database-url
+# and set DATABASE_URL=postgresql://USER:PASSWORD@localhost:5432/aeris_dev
+# psycopg[binary]>=3.1,<4.0
+# dj-database-url>=2.1,<3.0
+
 # Uncomment mysqlclient if you want to test against a local MySQL instance:
 # mysqlclient>=2.2,<3.0
 

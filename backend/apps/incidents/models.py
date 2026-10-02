@@ -9,6 +9,11 @@ class Incident(models.Model):
         HIGH = "High", "High"
         CRITICAL = "Critical", "Critical"
 
+    class Source(models.TextChoices):
+        AI = "ai", "AI Detection"
+        SIMULATION = "simulation", "Simulation"
+        MANUAL = "manual", "Manual"
+
     incident_type = models.ForeignKey(
         "lookups.IncidentType",
         on_delete=models.PROTECT,
@@ -24,7 +29,11 @@ class Incident(models.Model):
     )
     camera = models.ForeignKey(
         "cameras.Camera",
-        on_delete=models.SET_NULL,
+        # An incident is meaningless without the camera that raised it: its
+        # detections, snapshots and location all belong to that camera. This
+        # used to be SET_NULL, which left camera-less incidents behind that
+        # still counted on the dashboard but could not be acted on.
+        on_delete=models.CASCADE,
         null=True,
         blank=True,
         related_name="incidents",
@@ -65,6 +74,13 @@ class Incident(models.Model):
     evidence_gallery = models.JSONField(default=list, blank=True)
     created_at = models.DateTimeField(auto_now_add=True)
     duration = models.CharField(max_length=50, blank=True, default="")
+    source = models.CharField(
+        max_length=20, choices=Source.choices, default=Source.MANUAL
+    )
+    # Number of AI detections folded into this incident. Repeat detections for a
+    # camera increment the counter on the open incident instead of creating a new
+    # one, so operators only get a single alert per ongoing incident.
+    detection_count = models.PositiveIntegerField(default=1)
 
     class Meta:
         verbose_name = "Incident"

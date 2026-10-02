@@ -29,10 +29,12 @@ class IncidentSerializer(serializers.ModelSerializer):
             "dismissed_at", "recorded_by", "recorded_by_name", "verified_by",
             "verified_by_name", "dismissed_by", "dismissed_by_name",
             "evidence_image", "evidence_gallery", "duration", "created_at",
+            "source", "detection_count",
         ]
         read_only_fields = [
             "id", "detected_at", "verified_at", "dispatched_at", "responded_at",
             "resolved_at", "archived_at", "dismissed_at", "created_at",
+            "source", "detection_count",
         ]
 
     def get_recorded_by_name(self, obj):

@@ -12,7 +12,13 @@ from enum import Enum
 
 import requests as http_requests
 
-from ..config import BACKEND_API_URL, FRAME_SKIP, DETECTION_FPS, INTERNAL_API_KEY
+from ..config import (
+    AI_SERVICE_API_KEY,
+    BACKEND_API_URL,
+    FRAME_SKIP,
+    DETECTION_FPS,
+    INTERNAL_API_KEY,
+)
 from ..pipeline.frame_reader import FrameReader, ReaderState
 from ..pipeline.detection_worker import DetectionWorker
 from ..core.detection_cache import DetectionCache, CachedDetection
@@ -253,9 +259,18 @@ class CameraManager:
                 if resp.status_code != 200:
                     return False
                 cam = resp.json()
-                rtsp_url = cam.get("rtsp_url", "")
-                stream_type = cam.get("stream_type", "RTSP")
+                # Django's CameraInfoView returns "stream_url" (internal.py).
+                # Accept "rtsp_url" as a legacy alias.
+                rtsp_url = cam.get("stream_url") or cam.get("rtsp_url") or ""
+                stream_type = cam.get("stream_type") or "RTSP"
+                if not cam.get("is_active", True):
+                    logger.info("Camera %d: inactive, skipping auto-register", camera_id)
+                    return False
                 if not rtsp_url:
+                    logger.warning(
+                        "Camera %d: internal API returned no stream_url (keys=%s)",
+                        camera_id, sorted(cam.keys()),
+                    )
                     return False
                 success = self.register_camera(camera_id, rtsp_url, stream_type)
                 if success:
@@ -305,7 +320,7 @@ class CameraManager:
             "source": state.source,
             "stream_type": state.stream_type,
             "status": state.status.value,
-            "connected": fr.state in (ReaderState.RUNNING, ReaderState.CONNECTED),
+            "connected": fr.state == ReaderState.RUNNING,
             "detecting": dw.is_running and not dw.is_paused,
             "fps": round(fr.fps, 1),
             "resolution": f"{fr.width}x{fr.height}",

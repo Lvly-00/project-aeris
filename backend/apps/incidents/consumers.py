@@ -94,6 +94,17 @@ class IncidentConsumer(AsyncJsonWebsocketConsumer):
             "payload": event["payload"],
         })
 
+    async def stats_changed(self, event):
+        await self.send_json({
+            "action": "stats_changed",
+        })
+
+    async def camera_changed(self, event):
+        await self.send_json({
+            "action": "camera_changed",
+            "payload": event.get("payload"),
+        })
+
     async def notification_new(self, event):
         await self.send_json({
             "action": "notification_new",

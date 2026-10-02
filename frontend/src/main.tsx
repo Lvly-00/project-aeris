@@ -46,7 +46,10 @@ const theme = createTheme({
 
 const isElectron = Boolean((window as any).electronAPI?.isDesktop);
 
-if ('serviceWorker' in navigator && !isElectron) {
+// PWA service worker — production only. During `vite dev` the SW's cached
+// HTML/JS fights Vite's HMR (stale HTML = stale HMR token = broken WebSocket),
+// so dev never registers it.
+if (import.meta.env.PROD && 'serviceWorker' in navigator && !isElectron) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {
       /* SW registration is best-effort; app works without it */

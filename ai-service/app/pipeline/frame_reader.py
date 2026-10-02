@@ -144,23 +144,35 @@ class FrameReader:
     def _open_capture(self, source: str) -> Optional[cv2.VideoCapture]:
         """Open a VideoCapture with timeouts to prevent indefinite blocking.
 
-        Lets OpenCV auto-detect the best backend (FFMPEG, DSHOW, MSMF, etc.)
-        instead of forcing CAP_FFMPEG which may not be available.
+        Timeouts must be passed as *open* parameters: setting
+        CAP_PROP_OPEN_TIMEOUT_MSC via cap.set() after the capture is constructed
+        is a no-op, because the blocking open has already happened by then.
+        Only the FFMPEG backend honours them, so a plain open is kept as a
+        fallback for builds that reject the params overload.
         """
-        cap = cv2.VideoCapture(source)
+        if self.stream_type == "RTSP":
+            timeout_ms = 10000
+        else:
+            timeout_ms = 5000
 
-        # Best-effort timeouts — only FFMPEG backend supports these,
-        # silently ignored by other backends
+        params = [
+            cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, timeout_ms,
+            cv2.CAP_PROP_READ_TIMEOUT_MSEC, timeout_ms,
+        ]
         try:
-            if self.stream_type == "RTSP":
-                cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 10000)
-                cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 10000)
-            else:
-                cap.set(cv2.CAP_PROP_OPEN_TIMEOUT_MSEC, 5000)
-                cap.set(cv2.CAP_PROP_READ_TIMEOUT_MSEC, 5000)
-        except Exception:
-            pass
+            cap = cv2.VideoCapture(source, cv2.CAP_ANY, params)
+            if cap.isOpened():
+                return cap
+            cap.release()
+        except Exception as exc:
+            logger.debug(
+                "Camera %d: params-based open unsupported (%s), falling back",
+                self.camera_id, exc,
+            )
 
+        cap = cv2.VideoCapture(source)
+        if not cap.isOpened():
+            cap.release()
         return cap
 
     def _read_stream_loop(self):
@@ -168,8 +180,18 @@ class FrameReader:
         self._state = ReaderState.CONNECTING
         cap = self._open_capture(self.source)
         if not cap.isOpened():
-            logger.error("Camera %d: Failed to open stream %s", self.camera_id, self.source)
+            logger.warning(
+                "Camera %d: Failed to open stream %s (retry in %.1fs)",
+                self.camera_id, self.source, self._reconnect_delay,
+            )
             self._state = ReaderState.RECONNECTING
+            # Back off here, otherwise _run() spins on failed opens in a tight
+            # loop and hammers the remote server.
+            if self._running:
+                time.sleep(self._reconnect_delay)
+                self._reconnect_delay = min(
+                    self._reconnect_delay * 2, RECONNECT_MAX_DELAY
+                )
             return
 
         with self._cap_lock:

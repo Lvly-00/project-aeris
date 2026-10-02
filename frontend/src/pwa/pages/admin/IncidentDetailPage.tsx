@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import {
   Container,
   Card,
@@ -26,10 +26,11 @@ import { notifications } from '@mantine/notifications';
 
 import { AlertCircle, ArrowLeft, Bell, Car, Check, CheckCircle, CheckShield, Clock, Cloud, EyeSlash, Flame, LocationPin, Maximize, RotateCcw, Siren, Star, Video, XCircle } from '@boxicons/react';
 
-import { incidentsAPI } from '../../../shared/services/api';
+import { incidentsAPI, detectionsAPI } from '../../../shared/services/api';
 import { STATUS_COLORS, SEVERITY_COLORS } from '../../../shared/utils/constants';
 import { formatDate, formatConfidence } from '../../../shared/utils/helpers';
-import type { Incident, IncidentStatus } from '../../../shared/types';
+import { DetectionList } from '../../components/commons/DetectionList';
+import type { Detection, Incident, IncidentStatus, DetectionVerdict } from '../../../shared/types';
 
 
 const STATUS_ACTIONS: Record<string, { label: string; next: IncidentStatus; color: string; variant?: string; icon: any }[]> = {
@@ -97,6 +98,67 @@ export default function IncidentDetailPage() {
     },
     enabled: !!incidentId,
     refetchInterval: 10000,
+  });
+
+  /*
+   * Every AI hit recorded for this camera's incident. The camera keeps
+   * re-detecting while the incident is live, so this grows over time — it
+   * refetches on the same cadence the detector posts at.
+   */
+  const { data: detections = [], isLoading: detectionsLoading } = useQuery({
+    queryKey: ['detections', incidentId],
+    queryFn: async () => {
+      const res = await detectionsAPI.list({
+        incident: incidentId,
+        ordering: '-created_at',
+      });
+      return (res.data.results || res.data) as Detection[];
+    },
+    enabled: !!incidentId,
+    refetchInterval: 15000,
+  });
+
+  const [pendingVerdictId, setPendingVerdictId] = useState<number | null>(null);
+
+  /*
+   * Check / cross on a single detection. Annotation only — it deliberately
+   * does not touch the incident's status, which still moves through the
+   * Verify/Dispatch buttons below.
+   */
+  const verdictMutation = useMutation({
+    mutationFn: ({ id, verdict }: { id: number; verdict: DetectionVerdict }) =>
+      detectionsAPI.setVerdict(id, verdict),
+
+    onMutate: async ({ id, verdict }) => {
+      setPendingVerdictId(id);
+      await queryClient.cancelQueries({ queryKey: ['detections', incidentId] });
+      const previous = queryClient.getQueryData(['detections', incidentId]);
+      queryClient.setQueryData(['detections', incidentId], (old: Detection[] | undefined) =>
+        old ? old.map((d) => (d.id === id ? { ...d, verdict } : d)) : old
+      );
+      return { previous };
+    },
+
+    onSuccess: (res) => {
+      queryClient.setQueryData(['detections', incidentId], (old: Detection[] | undefined) =>
+        old ? old.map((d) => (d.id === res.data.id ? res.data : d)) : old
+      );
+      // The camera row on the Incidents page shows review progress.
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+    },
+
+    onError: (err: any, _vars, context) => {
+      if (context?.previous) {
+        queryClient.setQueryData(['detections', incidentId], context.previous);
+      }
+      notifications.show({
+        title: 'Error',
+        message: err.response?.data?.error || 'Failed to save verdict',
+        color: 'red',
+      });
+    },
+
+    onSettled: () => setPendingVerdictId(null),
   });
 
   const statusMutation = useMutation({
@@ -460,6 +522,29 @@ export default function IncidentDetailPage() {
             </Box>
           </Group>
         </Group>
+      </Card>
+
+      {/* Detected Incidents — every AI hit for this camera, with check/cross */}
+      <Card withBorder radius="lg" p="md" mb="md">
+        <Group gap={6} mb="sm">
+          <CheckShield  width={14} height={14} color={theme.colors.gray[6]} />
+          <Text fw={700} fz={11} c="dimmed" tt="uppercase">
+            Detected Incidents
+          </Text>
+        </Group>
+
+        <Text fz={10} c="dimmed" mb="sm" lh={1.3}>
+          Every hit the AI produced on this camera while the incident is open.
+          Tick the ones that are real, cross the false positives.
+        </Text>
+
+        <DetectionList
+          detections={detections}
+          isLoading={detectionsLoading}
+          isPendingId={pendingVerdictId}
+          totalHits={incident.detection_count}
+          onVerdict={(id, verdict) => verdictMutation.mutate({ id, verdict })}
+        />
       </Card>
 
       {/* AI Recommendation */}

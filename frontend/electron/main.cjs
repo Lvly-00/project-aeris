@@ -10,7 +10,9 @@
  *   1. AERIS_SERVER_URL environment variable
  *   2. server-url.txt inside the user data folder (one line, e.g.
  *      "https://aeris.example.com") — editable by support without reinstalling
- *   3. Default: http://localhost:8000 (local development backend)
+ *   3. The build-time packaged server URL (electron/server-url.json, written
+ *      automatically by the build script — nothing for the user to edit)
+ *   4. Default: http://localhost:8000 (local development backend)
  *
  * Development mode (`npm run dev:desktop`) loads the Vite dev server, whose
  * proxies forward /api, /ws and /ai to localhost services.
@@ -44,6 +46,19 @@ function resolveServerUrl() {
       const cfgPath = path.join(app.getPath('userData'), 'server-url.txt');
       if (fs.existsSync(cfgPath)) {
         url = fs.readFileSync(cfgPath, 'utf-8').trim();
+      }
+    } catch (_) {}
+  }
+
+  // Packaged fallback: server-url.json is written into the app at build time
+  // by scripts\build-desktop.ps1 (or npm run build:desktop). Users never need
+  // to edit files by hand.
+  if (!url) {
+    try {
+      const bundled = path.join(__dirname, 'server-url.json');
+      if (fs.existsSync(bundled)) {
+        const parsed = JSON.parse(fs.readFileSync(bundled, 'utf-8'));
+        url = (parsed && parsed.url || '').trim();
       }
     } catch (_) {}
   }

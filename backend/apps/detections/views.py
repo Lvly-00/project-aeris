@@ -1,20 +1,25 @@
 import logging
 from rest_framework import viewsets, permissions
+from rest_framework.decorators import action
+from rest_framework.response import Response
 from .models import Detection
 from .serializers import (
     DetectionSerializer,
     DetectionCreateSerializer,
     DetectionListSerializer,
+    DetectionVerdictSerializer,
 )
 
 logger = logging.getLogger(__name__)
 
 
 class DetectionViewSet(viewsets.ModelViewSet):
-    queryset = Detection.objects.select_related("camera", "incident", "incident_type").all()
+    queryset = Detection.objects.select_related(
+        "camera", "incident", "incident_type", "reviewed_by",
+    ).all()
     permission_classes = [permissions.IsAuthenticated]
     search_fields = ["incident_type__name"]
-    filterset_fields = ["camera", "incident", "is_verified", "processed"]
+    filterset_fields = ["camera", "incident", "is_verified", "processed", "verdict"]
 
     def get_serializer_class(self):
         if self.action == "create":
@@ -38,3 +43,40 @@ class DetectionViewSet(viewsets.ModelViewSet):
         if date_to:
             qs = qs.filter(created_at__lte=date_to)
         return qs
+
+    @action(detail=True, methods=["patch"], url_path="verdict")
+    def set_verdict(self, request, pk=None) -> Response:
+        """
+        Operator check/cross on a single detection.
+
+        This is an annotation only — it never changes the parent incident's
+        status, which still moves through the normal Verify/Dispatch buttons.
+        """
+        detection = self.get_object()
+        serializer = DetectionVerdictSerializer(data=request.data)
+        serializer.is_valid(raise_exception=True)
+
+        detection.apply_verdict(serializer.validated_data["verdict"], request.user)
+
+        logger.info(
+            "[Detections] Detection %s for incident %s marked %s by %s",
+            detection.pk,
+            detection.incident_id,
+            detection.verdict,
+            request.user,
+        )
+
+        # Let other operators' open detail screens repaint their counts.
+        if detection.incident_id:
+            from apps.incidents.models import Incident
+            from apps.incidents.serializers import IncidentSerializer
+            from apps.incidents.views import broadcast_incident
+
+            incident = Incident.objects.filter(pk=detection.incident_id).first()
+            if incident:
+                broadcast_incident(
+                    "incident_update",
+                    IncidentSerializer(incident).data,
+                )
+
+        return Response(DetectionSerializer(detection).data)

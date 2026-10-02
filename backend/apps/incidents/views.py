@@ -1,5 +1,7 @@
+import json
 import logging
-from django.db.models import Count
+from django.db import transaction
+from django.db.models import Count, F, Min, Q
 from django.utils import timezone
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
@@ -25,6 +27,85 @@ from .serializers import (
 
 logger = logging.getLogger(__name__)
 
+# A camera is considered "clear" once its incident reaches one of these states.
+# An AI detection arriving after that re-arms the camera and alerts again.
+CLOSED_INCIDENT_STATUSES = ["Resolved", "Dismissed"]
+
+# Shown in place of a camera name when the camera was deleted out from under
+# an incident, which leaves the incident with no camera of its own.
+UNASSIGNED_CAMERA_LABEL = "Unassigned"
+
+# How many individual detection hits we retain per incident. A camera keeps
+# re-detecting while an incident is live; this bounds both the row count and
+# the snapshot storage while keeping `detection_count` as the true total.
+MAX_DETECTIONS_PER_INCIDENT = 50
+
+
+def record_detection_hit(incident, type_obj, camera, confidence, evidence, bbox_raw):
+    """
+    Persist one AI detection hit against the incident so operators can review
+    each re-detection individually and mark it real or a false positive.
+
+    Returns the created Detection, or None when the incident has hit its
+    retention cap. Detections without a camera are skipped — Detection.camera
+    is required and there is nothing to group them under.
+    """
+    from apps.detections.models import Detection
+
+    if camera is None:
+        return None
+
+    if incident.detections.count() >= MAX_DETECTIONS_PER_INCIDENT:
+        return None
+
+    bbox = {}
+    if bbox_raw:
+        try:
+            parsed = json.loads(bbox_raw) if isinstance(bbox_raw, str) else bbox_raw
+            if isinstance(parsed, (list, tuple)):
+                bbox = {
+                    "x1": parsed[0], "y1": parsed[1],
+                    "x2": parsed[2], "y2": parsed[3],
+                }
+            elif isinstance(parsed, dict):
+                bbox = parsed
+        except (ValueError, TypeError, IndexError):
+            logger.debug("Ignoring unparseable bbox: %r", bbox_raw)
+
+    return Detection.objects.create(
+        incident=incident,
+        camera=camera,
+        incident_type=type_obj,
+        confidence_score=confidence,
+        bbox_coords=bbox,
+        frame_timestamp=timezone.now(),
+        snapshot_image=evidence,
+    )
+
+
+def find_open_incident(camera, lock=False):
+    """
+    Return the still-open *live* incident for a camera, or None.
+
+    Used to group repeat AI detections: while a live incident is open the
+    camera keeps folding new detections into it instead of raising a new
+    alert. Simulations are deliberately excluded — they are test alerts, so
+    they must not occupy a camera's live slot and mask real detections.
+    """
+    if camera is None:
+        return None
+
+    queryset = Incident.objects.filter(
+        camera=camera,
+        source=Incident.Source.AI,
+    ).exclude(
+        status__name__in=CLOSED_INCIDENT_STATUSES
+    )
+    if lock:
+        queryset = queryset.select_for_update()
+    return queryset.order_by("-detected_at").first()
+
+
 def broadcast_incident(event_type, incident_data):
     """
     event_type: 'incident_created' or 'incident_update'
@@ -40,6 +121,55 @@ def broadcast_incident(event_type, incident_data):
         )
     except Exception as e:
         logger.error(f"WebSocket Broadcast Failed: {e}")
+
+
+def broadcast_stats_changed():
+    """
+    Tell every connected client that a dashboard figure may have moved.
+
+    Incident creates and updates already carry their own payload, but other
+    writes the dashboard counts have nothing meaningful to send — a camera
+    being added, a user being deleted, an incident being removed. Those left
+    the tiles stale until the next poll, so clients refetch on this hint
+    instead. Deliberately payload-free: the dashboard re-reads the numbers
+    rather than trusting a count computed before the write finished.
+    """
+    try:
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "incidents",
+            {"type": "stats_changed"},
+        )
+    except Exception as e:
+        logger.error(f"WebSocket Stats Broadcast Failed: {e}")
+
+
+def broadcast_camera_changed(camera, action: str):
+    """
+    Tell clients a camera row was created, edited or removed.
+
+    The Incidents page labels each row with its camera's name and location, so
+    renaming a camera has to reach those cards as well as the camera list.
+    Carrying the id lets a client drop the matching row instantly; clients that
+    just refetch are still correct without it.
+    """
+    try:
+        channel_layer = get_channel_layer()
+        async_to_sync(channel_layer.group_send)(
+            "incidents",
+            {
+                "type": "camera_changed",
+                "payload": {
+                    "action": action,
+                    "camera_id": camera.id,
+                    "name": camera.name,
+                    "location_name": camera.location_name,
+                },
+            },
+        )
+    except Exception as e:
+        logger.error(f"WebSocket Camera Broadcast Failed: {e}")
+
 
 def broadcast_notification(notification):
     """
@@ -179,6 +309,11 @@ class IncidentViewSet(viewsets.ModelViewSet):
             return IncidentListSerializer
         return IncidentSerializer
 
+    def perform_destroy(self, instance):
+        instance.delete()
+        # Every incident write moves the dashboard's incident tallies.
+        broadcast_stats_changed()
+
     def perform_create(self, serializer):
         incident = serializer.save()
 
@@ -210,6 +345,9 @@ class IncidentViewSet(viewsets.ModelViewSet):
         incident_type = request.data.get("incident_type")
         camera_id = request.data.get("camera_id")
         confidence_score = request.data.get("confidence_score")
+        # Callers that omit `source` are treated as simulations, which always
+        # create a fresh incident + alert. Only live AI detections are grouped.
+        source = request.data.get("source") or Incident.Source.SIMULATION
 
         if not incident_type:
             return Response(
@@ -247,15 +385,90 @@ class IncidentViewSet(viewsets.ModelViewSet):
                     status=status.HTTP_404_NOT_FOUND,
                 )
 
-        incident = Incident.objects.create(
-            incident_type=type_obj,
-            severity="Medium" if confidence < 0.8 else "High",
-            status=IncidentStatus.objects.get(name="Detected"),
-            camera=camera,
-            confidence_score=confidence,
-            description=f"AI detected {type_obj.name} from {camera.name if camera else 'simulation'}",
-            recorded_by=request.user,
-        )
+        group_repeats = source == Incident.Source.AI
+        is_test_alert = source == Incident.Source.SIMULATION
+        evidence = request.FILES.get("evidence") or None
+        bbox_raw = request.data.get("bbox")
+
+        # A simulation can fire a small burst so the review list has something
+        # to triage. Live AI cadence is driven by the detector, not by this.
+        repeat = 1
+        if is_test_alert:
+            try:
+                repeat = max(1, min(int(request.data.get("repeat") or 1), 10))
+            except (TypeError, ValueError):
+                repeat = 1
+
+        with transaction.atomic():
+            open_incident = (
+                find_open_incident(camera, lock=True)
+                if group_repeats
+                else None
+            )
+
+            if open_incident is not None:
+                # Same camera, same ongoing incident — fold this detection into
+                # it and stay silent so operators get exactly one alert. The hit
+                # is still recorded so the detail screen can list them all.
+                updates = {"detection_count": F("detection_count") + 1}
+                if confidence > open_incident.confidence_score:
+                    updates["confidence_score"] = confidence
+
+                Incident.objects.filter(pk=open_incident.pk).update(**updates)
+                open_incident.refresh_from_db(fields=list(updates))
+
+                record_detection_hit(
+                    open_incident, type_obj, camera, confidence,
+                    evidence, bbox_raw,
+                )
+
+                logger.info(
+                    "[Incidents] Grouped repeat detection into incident "
+                    "%s (camera=%s, count=%s)",
+                    open_incident.pk,
+                    camera.name if camera else None,
+                    open_incident.detection_count,
+                )
+
+                data = IncidentSerializer(
+                    open_incident,
+                    context={"request": request},
+                ).data
+
+                return Response(
+                    {**data, "grouped": True},
+                    status=status.HTTP_200_OK,
+                )
+
+            incident = Incident.objects.create(
+                incident_type=type_obj,
+                severity="Medium" if confidence < 0.8 else "High",
+                status=IncidentStatus.objects.get(name="Detected"),
+                camera=camera,
+                confidence_score=confidence,
+                description=f"AI detected {type_obj.name} from {camera.name if camera else 'simulation'}",
+                recorded_by=request.user,
+                source=source,
+                evidence_image=evidence,
+            )
+
+            recorded = 0
+            for index in range(repeat):
+                row = record_detection_hit(
+                    incident, type_obj, camera, confidence,
+                    # Only the first row carries the snapshot; repeating the same
+                    # image per hit would just multiply the storage.
+                    evidence if index == 0 else None,
+                    bbox_raw,
+                )
+                if row is not None:
+                    recorded += 1
+
+            # The counter must match the rows actually kept, otherwise the card
+            # reports a single hit for a multi-hit burst.
+            if recorded != incident.detection_count:
+                incident.detection_count = recorded
+                incident.save(update_fields=["detection_count"])
 
         data = IncidentSerializer(
             incident,
@@ -270,7 +483,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
         create_incident_notification(incident)
 
         return Response(
-            data,
+            {**data, "grouped": False},
             status=status.HTTP_201_CREATED
         )
 
@@ -355,16 +568,201 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
         return Response(result)
 
+    @action(detail=False, methods=["get", "delete"], url_path="by-camera")
+    def by_camera(self, request) -> Response:
+        if request.method == "DELETE":
+            return self.delete_open_by_camera(request)
+
+        """
+        One row per camera that has an open incident.
+
+        Operators think in cameras, not in individual detections, so the
+        incidents list is grouped: a camera appears once, pointing at its most
+        recent open incident, with the review progress for its detections.
+        """
+        from apps.detections.models import Detection
+
+        open_incidents = (
+            Incident.objects.select_related("camera", "incident_type", "status")
+            .exclude(status__name__in=CLOSED_INCIDENT_STATUSES)
+            .order_by("-detected_at")
+        )
+
+        # Newest open incident per camera. Done in Python rather than with
+        # .distinct("camera_id") so it also works on SQLite.
+        newest_by_camera: dict = {}
+        unassigned: list = []
+        for incident in open_incidents:
+            # Deleting a camera nulls out its incidents, so those rows would
+            # otherwise sit in the database counted on the dashboard while
+            # being unreachable here. Surface them as one placeholder row.
+            if incident.camera_id is None:
+                unassigned.append(incident)
+            else:
+                newest_by_camera.setdefault(incident.camera_id, incident)
+
+        groups = list(newest_by_camera.items())
+        if unassigned:
+            groups.append((None, unassigned[0]))
+
+        rows = []
+        for camera_id, incident in groups:
+            detections = Detection.objects.filter(incident=incident)
+
+            verdicts = {
+                row["verdict"]: row["n"]
+                for row in detections.values("verdict").annotate(n=Count("id"))
+            }
+
+            # A camera can detect more than one kind of thing during a single
+            # incident (a fire and its smoke, say). Surface every distinct type
+            # so the camera row isn't reduced to whatever fired first.
+            incident_types = [incident.incident_type.name]
+            for row in (
+                detections.values("incident_type__name")
+                .annotate(n=Count("id"), first_seen=Min("id"))
+                .order_by("-n", "first_seen")
+            ):
+                name = row["incident_type__name"]
+                if name not in incident_types:
+                    incident_types.append(name)
+
+            rows.append(
+                {
+                    "camera": camera_id,
+                    "camera_name": (
+                        incident.camera.name
+                        if incident.camera_id is not None
+                        else UNASSIGNED_CAMERA_LABEL
+                    ),
+                    "location_name": (
+                        incident.camera.location_name
+                        if incident.camera_id is not None
+                        else None
+                    ),
+                    "incident": IncidentSerializer(
+                        incident,
+                        context={"request": request},
+                    ).data,
+                    "detection_count": incident.detection_count,
+                    "incident_types": incident_types,
+                    "verdict_counts": {
+                        "pending": verdicts.get("pending", 0),
+                        "true": verdicts.get("true", 0),
+                        "false": verdicts.get("false", 0),
+                    },
+                }
+            )
+
+        return Response(rows)
+
+    def delete_open_by_camera(self, request) -> Response:
+        """
+        Clear every open incident on the given cameras.
+
+        The list shows one row per camera, but a camera can hold several open
+        incidents at once — repeated simulations each open their own, for
+        example. Deleting only the row's newest incident left the older ones
+        behind, so the operator had to repeat "delete all" until every batch
+        was gone. Deleting a camera row now means clearing that camera.
+        """
+        raw = request.data.get("camera_ids") or []
+        if not isinstance(raw, list):
+            return Response(
+                {"error": "camera_ids must be a list"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        # `null` stands for the placeholder row, i.e. every open incident
+        # whose camera has since been deleted.
+        camera_ids: list[int] = []
+        include_unassigned = False
+        for value in raw:
+            if value is None:
+                include_unassigned = True
+                continue
+            try:
+                camera_ids.append(int(value))
+            except (TypeError, ValueError):
+                return Response(
+                    {"error": "camera_ids must contain integers or null"},
+                    status=status.HTTP_400_BAD_REQUEST,
+                )
+
+        if not camera_ids and not include_unassigned:
+            return Response({"deleted": 0})
+
+        doomed = Incident.objects.filter(
+            Q(camera_id__in=camera_ids) | Q(camera__isnull=True)
+        ).exclude(
+            status__name__in=CLOSED_INCIDENT_STATUSES
+        )
+
+        deleted = doomed.count()
+        doomed.delete()
+        broadcast_stats_changed()
+
+        return Response({"deleted": deleted})
+
     @action(detail=False, methods=["get"], url_path="dashboard-stats")
     def dashboard_stats(self, request) -> Response:
+        """
+        Real numbers for the dashboard. Every count is derived from the live
+        tables so the page never has to fall back on placeholder figures.
+        """
+        from apps.accounts.models import User
+        from apps.detections.models import Detection
+
         base = Incident.objects.all()
+        open_incidents = base.exclude(status__name__in=CLOSED_INCIDENT_STATUSES)
+
+        # Soft-deleted accounts (is_active=False) are hidden everywhere else,
+        # so they must not inflate the user totals either.
+        active_users = User.objects.filter(is_active=True)
+
+        def tally(queryset, field) -> list:
+            return [
+                {"name": row[field], "count": row["n"]}
+                for row in queryset
+            ]
+
+        # `Detection.incident` is SET_NULL, so a deleted incident leaves its
+        # detections behind. Counting those would make the verdict ring grow
+        # past the incidents an operator can actually see.
+        reviewed = Detection.objects.filter(incident__isnull=False)
+        verdicts = {
+            choice: reviewed.filter(verdict=choice).count()
+            for choice in Detection.Verdict.values
+        }
+
         return Response({
-            "active_incidents": base.exclude(status__name__in=["Resolved", "Dismissed"]).count(),
-            "total_incidents": base.count(),
-            "today_incidents": base.filter(detected_at__date=timezone.now().date()).count(),
+            "total_users": active_users.count(),
             "total_cameras": Camera.objects.count(),
-            "by_status": base.values("status__name").annotate(count=Count("id")),
-            "by_type": base.values("incident_type__name").annotate(count=Count("id")),
+            "total_tanods": active_users.filter(
+                role__name="Barangay Tanod"
+            ).count(),
+            "total_incidents": base.count(),
+            "active_incidents": open_incidents.count(),
+            "today_incidents": base.filter(
+                detected_at__date=timezone.now().date()
+            ).count(),
+            "by_status": tally(
+                base.values("status__name")
+                .annotate(n=Count("id"))
+                .order_by("-n"),
+                "status__name",
+            ),
+            "by_type": tally(
+                base.values("incident_type__name")
+                .annotate(n=Count("id"))
+                .order_by("-n"),
+                "incident_type__name",
+            ),
+            "verdicts": {
+                "pending": verdicts.get(Detection.Verdict.PENDING, 0),
+                "true": verdicts.get(Detection.Verdict.TRUE, 0),
+                "false": verdicts.get(Detection.Verdict.FALSE, 0),
+            },
         })
 
     @action(detail=True, methods=["get"], url_path="timeline")

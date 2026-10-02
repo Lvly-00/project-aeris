@@ -3,6 +3,7 @@ import re
 import mimetypes
 import logging
 from pathlib import Path
+from typing import List
 from wsgiref.util import FileWrapper
 from datetime import datetime
 from django.conf import settings
@@ -14,6 +15,7 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import AccessToken
 from apps.lookups.models import CameraStatus
+from apps.incidents.views import broadcast_camera_changed, broadcast_stats_changed
 from .models import Camera
 from .serializers import CameraSerializer, CameraStatusSerializer
 
@@ -24,6 +26,42 @@ def _is_subpath(child: Path, parent: Path) -> bool:
         return True
     except ValueError:
         return False
+
+
+# Directories searched for a bare MP4 filename. The "Locate File" button in the
+# camera form can only store file.name (browsers never expose a real path), so
+# "smoke_1.mp4" arrives with no directory at all. Look in the obvious places
+# before giving up — no recursive walk, which would be slow and unpredictable.
+_VIDEO_SEARCH_DIRS = ("", "sample videos", "videos", "mp4", "media/videos")
+
+
+def _resolve_video_path(raw: str) -> Path:
+    """Resolve a stored stream_url to a concrete file path.
+
+    Absolute paths are used as-is. Anything else is tried against BASE_DIR,
+    MEDIA_ROOT and the project root, plus a few well-known media subfolders.
+    The caller still enforces the allowed-subpath check, so widening the search
+    here cannot expose a file outside the project.
+    """
+    candidate = Path(raw)
+    if candidate.is_absolute():
+        return candidate.resolve()
+
+    base = Path(settings.BASE_DIR).resolve()
+    roots = [base, Path(settings.MEDIA_ROOT).resolve(), base.parent]
+    tried: List[Path] = []
+
+    for root in roots:
+        for sub in _VIDEO_SEARCH_DIRS:
+            tried.append((root / sub / candidate).resolve() if sub else (root / candidate).resolve())
+
+    for path in tried:
+        if path.is_file():
+            return path
+
+    # Nothing matched — return the primary interpretation so the 404 message
+    # shows the path that was actually looked for.
+    return (base / candidate).resolve()
 
 logger = logging.getLogger(__name__)
 
@@ -36,7 +74,27 @@ class CameraViewSet(viewsets.ModelViewSet):
     ordering_fields = ["name", "status", "last_seen", "created_at"]
 
     def perform_create(self, serializer):
-        serializer.save(status=CameraStatus.objects.get(name="Online"))
+        camera = serializer.save(status=CameraStatus.objects.get(name="Online"))
+        # The dashboard counts cameras, and a client that just created one
+        # would otherwise keep showing the old tile until its next poll.
+        broadcast_stats_changed()
+        broadcast_camera_changed(camera, "created")
+        return camera
+
+    def perform_update(self, serializer):
+        camera = serializer.save()
+        broadcast_stats_changed()
+        # The Incidents page prints this camera's name and location on every
+        # one of its cards, so a rename has to reach other clients too.
+        broadcast_camera_changed(camera, "updated")
+        return camera
+
+    def perform_destroy(self, instance):
+        # Incidents, detections, timeline and notifications go with it:
+        # Incident.camera cascades.
+        instance.delete()
+        broadcast_stats_changed()
+        broadcast_camera_changed(instance, "deleted")
 
     @action(detail=True, methods=["patch"], url_path="status")
     def status_update(self, request, pk=None) -> Response:
@@ -86,7 +144,8 @@ class CameraViewSet(viewsets.ModelViewSet):
         if camera.stream_type != Camera.StreamType.MP4:
             return Response({"error": "Stream endpoint only supports MP4 files"}, status=400)
 
-        if not settings.DESKTOP_MODE:
+        desktop_mode = getattr(settings, "DESKTOP_MODE", False)
+        if not desktop_mode:
             user = None
             jwt_auth = JWTAuthentication()
             try:
@@ -102,11 +161,8 @@ class CameraViewSet(viewsets.ModelViewSet):
                         pass
             if not user or not user.is_authenticated:
                 return Response({"detail": "Authentication required"}, status=401)
-        filepath = Path(camera.stream_url)
-        if not filepath.is_absolute():
-            filepath = Path(settings.BASE_DIR) / filepath
-        filepath = filepath.resolve()
-        if not settings.DESKTOP_MODE:
+        filepath = _resolve_video_path(camera.stream_url)
+        if not desktop_mode:
             allowed = [
                 Path(settings.MEDIA_ROOT).resolve(),
                 Path(settings.BASE_DIR).resolve(),
@@ -116,7 +172,7 @@ class CameraViewSet(viewsets.ModelViewSet):
                 return Response({"error": "Access denied"}, status=403)
         if not filepath.exists() or not filepath.is_file():
             return Response(
-                {"error": f"Video file not found: {filepath}"},
+                {"error": f"Video file not found: {camera.stream_url}"},
                 status=status.HTTP_404_NOT_FOUND,
             )
         content_type, _ = mimetypes.guess_type(str(filepath))

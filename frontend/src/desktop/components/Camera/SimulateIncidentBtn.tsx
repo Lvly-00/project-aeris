@@ -8,57 +8,64 @@ interface Props {
   cameras: any[];
 }
 
+const INCIDENT_TYPES = ['Fire', 'Smoke', 'Vehicle_Accident'];
+
+const TYPE_LABEL: Record<string, string> = {
+  Fire: 'Fire',
+  Smoke: 'Smoke',
+  Vehicle_Accident: 'Vehicular Accident',
+};
+
+const pick = <T,>(items: T[]): T => items[Math.floor(Math.random() * items.length)];
+
+const hasCamera = (cameras?: any[]) => !!cameras && cameras.length > 0;
+
+/**
+ * Fires a test incident so the notification, the camera row and the detection
+ * review list can be exercised end to end.
+ *
+ * Still random by design, but kept in step with the current rules:
+ *  - any of the three incident types, so the type badges can be checked
+ *  - a short burst of hits, so there is more than one row to tick or cross
+ *  - sent as a simulation, which never joins a camera's live incident and so
+ *    cannot mask a real detection while you are testing
+ */
 export function SimulateIncidentBtn({ cameras }: Props) {
   const [loading, setLoading] = useState(false);
 
   const handleSimulate = async () => {
-    console.log('[SIMULATE] Button clicked');
-
     const hasCameras = cameras && cameras.length > 0;
-
-    const randomCam = hasCameras
-      ? cameras[Math.floor(Math.random() * cameras.length)]
-      : null;
-
-    const payload: any = {
-      incident_type:
-        Math.random() > 0.5
-          ? 'Fire'
-          : 'Vehicle_Accident',
-
-      confidence_score: Number(
-        (0.75 + Math.random() * 0.2).toFixed(2)
-      ),
-    };
-
-    if (randomCam) {
-      payload.camera_id = randomCam.id;
-    }
-
-    console.log('[SIMULATE] Camera:', randomCam);
-    console.log('[SIMULATE] Payload:', payload);
+    const randomCam = hasCameras ? pick(cameras) : null;
+    const incidentType = pick(INCIDENT_TYPES);
+    const confidence = Number((0.75 + Math.random() * 0.2).toFixed(2));
+    const repeat = 1 + Math.floor(Math.random() * 3);
 
     setLoading(true);
 
     try {
-      const response =
-        await incidentsAPI.createFromDetection(payload);
+      const response = await incidentsAPI.createFromDetection({
+        incident_type: incidentType,
+        confidence_score: confidence,
+        camera_id: randomCam?.id,
+        source: 'simulation',
+        repeat,
+      });
 
-      console.log('[SIMULATE] SUCCESS:', response.data);
+      const created = response.data;
+      const shown = created.detection_count ?? 1;
 
       notifications.show({
         title: 'Simulation Sent',
         message: randomCam
-          ? `Alert generated for ${randomCam.name}`
-          : 'Alert generated (simulated)',
+          ? `${TYPE_LABEL[incidentType] ?? incidentType} on ${randomCam.name} — ${shown} detection${
+              shown === 1 ? '' : 's'
+            } to review`
+          : `${TYPE_LABEL[incidentType] ?? incidentType} (no camera selected)`,
         color: 'orange',
         icon: <BoltCircle  width={16} height={16} />,
       });
     } catch (error: any) {
-      console.error(
-        '[SIMULATE] ERROR:',
-        error?.response?.data || error
-      );
+      console.error('[SIMULATE] ERROR:', error?.response?.data || error);
 
       notifications.show({
         title: 'Simulation Error',
@@ -82,7 +89,7 @@ export function SimulateIncidentBtn({ cameras }: Props) {
       leftSection={<BoltCircle  width={ 18 } height={ 18 } fill="white" />}
       onClick={handleSimulate}
       loading={loading}
-      // disabled={loading || cameras.length === 0}
+      disabled={loading || !hasCamera(cameras)}
       fw={700}
     >
       Simulate Incident

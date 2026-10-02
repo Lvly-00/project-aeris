@@ -111,6 +111,12 @@ os.makedirs(MEDIA_ROOT, exist_ok=True)
 
 DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 
+# ── Runtime mode ───────────────────────────────────────────────────────────────
+# True only in the packaged Electron build (overridden in settings/desktop.py).
+# Declared here so every non-desktop settings module has it defined — reading
+# settings.DESKTOP_MODE directly used to raise AttributeError in dev/production.
+DESKTOP_MODE = False
+
 # ── REST Framework ────────────────────────────────────────────────────────────
 REST_FRAMEWORK = {
     "DEFAULT_AUTHENTICATION_CLASSES": (

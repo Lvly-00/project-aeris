@@ -20,66 +20,95 @@ import {
 import { AlertCircle, DotsVerticalRounded, Filter, Trash } from '@boxicons/react';
 import { notifications } from '@mantine/notifications';
 
-import { Incident } from '../../../shared/types/index';
-import { IncidentCard } from '../../components/commons/IncidentCard';
+import type { CameraIncidentRow } from '../../../shared/types/index';
+import { CameraIncidentCard } from '../../components/commons/CameraIncidentCard';
 import { incidentsAPI } from '../../../shared/services/api';
+
+/*
+ * AdminLayout pins a 70px header and an 85px footer, both fixed, so the page
+ * has to live in the band between them. The list used to size itself with a
+ * hardcoded calc(100vh - 240px): on a phone `vh` is the *large* viewport, so
+ * the list grew past the band and its lower cards rendered underneath the
+ * bottom nav. `100dvh` tracks the real viewport as the browser chrome hides,
+ * and AppShell publishes its own header/footer offsets, so the band stays
+ * correct if either shell height is ever changed. The numbers are only
+ * fallbacks for a page rendered outside an AppShell.
+ */
+const VIEWPORT_BAND =
+  'calc(100dvh - var(--app-shell-header-offset, 70px) - var(--app-shell-footer-offset, 85px))';
 
 export default function IncidentsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [selectedIds, setSelectedIds] = useState<(number | null)[]>([]);
   const [deleteSelectedModal, setDeleteSelectedModal] = useState(false);
+  const [deletePending, setDeletePending] = useState(false);
 
   /*
-   * Always keep newest incidents first.
+   * The list is grouped by camera: one row per camera that currently has an
+   * open incident, pointing at that incident. Operators think in cameras, not
+   * in individual detections — the detections themselves are listed on the
+   * incident detail screen.
    */
-  const sortLatestFirst = useCallback((items: Incident[]) => {
-    return [...items].sort(
+  const sortLatestFirst = useCallback((rows: CameraIncidentRow[]) => {
+    return [...rows].sort(
       (a, b) =>
-        new Date(b.detected_at).getTime() -
-        new Date(a.detected_at).getTime()
+        new Date(b.incident.detected_at).getTime() -
+        new Date(a.incident.detected_at).getTime()
     );
   }, []);
 
   /*
-   * Active incidents, kept fresh three ways:
+   * Selection may include the placeholder row (id `null`) that holds incidents
+   * whose camera was deleted, so it can't always be phrased as "camera".
+   */
+  const describeSelection = (ids: (number | null)[]) => {
+    const unassigned = ids.filter((id) => id === null).length;
+    const cameras = ids.length - unassigned;
+
+    if (cameras === 0) return 'unassigned cameras';
+    if (unassigned === 0) return `${cameras} camera${cameras === 1 ? '' : 's'}`;
+
+    return `${cameras} camera${cameras === 1 ? '' : 's'} and ${unassigned} unassigned`;
+  };
+
+  /*
+   * Kept fresh the same way the old list was:
    *   1. refetch on mount (navigating back from the detail page)
    *   2. 10s polling safety net
    *   3. WebSocket events invalidate this key instantly
    */
-  const { data: incidents = [], isLoading: loading } = useQuery({
-    queryKey: ['incidents'],
+  const { data: rows = [], isLoading: loading } = useQuery({
+    queryKey: ['incidents', 'by-camera'],
     queryFn: async () => {
-      const res = await incidentsAPI.list({
-        status__in: 'Detected,Verified,Dispatched',
-        ordering: '-detected_at',
-      });
-
-      const data: Incident[] = res.data.results || res.data;
+      const res = await incidentsAPI.byCamera();
+      const data: CameraIncidentRow[] = res.data.results || res.data;
       return sortLatestFirst(data);
     },
     refetchInterval: 10000,
   });
 
   /*
-   * Selection helpers
+   * Selection is tracked by camera id: a row *is* a camera, and a camera can
+   * hold several open incidents (each simulate press opens its own). Deleting
+   * the row therefore clears the whole camera, otherwise the older batches
+   * survive and reappear on the next refresh.
    */
+  const cameraIds = rows.map((r) => r.camera);
+
   const allSelected =
-    incidents.length > 0 &&
-    selectedIds.length === incidents.length;
+    cameraIds.length > 0 && selectedIds.length === cameraIds.length;
 
   const someSelected =
     selectedIds.length > 0 &&
-    selectedIds.length < incidents.length;
+    selectedIds.length < cameraIds.length;
 
   const toggleSelectAll = () => {
-    setSelectedIds(
-      allSelected ? [] : incidents.map((i) => i.id)
-    );
+    setSelectedIds(allSelected ? [] : cameraIds);
   };
 
-  const toggleSelect = (id: number) => {
+  const toggleSelect = (id: number | null) => {
     setSelectedIds((prev) =>
       prev.includes(id)
         ? prev.filter((x) => x !== id)
@@ -93,26 +122,30 @@ export default function IncidentsPage() {
   };
 
   /*
-   * Delete selected incidents
+   * Delete the open incidents behind the selected cameras
    */
   const handleDeleteSelected = async () => {
-    const ids = selectedIds;
+    const cameraIdList = selectedIds;
+
+    setDeletePending(true);
 
     try {
-      await Promise.all(
-        ids.map((id) => incidentsAPI.delete(id))
-      );
+      const res = await incidentsAPI.deleteByCameras(cameraIdList);
+      const deleted = res.data?.deleted ?? 0;
 
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['incident-history'] });
+      // Counts on the dashboard just moved.
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
       exitSelectMode();
       setDeleteSelectedModal(false);
 
       notifications.show({
         title: 'Deleted',
-        message: `${ids.length} incident${
-          ids.length > 1 ? 's' : ''
-        } removed successfully`,
+        message: `${deleted} incident${
+          deleted === 1 ? '' : 's'
+        } removed from ${describeSelection(cameraIdList)}`,
         color: 'red',
       });
     } catch (error) {
@@ -126,6 +159,8 @@ export default function IncidentsPage() {
         message: 'Failed to delete selected incidents',
         color: 'red',
       });
+    } finally {
+      setDeletePending(false);
     }
   };
 
@@ -137,9 +172,18 @@ export default function IncidentsPage() {
    */
 
   return (
-    <Container size="sm" py="lg">
+    <Container
+      size="sm"
+      py="lg"
+      style={{
+        display: 'flex',
+        flexDirection: 'column',
+        height: VIEWPORT_BAND,
+        overflow: 'hidden',
+      }}
+    >
       {/* Page Header */}
-      <Stack mb="lg" gap={4}>
+      <Stack mb="lg" gap={4} style={{ flexShrink: 0 }}>
         <Title
           order={1}
           fz={rem(38)}
@@ -152,12 +196,12 @@ export default function IncidentsPage() {
         </Title>
 
         <Text c="dimmed">
-          Monitor and manage detected incidents.
+          Monitor active incidents by camera.
         </Text>
       </Stack>
 
       {/* Control Bar */}
-      <Group justify="space-between" mb="lg">
+      <Group justify="space-between" mb="lg" style={{ flexShrink: 0 }}>
         {selectMode ? (
           <Checkbox
             label="Select all"
@@ -220,7 +264,7 @@ export default function IncidentsPage() {
               <Menu.Item
                 color="red"
                 leftSection={<Trash  width={ 16 } height={ 16 } />}
-                disabled={incidents.length === 0}
+                disabled={rows.length === 0}
                 onClick={() => setSelectMode(true)}
               >
                 Delete Incidents
@@ -234,7 +278,10 @@ export default function IncidentsPage() {
       <Stack
         gap="md"
         style={{
-          maxHeight: 'calc(100vh - 240px)',
+          // Takes whatever is left in the band and scrolls internally, so the
+          // list can never extend past the fixed footer.
+          flex: 1,
+          minHeight: 0,
           overflowY: 'auto',
           overflowX: 'hidden',
           paddingRight: rem(6),
@@ -247,16 +294,16 @@ export default function IncidentsPage() {
               color="blue"
             />
           </Center>
-        ) : incidents.length === 0 ? (
+        ) : rows.length === 0 ? (
           <Center py="xl">
             <Text c="dimmed">
-              No incidents found.
+              No active incidents. Cameras with detections will appear here.
             </Text>
           </Center>
         ) : (
-          incidents.map((incident) => (
+          rows.map((row) => (
             <Group
-              key={incident.id}
+              key={row.camera}
               wrap="nowrap"
               align="center"
               gap="xs"
@@ -264,23 +311,23 @@ export default function IncidentsPage() {
               {/* Selection Checkbox */}
               {selectMode && (
                 <Checkbox
-                  checked={selectedIds.includes(incident.id)}
-                  onChange={() => toggleSelect(incident.id)}
+                  checked={selectedIds.includes(row.camera)}
+                  onChange={() => toggleSelect(row.camera)}
                   radius="sm"
-                  aria-label={`Select incident ${incident.id}`}
+                  aria-label={`Select incidents for ${row.camera_name}`}
                 />
               )}
 
-              {/* Incident Card */}
+              {/* Camera Incident Card */}
               <Box
                 style={{
                   flex: 1,
                   minWidth: 0,
                 }}
               >
-                <IncidentCard
-                  incident={incident}
-                  onClick={(item) => navigate(`/pwa/admin/incidents/${item.id}`)}
+                <CameraIncidentCard
+                  row={row}
+                  onClick={() => navigate(`/pwa/admin/incidents/${row.incident.id}`)}
                 />
               </Box>
             </Group>
@@ -308,11 +355,12 @@ export default function IncidentsPage() {
           />
 
           <Text ta="center">
-            Are you sure you want to delete{' '}
+            Delete all open incidents for{' '}
             <b>{selectedIds.length}</b> selected{' '}
-            incident
-            {selectedIds.length > 1 ? 's' : ''}? This
-            action cannot be undone.
+            {describeSelection(selectedIds)}? This clears every
+            active incident on {selectedIds.length > 1 ? 'them' : 'it'},
+            including any older ones not shown in the list, and cannot
+            be undone.
           </Text>
 
           <Group grow w="100%">
@@ -328,6 +376,7 @@ export default function IncidentsPage() {
 
             <Button
               color="red"
+              loading={deletePending}
               onClick={handleDeleteSelected}
             >
               Yes, Delete
