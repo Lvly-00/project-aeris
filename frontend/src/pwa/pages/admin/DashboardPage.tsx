@@ -1,5 +1,5 @@
 import { useQuery } from '@tanstack/react-query';
-import { File, Group, ShieldAlt, Video, AlertCircle } from '@boxicons/react';
+import { Siren, Community, User, Video, AlertCircle } from '@boxicons/react';
 import { StatCard } from '../../components/Dashboard/StatCard';
 import { Banner } from '../../components/Dashboard/Banner';
 import { ConfidenceIndex } from '../../components/Dashboard/ConfidenceIndex';
@@ -57,7 +57,7 @@ export default function DashboardPage() {
             value={stats?.total_users}
             loading={isLoading}
             description="Manage and monitor all registered users."
-            icon={<Group  width={ 32 } height={ 32 } color="#f15a24" />}
+            icon={<Community  width={ 32 } height={ 32 } color="#f15a24" />}
           />
           <StatCard
             label="Total Cameras"
@@ -71,14 +71,14 @@ export default function DashboardPage() {
             value={stats?.total_tanods}
             loading={isLoading}
             description="Manage and monitor all registered tanods."
-            icon={<ShieldAlt  width={ 32 } height={ 32 } color="#f15a24" />}
+            icon={<User  width={ 32 } height={ 32 } color="#f15a24" />}
           />
           <StatCard
             label="Total Incidents"
             value={stats?.total_incidents}
             loading={isLoading}
             description="Manage and monitor all reported incidents."
-            icon={<File  width={ 32 } height={ 32 } color="#f15a24" />}
+            icon={<Siren  width={ 32 } height={ 32 } color="#f15a24" />}
           />
         </SimpleGrid>
 

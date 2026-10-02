@@ -63,7 +63,7 @@ export const StatCard = ({ label, value, description, icon, loading = false }: S
                     size="sm"
                     c="dimmed"
                     fw={400}
-                    ta="center"
+                    ta="left"
                     maw={250}
                     mx="auto"
                 >
