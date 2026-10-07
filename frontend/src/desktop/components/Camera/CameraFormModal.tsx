@@ -54,6 +54,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
       radius="lg"
       size="compact-lg"
       padding="xl"
+      zIndex={1100} // Above the fullscreen camera view (z-index 1000)
     >
       {/* Custom Header Section */}
       <Group justify="space-between" align="flex-start" mb="lg" wrap="wrap" gap="sm">

@@ -201,6 +201,9 @@ export const camerasAPI = {
   create: (data: any) => api.post('/cameras/', data),
   update: (id: number, data: any) => api.put(`/cameras/${id}/`, data),
   delete: (id: number) => api.delete(`/cameras/${id}/`),
+  // One call for the grid's mass delete; the body carries the ids.
+  bulkDelete: (ids: number[]) =>
+    api.delete('/cameras/bulk-destroy/', { data: { camera_ids: ids } }),
   updateStatus: (id: number, status: string) =>
     api.patch(`/cameras/${id}/status/`, { status }),
   snapshot: (id: number) => api.get(`/cameras/${id}/snapshot/`),

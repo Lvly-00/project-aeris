@@ -241,8 +241,8 @@ export default function DesktopLayout() {
         </Container>
       </Box>
 
-      <Box component="main" style={{ flex: 1, padding: 24 }}>
-        <Container size="xl">
+      <Box component="main" style={{ flex: 1, padding: '24px 8px' }}>
+        <Container size="xl" fluid px={8}>
           <Outlet />
         </Container>
       </Box>

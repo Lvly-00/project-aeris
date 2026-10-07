@@ -109,7 +109,7 @@ export default function UserManagement() {
     };
 
     return (
-        <Container fluid p="md" style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-body)' }}>
+        <Container fluid p="sm" style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-body)' }}>
         <Stack gap="xl">
             <PageHeader
                 title="User Management"

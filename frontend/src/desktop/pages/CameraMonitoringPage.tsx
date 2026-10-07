@@ -1,4 +1,4 @@
-import { useState, useCallback, useEffect } from 'react';
+import { useState, useCallback, useEffect, useRef } from 'react';
 import { Box, Paper, Text, Button, Stack, Group, Modal } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
@@ -6,15 +6,25 @@ import { Camera, Phone, Plus } from '@boxicons/react';
 
 import { SimulateIncidentBtn } from '../components/Camera/SimulateIncidentBtn';
 import { camerasAPI, contactsAPI } from '../../shared/services/api';
-import { PageHeader } from '../components/Layout/PageHeader'; // Assuming this path
+import { PageHeader } from '../components/Layout/PageHeader';
 import { CameraToolbar } from '../components/Camera/CameraToolbar';
 import { CameraGrid } from '../components/Camera/CameraGrid';
+import { FullscreenGridWall } from '../components/Camera/FullscreenGridWall';
 import { CameraFormModal } from '../components/Camera/CameraFormModal';
 // import { IncidentAlertModal } from '../../components/Camera/IncidentAlertModal'; 
 import type { IncidentDetectedData } from '../components/Camera/DetectionOverlay';
 
 export default function CameraMonitoringPage() {
   const queryClient = useQueryClient();
+  const gridRef = useRef<HTMLDivElement>(null);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+
+  // Track browser fullscreen so the page can swap to the monitoring wall.
+  useEffect(() => {
+    const handle = () => setIsFullscreen(!!document.fullscreenElement);
+    document.addEventListener('fullscreenchange', handle);
+    return () => document.removeEventListener('fullscreenchange', handle);
+  }, []);
   const [layout, setLayout] = useState<'cctv-2x2' | 'cctv-3x3' | 'cctv-4x4'>(
     () => {
       const saved = localStorage.getItem('camera-layout');
@@ -29,6 +39,9 @@ export default function CameraMonitoringPage() {
   // Deleting a camera takes its incidents with it, so it now needs a
   // confirmation step instead of firing on a single click.
   const [cameraPendingDelete, setCameraPendingDelete] = useState<any>(null);
+  // Mass delete: pick cameras on the grid, then confirm from a floating bar.
+  const [selectMode, setSelectMode] = useState(false);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
 
   // Sync layout to local storage
   useEffect(() => {
@@ -45,6 +58,17 @@ export default function CameraMonitoringPage() {
     refetchInterval: 10000,
   });
 
+  // Keep the picked set honest: a camera deleted elsewhere (or by this page)
+  // must not stay in the picker.
+  useEffect(() => {
+    setSelectedIds((prev) => {
+      if (prev.length === 0) return prev;
+      const live = new Set(cameras.map((c: any) => c.id));
+      const next = prev.filter((id) => live.has(id));
+      return next.length === prev.length ? prev : next;
+    });
+  }, [cameras]);
+
   // Mutations
   const deleteMutation = useMutation({
     mutationFn: (id: number) => camerasAPI.delete(id),
@@ -60,6 +84,31 @@ export default function CameraMonitoringPage() {
       notifications.show({
         title: 'Error',
         message: error.response?.data?.detail || 'Failed to delete camera',
+        color: 'red',
+      });
+    },
+  });
+
+  // Mass delete — one call, same cascade as a single camera delete.
+  const bulkDeleteMutation = useMutation({
+    mutationFn: (ids: number[]) => camerasAPI.bulkDelete(ids),
+    onSuccess: (_res, ids) => {
+      queryClient.invalidateQueries({ queryKey: ['cameras'] });
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['incident-history'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
+      setSelectMode(false);
+      setSelectedIds([]);
+      notifications.show({
+        title: 'Deleted',
+        message: `${ids.length} camera${ids.length === 1 ? '' : 's'} removed`,
+        color: 'red',
+      });
+    },
+    onError: (error: any) => {
+      notifications.show({
+        title: 'Error',
+        message: error.response?.data?.detail || 'Failed to delete cameras',
         color: 'red',
       });
     },
@@ -93,51 +142,95 @@ export default function CameraMonitoringPage() {
     setIncidentAlert(data);
   }, []);
 
+  const toggleSelect = useCallback((id: number) => {
+    setSelectedIds((prev) =>
+      prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id],
+    );
+  }, []);
+
   return (
-    <Box p="md">
-      {/* 1. Brand Header */}
-      <PageHeader
-        title="CCTV CAMERAS"
-        subtitle="Pumili ng alinmang kamera upang masuri ang kasalukuyang pangyayari."
-        actions={
-          <Group>
-            <SimulateIncidentBtn cameras={cameras} />
-            <Button
-              bg="#ff5700"
-              leftSection={<Plus  width={ 20 } height={ 20 } strokeWidth={3} />}
-              onClick={() => { setEditingCamera(null); setModalOpen(true); }}
-            >
-              Add Camera
-            </Button>
-          </Group>
-        }
-      />
-
-      {/* 2. Toolbar (Count & Layout Selector) */}
-      <CameraToolbar
-        count={cameras.length}
-        layout={layout}
-        onLayoutChange={(val) => setLayout(val as any)}
-      />
-
-      {/* 3. Main View Area */}
-      {cameras.length === 0 && !isLoading ? (
-        <Paper p={50} ta="center" withBorder radius="md" bg="var(--mantine-color-body)">
-          <Stack align="center" gap="xs">
-            <Camera  width={48} height={48} color="#adb5bd" />
-            <Text fw={600} c="dimmed">No cameras found.</Text>
-            <Button variant="light" onClick={() => setModalOpen(true)}>Add your first camera</Button>
-          </Stack>
-        </Paper>
-      ) : (
-        <CameraGrid
+    <Box
+      p={isFullscreen ? 0 : 'md'}
+      ref={gridRef}
+      style={isFullscreen ? { height: '100vh' } : undefined}
+    >
+      {isFullscreen ? (
+        /* Fullscreen monitoring wall: nothing but the camera cards */
+        <FullscreenGridWall
           cameras={cameras}
           layout={layout}
+          onExit={() => document.exitFullscreen()}
           onIncidentDetected={handleIncidentDetected}
           onFullscreen={setFullscreenCamera}
           onEdit={(cam) => { setEditingCamera(cam); setModalOpen(true); }}
           onDelete={(id) => setCameraPendingDelete(cameras.find((c: any) => c.id === id) ?? { id })}
         />
+      ) : (
+        <>
+          {/* 1. Brand Header */}
+          <PageHeader
+            title="CCTV CAMERAS"
+            subtitle="Pumili ng alinmang kamera upang masuri ang kasalukuyang pangyayari."
+            actions={
+              <Group>
+                <SimulateIncidentBtn cameras={cameras} />
+                <Button
+                  bg="#ff5700"
+                  leftSection={<Plus width={20} height={20} strokeWidth={3} />}
+                  onClick={() => { setEditingCamera(null); setModalOpen(true); }}
+                >
+                  Add Camera
+                </Button>
+              </Group>
+            }
+          />
+
+          {/* 2. Toolbar (Count & Layout Selector) */}
+          <CameraToolbar
+            count={cameras.length}
+            layout={layout}
+            onLayoutChange={(val) => setLayout(val as any)}
+            onFullscreen={() => {
+              // Fullscreen just this page (toolbar + camera grid), hiding the
+              // sidebar and nav so the grid gets the whole screen.
+              const el = gridRef.current;
+              if (!el) return;
+              if (document.fullscreenElement) document.exitFullscreen();
+              else el.requestFullscreen();
+            }}
+            onStartSelect={() => { setSelectMode(true); setSelectedIds([]); }}
+            selectMode={selectMode}
+            selectedCount={selectedIds.length}
+            onSelectAll={() => setSelectedIds(cameras.map((c: any) => c.id))}
+            onDeselectAll={() => setSelectedIds([])}
+            onCancelSelect={() => { setSelectMode(false); setSelectedIds([]); }}
+            onDeleteSelected={() => bulkDeleteMutation.mutate(selectedIds)}
+            bulkDeleting={bulkDeleteMutation.isPending}
+          />
+
+          {/* 3. Main View Area */}
+          {cameras.length === 0 && !isLoading ? (
+            <Paper p={50} ta="center" withBorder radius="md" bg="var(--mantine-color-body)">
+              <Stack align="center" gap="xs">
+                <Camera width={48} height={48} color="#adb5bd" />
+                <Text fw={600} c="dimmed">No cameras found.</Text>
+                <Button variant="light" onClick={() => setModalOpen(true)}>Add your first camera</Button>
+              </Stack>
+            </Paper>
+          ) : (
+            <CameraGrid
+              cameras={cameras}
+              layout={layout}
+              onIncidentDetected={handleIncidentDetected}
+              onFullscreen={setFullscreenCamera}
+              onEdit={(cam) => { setEditingCamera(cam); setModalOpen(true); }}
+              onDelete={(id) => setCameraPendingDelete(cameras.find((c: any) => c.id === id) ?? { id })}
+              selectMode={selectMode}
+              selectedIds={selectedIds}
+              onToggleSelect={toggleSelect}
+            />
+          )}
+        </>
       )}
 
       {/* 4. Modals */}
@@ -160,6 +253,7 @@ export default function CameraMonitoringPage() {
         onClose={() => setCameraPendingDelete(null)}
         title="Delete camera?"
         centered
+        zIndex={1100} // Above the fullscreen camera view (z-index 1000)
         overlayProps={{ backgroundOpacity: 0.6, blur: 3 }}
       >
         <Stack gap="md">
@@ -192,6 +286,8 @@ export default function CameraMonitoringPage() {
           </Group>
         </Stack>
       </Modal>
+
+      {/* Mass delete: the ⋮ button enters grid selection mode; confirm from the toolbar */}
     </Box>
   );
 }

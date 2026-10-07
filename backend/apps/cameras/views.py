@@ -96,6 +96,42 @@ class CameraViewSet(viewsets.ModelViewSet):
         broadcast_stats_changed()
         broadcast_camera_changed(instance, "deleted")
 
+    @action(detail=False, methods=["delete"], url_path="bulk-destroy")
+    def bulk_destroy(self, request) -> Response:
+        """Delete many cameras in one call, used by the grid's mass delete."""
+        raw_ids = request.data.get("camera_ids")
+        if not isinstance(raw_ids, list) or not raw_ids:
+            return Response(
+                {"error": "camera_ids must be a non-empty list"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+        try:
+            camera_ids = [int(pk) for pk in raw_ids]
+        except (TypeError, ValueError):
+            return Response(
+                {"error": "camera_ids must contain only integers"},
+                status=status.HTTP_400_BAD_REQUEST,
+            )
+
+        cameras = list(self.get_queryset().filter(id__in=camera_ids))
+        if not cameras:
+            return Response(
+                {"error": "No cameras matched the given ids"},
+                status=status.HTTP_404_NOT_FOUND,
+            )
+
+        # One query for the cascade, then one message per camera so other
+        # clients drop each of them, exactly like a single delete would.
+        Camera.objects.filter(id__in=[c.id for c in cameras]).delete()
+        broadcast_stats_changed()
+        for camera in cameras:
+            broadcast_camera_changed(camera, "deleted")
+
+        deleted = [c.id for c in cameras]
+        logger.info("Bulk deleted cameras: %s", deleted)
+        return Response({"deleted": deleted, "count": len(deleted)}, status=status.HTTP_200_OK)
+
+
     @action(detail=True, methods=["patch"], url_path="status")
     def status_update(self, request, pk=None) -> Response:
         camera = self.get_object()

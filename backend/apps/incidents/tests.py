@@ -828,3 +828,104 @@ class CameraDeletionCascadeTests(IncidentTestBase):
         row = self.client.get(BY_CAMERA_URL).data[0]
         self.assertEqual(row["camera_name"], "North Gate")
         self.assertEqual(row["location_name"], "Roof")
+
+
+class CameraBulkDeletionTests(IncidentTestBase):
+    """The grid's mass delete: one call, same cascade as a single delete."""
+
+    URL = "/api/cameras/bulk-destroy/"
+
+    def test_bulk_delete_removes_every_listed_camera(self):
+        res = self.client.delete(
+            self.URL,
+            {"camera_ids": [self.camera.id, self.other_camera.id]},
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["count"], 2)
+        self.assertEqual(
+            set(res.data["deleted"]), {self.camera.id, self.other_camera.id}
+        )
+        self.assertFalse(Camera.objects.filter(id__in=[self.camera.id, self.other_camera.id]).exists())
+
+    def test_bulk_delete_takes_incidents_with_their_cameras(self):
+        mine = self.detect(self.camera).data["id"]
+        theirs = self.detect(self.other_camera).data["id"]
+
+        res = self.client.delete(
+            self.URL, {"camera_ids": [self.camera.id]}, format="json"
+        )
+
+        self.assertEqual(res.status_code, 200)
+        remaining = set(Incident.objects.values_list("pk", flat=True))
+        self.assertNotIn(mine, remaining)
+        self.assertIn(theirs, remaining)
+
+    def test_bulk_delete_leaves_unselected_cameras_alone(self):
+        survivor = Camera.objects.create(
+            name="Roof Camera",
+            stream_url="rtsp://example/roof",
+            stream_type=Camera.StreamType.RTSP,
+            status=CameraStatus.objects.get(name="Online"),
+        )
+
+        self.client.delete(
+            self.URL,
+            {"camera_ids": [self.camera.id, self.other_camera.id]},
+            format="json",
+        )
+
+        self.assertTrue(Camera.objects.filter(id=survivor.id).exists())
+
+    def test_bulk_delete_broadcasts_once_per_camera(self):
+        with patch("apps.cameras.views.broadcast_stats_changed") as stats, patch(
+            "apps.cameras.views.broadcast_camera_changed"
+        ) as changed:
+            res = self.client.delete(
+                self.URL,
+                {"camera_ids": [self.camera.id, self.other_camera.id]},
+                format="json",
+            )
+
+        self.assertEqual(res.status_code, 200)
+        stats.assert_called_once()
+        self.assertEqual(changed.call_count, 2)
+        self.assertEqual(
+            {call.args[1] for call in changed.call_args_list}, {"deleted"}
+        )
+
+    def test_bulk_delete_ignores_ids_that_do_not_exist(self):
+        res = self.client.delete(
+            self.URL,
+            {"camera_ids": [self.camera.id, 999999]},
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, 200)
+        self.assertEqual(res.data["deleted"], [self.camera.id])
+        self.assertTrue(Camera.objects.filter(id=self.other_camera.id).exists())
+
+    def test_bulk_delete_requires_a_non_empty_list(self):
+        for payload in ({}, {"camera_ids": []}, {"camera_ids": "not-a-list"}):
+            with self.subTest(payload=payload):
+                res = self.client.delete(self.URL, payload, format="json")
+                self.assertEqual(res.status_code, 400)
+
+        self.assertEqual(Camera.objects.count(), 2)
+
+    def test_bulk_delete_rejects_non_integer_ids(self):
+        res = self.client.delete(
+            self.URL, {"camera_ids": ["abc"]}, format="json"
+        )
+
+        self.assertEqual(res.status_code, 400)
+        self.assertEqual(Camera.objects.count(), 2)
+
+    def test_bulk_delete_with_no_match_is_a_404(self):
+        res = self.client.delete(
+            self.URL, {"camera_ids": [999999]}, format="json"
+        )
+
+        self.assertEqual(res.status_code, 404)
+        self.assertEqual(Camera.objects.count(), 2)

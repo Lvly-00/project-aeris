@@ -6,7 +6,8 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Box, Text } from '@mantine/core';
 import { Video } from '@boxicons/react';
-import { FpsOverlay, useFps } from './FpsOverlay';
+import { useFps, IDLE_FEED_STATS } from './useFps';
+import type { FeedStats, FeedState } from './useFps';
 import { DetectionOverlay } from './DetectionOverlay';
 import type { IncidentDetectedData } from './DetectionOverlay';
 
@@ -30,9 +31,11 @@ interface RtspCanvasProps {
   baseUrl: string;
   onFrame?: () => void;
   onStatus?: (status: FeedStatus) => void;
+  /** Fires when the decoder reports a new pixel size. */
+  onSize?: (size: { width: number; height: number }) => void;
 }
 
-export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus }: RtspCanvasProps) {
+export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, onSize }: RtspCanvasProps) {
   const mountedRef = useRef(true);
   const hasDrawnRef = useRef(false);
   const lastErrorRef = useRef('');
@@ -88,10 +91,17 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus }: 
           const bmp = await createImageBitmap(blob);
           const canvas = canvasRef.current;
           if (canvas) {
+            const resized =
+              canvas.width !== bmp.width || canvas.height !== bmp.height;
             canvas.width = bmp.width;
             canvas.height = bmp.height;
             const ctx = canvas.getContext('2d');
             if (ctx) ctx.drawImage(bmp, 0, 0);
+            // Always report on the first frame: a fresh canvas defaults to
+            // 300x150, which could otherwise match a real source.
+            if (resized || !hasDrawnRef.current) {
+              onSize?.({ width: bmp.width, height: bmp.height });
+            }
           }
           bmp.close();
           if (!mountedRef.current) break;
@@ -117,7 +127,7 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus }: 
       clearWatchdog();
       abortCtrl?.abort();
     };
-  }, [cameraId, baseUrl, canvasRef, onFrame, onStatus]);
+  }, [cameraId, baseUrl, canvasRef, onFrame, onStatus, onSize]);
 
   return null;
 }
@@ -127,9 +137,10 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus }: 
 interface RTSPCameraFeedProps {
   camera: any;
   onIncidentDetected?: (data: IncidentDetectedData) => void;
+  onStats?: (cameraId: number, stats: FeedStats) => void;
 }
 
-export function RTSPCameraFeed({ camera, onIncidentDetected }: RTSPCameraFeedProps) {
+export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCameraFeedProps) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const containerRef = useRef<HTMLDivElement | null>(null);
   // Stable ref: an inline `{ current: null }` literal would be a new object on
@@ -138,6 +149,7 @@ export function RTSPCameraFeed({ camera, onIncidentDetected }: RTSPCameraFeedPro
   const videoRef = useRef<HTMLVideoElement | null>(null);
   const { fps, tick } = useFps();
   const [feed, setFeed] = useState<FeedStatus>({ state: 'connecting' });
+  const [stats, setStats] = useState<FeedStats>(IDLE_FEED_STATS);
 
   const baseUrl = (window as any).electronAPI?.isDesktop
     ? (window as any).electronAPI.getAiUrl()
@@ -145,9 +157,35 @@ export function RTSPCameraFeed({ camera, onIncidentDetected }: RTSPCameraFeedPro
 
   const handleStatus = useCallback((status: FeedStatus) => setFeed(status), []);
 
+  const handleSize = useCallback(
+    (size: { width: number; height: number }) =>
+      setStats((prev) =>
+        prev.width === size.width && prev.height === size.height
+          ? prev
+          : { ...prev, ...size },
+      ),
+    [],
+  );
+
   useEffect(() => {
     setFeed({ state: 'connecting' });
+    setStats(IDLE_FEED_STATS);
   }, [camera.id]);
+
+  // The RTSP watchdog reports 'error'; the card shows that as OFFLINE.
+  const state: FeedState = feed.state === 'error' ? 'offline' : feed.state === 'live' ? 'live' : 'connecting';
+
+  useEffect(() => {
+    setStats((prev) =>
+      prev.fps === fps && prev.state === state
+        ? prev
+        : { ...prev, fps, state },
+    );
+  }, [fps, state]);
+
+  useEffect(() => {
+    onStats?.(camera.id, stats);
+  }, [stats, onStats, camera.id]);
 
   return (
     <Box
@@ -164,6 +202,7 @@ export function RTSPCameraFeed({ camera, onIncidentDetected }: RTSPCameraFeedPro
         baseUrl={baseUrl}
         onFrame={tick}
         onStatus={handleStatus}
+        onSize={handleSize}
       />
 
       {feed.state === 'error' && (
@@ -189,7 +228,6 @@ export function RTSPCameraFeed({ camera, onIncidentDetected }: RTSPCameraFeedPro
         </Box>
       )}
 
-      <FpsOverlay fps={fps} />
       <DetectionOverlay
         videoRef={videoRef}
         cameraId={camera.id}
