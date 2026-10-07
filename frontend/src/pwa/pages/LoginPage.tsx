@@ -15,7 +15,8 @@ import {
     Image,
     Center,
     rem,
-    UnstyledButton
+    UnstyledButton,
+    useComputedColorScheme
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { ArrowToBottom, ChevronRight, Eye, EyeSlash, InfoCircle } from '@boxicons/react';
@@ -26,6 +27,7 @@ import VerificationCodeModal from '../../shared/components/VerificationCodeModal
 export default function LoginPage() {
     const navigate = useNavigate();
     const [searchParams] = useSearchParams();
+    const isDark = useComputedColorScheme('light') === 'dark';
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
     const [installPrompt, setInstallPrompt] = useState<any>(null);
@@ -164,7 +166,7 @@ export default function LoginPage() {
             <Box
                 style={{
                     height: '28%',
-                    backgroundImage: `url('/loginBG.png')`,
+                    backgroundImage: `url('${isDark ? '/Dark-loginBG.png' : '/loginBG.png'}')`,
                     backgroundSize: 'cover',
                     backgroundPosition: 'center',
                     flexShrink: 0,

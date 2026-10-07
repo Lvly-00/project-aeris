@@ -15,6 +15,7 @@ import {
   Image,
   Center,
   rem,
+  useComputedColorScheme,
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { CheckShield, Eye, EyeSlash, InfoCircle } from '@boxicons/react';
@@ -25,6 +26,7 @@ import VerificationCodeModal from '../../shared/components/VerificationCodeModal
 export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
+  const isDark = useComputedColorScheme('light') === 'dark';
   const { login, verify2FALogin } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -120,7 +122,7 @@ export default function LoginPage() {
       style={{
         height: '100vh',
         width: '100vw',
-        backgroundImage: `url('/BACKGROUND.png')`,
+        backgroundImage: `url('${isDark ? '/DARK_BACKGROUND.png' : '/BACKGROUND.png'}')`,
         backgroundSize: 'cover',
         backgroundPosition: 'center',
         display: 'flex',

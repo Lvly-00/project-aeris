@@ -1,5 +1,5 @@
 import { useState, useCallback, useEffect, useRef } from 'react';
-import { Box, Paper, Text, Button, Stack, Group, Modal } from '@mantine/core';
+import { Box, Paper, Text, Button, Stack, Group } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 import { Camera, Phone, Plus } from '@boxicons/react';
@@ -11,6 +11,7 @@ import { CameraToolbar } from '../components/Camera/CameraToolbar';
 import { CameraGrid } from '../components/Camera/CameraGrid';
 import { FullscreenGridWall } from '../components/Camera/FullscreenGridWall';
 import { CameraFormModal } from '../components/Camera/CameraFormModal';
+import { SingleDeleteCameraModal, MassDeleteCamerasModal } from '../components/Camera/CameraDeleteModals';
 // import { IncidentAlertModal } from '../../components/Camera/IncidentAlertModal'; 
 import type { IncidentDetectedData } from '../components/Camera/DetectionOverlay';
 
@@ -42,6 +43,8 @@ export default function CameraMonitoringPage() {
   // Mass delete: pick cameras on the grid, then confirm from a floating bar.
   const [selectMode, setSelectMode] = useState(false);
   const [selectedIds, setSelectedIds] = useState<number[]>([]);
+  const [massDeleteConfirm, setMassDeleteConfirm] = useState(false);
+  const [submitting, setSubmitting] = useState(false);
 
   // Sync layout to local storage
   useEffect(() => {
@@ -115,6 +118,8 @@ export default function CameraMonitoringPage() {
   });
 
   const handleFormSubmit = async (values: any) => {
+    if (submitting) return;
+    setSubmitting(true);
     try {
       if (editingCamera) {
         await camerasAPI.update(editingCamera.id, values);
@@ -130,11 +135,20 @@ export default function CameraMonitoringPage() {
       setModalOpen(false);
       setEditingCamera(null);
     } catch (error: any) {
+      const data = error.response?.data;
+      const message =
+        data?.name?.[0] ||
+        data?.stream_url?.[0] ||
+        data?.stream_type?.[0] ||
+        data?.detail ||
+        'Operation failed';
       notifications.show({
         title: 'Error',
-        message: error.response?.data?.detail || 'Operation failed',
-        color: 'red'
+        message,
+        color: 'red',
       });
+    } finally {
+      setSubmitting(false);
     }
   };
 
@@ -170,7 +184,7 @@ export default function CameraMonitoringPage() {
           {/* 1. Brand Header */}
           <PageHeader
             title="CCTV CAMERAS"
-            subtitle="Pumili ng alinmang kamera upang masuri ang kasalukuyang pangyayari."
+            subtitle="All camera feeds are live and recording."
             actions={
               <Group>
                 <SimulateIncidentBtn cameras={cameras} />
@@ -204,7 +218,7 @@ export default function CameraMonitoringPage() {
             onSelectAll={() => setSelectedIds(cameras.map((c: any) => c.id))}
             onDeselectAll={() => setSelectedIds([])}
             onCancelSelect={() => { setSelectMode(false); setSelectedIds([]); }}
-            onDeleteSelected={() => bulkDeleteMutation.mutate(selectedIds)}
+            onDeleteSelected={() => setMassDeleteConfirm(true)}
             bulkDeleting={bulkDeleteMutation.isPending}
           />
 
@@ -239,7 +253,7 @@ export default function CameraMonitoringPage() {
         onClose={() => { setModalOpen(false); setEditingCamera(null); }}
         onSubmit={handleFormSubmit}
         initialValues={editingCamera}
-        loading={deleteMutation.isPending}
+        loading={submitting}
       />
 
       {/* Incident Detection Alert Pop-up */}
@@ -248,46 +262,31 @@ export default function CameraMonitoringPage() {
         onClose={() => setIncidentAlert(null)} 
       /> */}
 
-      <Modal
-        opened={cameraPendingDelete !== null}
+      <SingleDeleteCameraModal
+        camera={cameraPendingDelete}
         onClose={() => setCameraPendingDelete(null)}
-        title="Delete camera?"
-        centered
-        zIndex={1100} // Above the fullscreen camera view (z-index 1000)
-        overlayProps={{ backgroundOpacity: 0.6, blur: 3 }}
-      >
-        <Stack gap="md">
-          <Text size="sm">
-            <b>{cameraPendingDelete?.name ?? `Camera ${cameraPendingDelete?.id}`}</b> will
-            be removed, along with every incident, detection and notification it
-            raised. This cannot be undone.
-          </Text>
+        onConfirm={() => {
+          if (cameraPendingDelete) {
+            const id = cameraPendingDelete.id;
+            setCameraPendingDelete(null);
+            deleteMutation.mutate(id);
+          }
+        }}
+        loading={deleteMutation.isPending}
+      />
 
-          <Group grow>
-            <Button
-              variant="outline"
-              color="gray"
-              onClick={() => setCameraPendingDelete(null)}
-            >
-              Cancel
-            </Button>
-
-            <Button
-              color="red"
-              loading={deleteMutation.isPending}
-              onClick={() => {
-                if (cameraPendingDelete) {
-                  deleteMutation.mutate(cameraPendingDelete.id);
-                }
-              }}
-            >
-              Delete camera
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
-
-      {/* Mass delete: the ⋮ button enters grid selection mode; confirm from the toolbar */}
+      <MassDeleteCamerasModal
+        opened={massDeleteConfirm}
+        cameras={cameras}
+        selectedIds={selectedIds}
+        onClose={() => setMassDeleteConfirm(false)}
+        onConfirm={() => {
+          const ids = selectedIds;
+          setMassDeleteConfirm(false);
+          bulkDeleteMutation.mutate(ids);
+        }}
+        loading={bulkDeleteMutation.isPending}
+      />
     </Box>
   );
 }

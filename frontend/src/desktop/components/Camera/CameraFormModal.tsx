@@ -27,7 +27,22 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
     },
     validate: {
       name: (value: string) => (value.length < 1 ? 'Camera name is required' : null),
-      stream_url: (value: string) => (value.length < 1 ? 'Source is required' : null),
+      stream_url: (value: string, values: any) => {
+        if (value.length < 1) return 'Source is required';
+        if (values.stream_type === 'RTSP' && !/^rtsp:\/\//i.test(value)) {
+          return 'RTSP source must start with rtsp://';
+        }
+        if (values.stream_type === 'MP4' && !/\.(mp4|mkv|webm)(\?.*)?$/i.test(value)) {
+          return 'MP4 source must point to a video file (.mp4, .mkv, .webm)';
+        }
+        if (
+          (values.stream_type === 'HTTP' || values.stream_type === 'EMBED') &&
+          !/^https?:\/\//i.test(value)
+        ) {
+          return 'HTTP/Embed source must start with http:// or https://';
+        }
+        return null;
+      },
     },
   });
 
@@ -42,6 +57,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
   const handleFileSelect = (file: File | null) => {
     if (file) {
       form.setFieldValue('stream_url', file.name);
+      form.setFieldValue('stream_type', 'MP4');
     }
   };
 
@@ -52,7 +68,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
       withCloseButton={false} // Custom close button in header
       centered
       radius="lg"
-      size="compact-lg"
+      size={560}
       padding="xl"
       zIndex={1100} // Above the fullscreen camera view (z-index 1000)
     >
@@ -79,7 +95,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
           <X width={24} height={24} />
         </ActionIcon>
       </Group>
-      <hr style={{ border: '0.5px solid #eee', marginBottom: '25px' }} />
+      <hr style={{ border: '0.5px solid var(--mantine-color-default-border)', marginBottom: '25px' }} />
 
       <form onSubmit={form.onSubmit(onSubmit)}>
         <Stack gap="lg">
@@ -93,8 +109,8 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
             {...form.getInputProps('name')}
             radius="md"
             size="md"
-            leftSection={<Camera width={18} height={18} style={{ color: '#888' }} />}
-            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
+            leftSection={<Camera width={18} height={18} style={{ color: 'var(--mantine-color-dimmed)' }} />}
+            styles={{ input: { border: '1.5px solid var(--mantine-color-default-border)' } }}
           />
 
           <Box>
@@ -108,14 +124,17 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
               </Text>
             )}
 
-            <Group gap="xs" align="flex-start" wrap="nowrap">
+            <Group gap="xs" align="flex-start" wrap="wrap">
               <TextInput
                 placeholder={form.values.stream_type === 'MP4' ? "Select a file..." : "rtsp://..."}
                 {...form.getInputProps('stream_url')}
                 radius="md"
                 size="md"
-                leftSection={<Broadcast width={18} height={18} style={{ color: '#888' }} />}
-                styles={{ root: { flex: 1 }, input: { border: '1.5px solid #E0E0E0' } }}
+                leftSection={<Broadcast width={18} height={18} style={{ color: 'var(--mantine-color-dimmed)' }} />}
+                styles={{
+                  root: { flex: '1 1 0', minWidth: 0 },
+                  input: { border: '1.5px solid var(--mantine-color-default-border)' },
+                }}
               />
 
               {form.values.stream_type === 'MP4' && (
@@ -128,7 +147,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
                       h={42}
                       radius="md"
                       leftSection={<FolderOpen width={18} height={18} />}
-                      styles={{ root: { border: '1.5px solid #E0E0E0', color: '#333', flexShrink: 0 } }}
+                      styles={{ root: { border: '1.5px solid var(--mantine-color-default-border)', flexShrink: 0 } }}
                     >
                       Locate File
                     </Button>
@@ -154,8 +173,9 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
             {...form.getInputProps('stream_type')}
             radius="md"
             size="md"
-            leftSection={<Video width={18} height={18} style={{ color: '#888' }} />}
-            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
+            comboboxProps={{ zIndex: 1200 }}
+            leftSection={<Video width={18} height={18} style={{ color: 'var(--mantine-color-dimmed)' }} />}
+            styles={{ input: { border: '1.5px solid var(--mantine-color-default-border)' } }}
           />
 
           <TextInput
@@ -168,8 +188,8 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
             {...form.getInputProps('location_name')}
             radius="md"
             size="md"
-            leftSection={<GlobeAlt width={18} height={18} style={{ color: '#888' }} />}
-            styles={{ input: { border: '1.5px solid #E0E0E0' } }}
+            leftSection={<GlobeAlt width={18} height={18} style={{ color: 'var(--mantine-color-dimmed)' }} />}
+            styles={{ input: { border: '1.5px solid var(--mantine-color-default-border)' } }}
           />
 
           {/* Footer Actions */}
@@ -181,7 +201,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
               size="md"
               h={48}
               onClick={onClose}
-              styles={{ root: { border: '1.5px solid #E0E0E0', color: '#333' } }}
+              styles={{ root: { border: '1.5px solid var(--mantine-color-default-border)' } }}
             >
               Cancel
             </Button>

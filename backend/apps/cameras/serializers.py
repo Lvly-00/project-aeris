@@ -23,6 +23,18 @@ class CameraSerializer(serializers.ModelSerializer):
         read_only_fields = ["id", "last_seen", "created_at", "updated_at"]
 
 
+def validate_name(self, value: str) -> str:
+        name = (value or "").strip()
+        qs = Camera.objects.filter(name__iexact=name)
+        if self.instance:
+            qs = qs.exclude(pk=self.instance.pk)
+        if qs.exists():
+            raise serializers.ValidationError(
+                "A camera with this name already exists."
+            )
+        return name
+
+
 class CameraStatusSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=[])
     last_seen = serializers.DateTimeField(required=False)
