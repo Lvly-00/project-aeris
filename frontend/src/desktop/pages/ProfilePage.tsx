@@ -205,10 +205,10 @@ export default function ProfilePage() {
                 size="sm"
                 fw={600}
                 w="100%"
-                onClick={() => setTermsOpened(true)}
+                onClick={() =>   setTermsOpened(true)}
                 styles={{ label: { justifyContent: 'flex-start' } }}
               >
-                Terms and Conditions
+                Terms of Use
               </Button>
               <Button
                 variant="subtle"

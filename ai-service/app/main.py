@@ -58,8 +58,29 @@ def create_app() -> FastAPI:
         # Importing the singletons here triggers their __init__ (model loading etc.)
         from .core.camera_manager import CameraManager
         from .core.model_registry import ModelRegistry
-        CameraManager()
-        ModelRegistry()
+        from .core import config_store
+        _cm = CameraManager()
+        _mr = ModelRegistry()
+
+        # Re-apply persisted thresholds so settings survive restarts
+        saved = config_store.load_saved()
+        if saved.get("confidence_threshold") is not None:
+            try:
+                conf = float(saved["confidence_threshold"])
+                _mr.set_conf_threshold(conf)
+                if getattr(_cm, "detector", None) is not None:
+                    _cm.detector.confidence_threshold = conf
+            except (TypeError, ValueError):
+                logger.warning(
+                    "Ignoring invalid persisted confidence_threshold: %r",
+                    saved["confidence_threshold"],
+                )
+        for inc_type, threshold in (saved.get("type_thresholds") or {}).items():
+            try:
+                _cm.confidence_filter.set_type_threshold(inc_type, float(threshold))
+            except (TypeError, ValueError):
+                logger.warning("Ignoring invalid persisted threshold for %s: %r", inc_type, threshold)
+
         logger.info("AI service ready")
 
     @application.on_event("shutdown")

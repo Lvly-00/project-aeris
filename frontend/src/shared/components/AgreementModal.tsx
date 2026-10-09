@@ -77,8 +77,8 @@ export default function AgreementModal({ opened, onAgree, onDecline }: Agreement
           <Center py="xl" style={{ flexDirection: 'column' }}>
             <Image src="/icon.png" alt="Aeris Logo" w={110} mb="lg" />
             <Text c="dimmed" fz="sm" ta="center" style={{ maxWidth: 360, lineHeight: 1.5 }}>
-              Before you continue, please review and accept our Terms and
-              Conditions and Privacy Policy.
+              Before you continue, please review and accept our Terms of
+              Use and Privacy Policy.
             </Text>
           </Center>
 
@@ -90,7 +90,7 @@ export default function AgreementModal({ opened, onAgree, onDecline }: Agreement
               onChange={(e) => setTermsChecked(e.currentTarget.checked)}
               label={
                 <span>
-                  I accept the <LinkButton onClick={() => setTermsOpened(true)}>Terms and Conditions</LinkButton>
+                  I accept the <LinkButton onClick={() => setTermsOpened(true)}>Terms of Use</LinkButton>
                 </span>
               }
             />
@@ -116,7 +116,7 @@ export default function AgreementModal({ opened, onAgree, onDecline }: Agreement
               }}
               label={
                 <Text size="sm" fw={600}>
-                  I agree to everything (Terms and Conditions and Privacy Policy)
+                  I agree to everything (Terms of Use and Privacy Policy)
                 </Text>
               }
             />

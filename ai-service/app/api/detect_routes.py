@@ -173,6 +173,8 @@ def get_config(_: str = Depends(require_api_key)):
 @router.post("/config")
 def update_config(request: ConfigUpdateRequest, _: str = Depends(require_api_key)):
     """Update AI service configuration at runtime."""
+    from ..core import config_store
+
     if request.confidence_threshold is not None:
         _model_registry.set_conf_threshold(request.confidence_threshold)
         if _manager.detector:
@@ -182,4 +184,13 @@ def update_config(request: ConfigUpdateRequest, _: str = Depends(require_api_key
     if request.type_thresholds:
         for inc_type, threshold in request.type_thresholds.items():
             _manager.confidence_filter.set_type_threshold(inc_type, threshold)
+
+    # Persist the resulting thresholds so they survive a service restart.
+    config_store.save(
+        confidence_threshold=_model_registry.get_conf_threshold(),
+        type_thresholds={
+            t: _manager.confidence_filter.get_type_threshold(t)
+            for t in config_store.INCIDENT_TYPES
+        },
+    )
     return {"status": "updated"}

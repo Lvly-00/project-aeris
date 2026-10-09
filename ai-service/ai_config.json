@@ -1,0 +1,8 @@
+{
+  "confidence_threshold": 0.5,
+  "type_thresholds": {
+    "Fire": 0.5,
+    "Smoke": 0.5,
+    "Vehicle_Accident": 0.5
+  }
+}

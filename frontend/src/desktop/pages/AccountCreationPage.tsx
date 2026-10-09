@@ -136,7 +136,7 @@ export default function UserManagement() {
 
             <DeleteUserModal
                 opened={deleteOpened} onClose={() => setDeleteOpened(false)}
-                onConfirm={handleDelete} userName={selectedUser?.email || ''}
+                onConfirm={handleDelete} userName={selectedUser?.full_name || selectedUser?.email || ''}
                 loading={loading}
             />
 
