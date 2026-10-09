@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Container, Grid, Paper, Text, Title, Avatar, Divider,
   Stack, Group, Switch, Box, LoadingOverlay, rem, FileButton, Badge, Button, Anchor,
-  Menu, UnstyledButton,
+  Menu, UnstyledButton, Image, Loader,
 } from '@mantine/core';
 import { Bell, Camera, Check, CheckShield, ChevronDown, ChevronLeft, GlobeAlt } from '@boxicons/react';
 import { useNavigate } from 'react-router-dom';
@@ -121,7 +121,25 @@ export default function ProfilePage() {
     return `${name.slice(0, 2)}${'*'.repeat(Math.max(name.length - 2, 3))}@${domain}`;
   };
 
-  if (!userData) return <LoadingOverlay visible />;
+  if (!userData) {
+    return (
+      <Box
+        style={{
+          minHeight: '100vh',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          backgroundColor: 'var(--mantine-color-body)',
+        }}
+      >
+        <Stack align="center" gap="md">
+          <Image src="/icon.png" alt="Aeris Logo" w={96} />
+          <Loader color="orange" size="lg" />
+          <Text size="sm" c="dimmed" fw={500}>Loading your profile…</Text>
+        </Stack>
+      </Box>
+    );
+  }
 
   return (
     <Container size="xl" py="xl" style={{ backgroundColor: 'var(--mantine-color-body)', minHeight: '100vh' }}>
