@@ -218,6 +218,13 @@ export class WebSocketService {
       queryClient.invalidateQueries({ queryKey: ['dispatches'] });
     }
 
+    if (action === 'audit_changed') {
+      // A new AuditLog entry was written. Refetch so an open Audit Trail page
+      // shows it immediately without a manual refresh.
+      queryClient.invalidateQueries({ queryKey: ['audit-logs'] });
+      queryClient.invalidateQueries({ queryKey: ['audit-actions'] });
+    }
+
     if (action === 'message_new') {
       queryClient.invalidateQueries({ queryKey: ['dispatch-messages'] });
       if (data.payload?.title) {

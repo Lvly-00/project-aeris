@@ -6,7 +6,12 @@
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Box, Text } from '@mantine/core';
 import { Video } from '@boxicons/react';
-import { useFps, IDLE_FEED_STATS } from './useFps';
+import { useFps, IDLE_FEED_STATS, CONNECT_TIMEOUT_MS } from './useFps';
+import {
+  markFeedFailed,
+  clearFeedFailure,
+  isFeedRecentlyFailed,
+} from './feedConnectionCache';
 import type { FeedStats, FeedState } from './useFps';
 import { DetectionOverlay } from './DetectionOverlay';
 import type { IncidentDetectedData } from './DetectionOverlay';
@@ -150,6 +155,11 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
   const { fps, tick } = useFps();
   const [feed, setFeed] = useState<FeedStatus>({ state: 'connecting' });
   const [stats, setStats] = useState<FeedStats>(IDLE_FEED_STATS);
+  // Sticky across remounts (fullscreen wall, navigation): a camera that
+  // failed to connect must not re-run its handshake on every visit.
+  const [stalled, setStalled] = useState(() =>
+    isFeedRecentlyFailed(camera.id, camera.stream_url),
+  );
 
   const baseUrl = (window as any).electronAPI?.isDesktop
     ? (window as any).electronAPI.getAiUrl()
@@ -172,6 +182,29 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
     setStats(IDLE_FEED_STATS);
   }, [camera.id]);
 
+  useEffect(() => {
+    if (feed.state === 'live') {
+      setStalled(false);
+      clearFeedFailure(camera.id);
+      return;
+    }
+    if (feed.state === 'error') {
+      setStalled(false);
+      markFeedFailed(camera.id, camera.stream_url);
+      return;
+    }
+    if (isFeedRecentlyFailed(camera.id, camera.stream_url)) {
+      setStalled(true);
+      return;
+    }
+    setStalled(false);
+    const t = setTimeout(() => {
+      setStalled(true);
+      markFeedFailed(camera.id, camera.stream_url);
+    }, CONNECT_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [feed.state, camera.id, camera.stream_url]);
+
   // The RTSP watchdog reports 'error'; the card shows that as OFFLINE.
   const state: FeedState = feed.state === 'error' ? 'offline' : feed.state === 'live' ? 'live' : 'connecting';
 
@@ -187,25 +220,39 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
     onStats?.(camera.id, stats);
   }, [stats, onStats, camera.id]);
 
+  const failed = stalled || feed.state === 'error';
+
   return (
     <Box
       ref={containerRef}
       style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}
     >
-      <canvas
-        ref={canvasRef}
-        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-      />
-      <RtspCanvas
-        canvasRef={canvasRef}
-        cameraId={camera.id}
-        baseUrl={baseUrl}
-        onFrame={tick}
-        onStatus={handleStatus}
-        onSize={handleSize}
-      />
+      {!failed && (
+        <>
+          <canvas
+            ref={canvasRef}
+            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+          />
+          <RtspCanvas
+            canvasRef={canvasRef}
+            cameraId={camera.id}
+            baseUrl={baseUrl}
+            onFrame={tick}
+            onStatus={handleStatus}
+            onSize={handleSize}
+          />
+          <DetectionOverlay
+            videoRef={videoRef}
+            cameraId={camera.id}
+            streamType={camera.stream_type}
+            source={camera.stream_url}
+            cameraName={camera.name}
+            onIncidentDetected={onIncidentDetected}
+          />
+        </>
+      )}
 
-      {feed.state === 'error' && (
+      {failed ? (
         <Box
           pos="absolute"
           style={{
@@ -215,27 +262,20 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
             alignItems: 'center',
             justifyContent: 'center',
             textAlign: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.55)',
+            padding: 12,
             pointerEvents: 'none',
           }}
         >
-          <Video width={48} height={48} color="var(--mantine-color-dimmed)" />
-          <Text size="xs" c="dimmed" mt="xs">Stream unavailable</Text>
-          {feed.detail && (
-            <Text size="xs" c="red" mt={4} style={{ wordBreak: 'break-word' }}>
-              {feed.detail}
-            </Text>
-          )}
+          <Video width={40} height={40} color="var(--mantine-color-dimmed)" />
+          <Text fw={700} size="sm" c="white" mt="xs">Connection failure</Text>
+          <Text size="xs" c="var(--mantine-color-dimmed)" mt={4} w="90%" lh={1.5}>
+            {feed.state === 'error' && feed.detail
+              ? feed.detail
+              : 'Unable to connect to the camera source. Verify the configuration and connection.'}
+          </Text>
         </Box>
-      )}
-
-      <DetectionOverlay
-        videoRef={videoRef}
-        cameraId={camera.id}
-        streamType={camera.stream_type}
-        source={camera.stream_url}
-        cameraName={camera.name}
-        onIncidentDetected={onIncidentDetected}
-      />
+      ) : null}
     </Box>
   );
 }

@@ -8,7 +8,7 @@ class Camera(models.Model):
         MP4 = "MP4", "MP4"
         EMBED = "EMBED", "EMBED"
 
-    name = models.CharField(max_length=200)
+    name = models.CharField(max_length=200, unique=True)
     stream_url = models.CharField(max_length=500)
     stream_type = models.CharField(
         max_length=10, choices=StreamType.choices, default=StreamType.RTSP

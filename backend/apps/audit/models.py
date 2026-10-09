@@ -11,7 +11,7 @@ class AuditLog(models.Model):
         ACCOUNT_UNLOCKED = "Account_Unlocked", "Account Unlocked"
         PASSWORD_RESET_REQUESTED = "Password_Reset_Requested", "Password Reset Requested"
         PASSWORD_RESET_COMPLETED = "Password_Reset_Completed", "Password Reset Completed"
-        INCIDENT_CREATED = "Incident_Created", "Incident Created"
+        INCIDENT_DETECTED = "Incident_Detected", "Incident Detected"
         INCIDENT_VERIFIED = "Incident_Verified", "Incident Verified"
         INCIDENT_DISMISSED = "Incident_Dismissed", "Incident Dismissed"
         INCIDENT_DISPATCHED = "Incident_Dispatched", "Incident Dispatched"

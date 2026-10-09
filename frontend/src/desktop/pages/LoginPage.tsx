@@ -21,13 +21,14 @@ import { useForm } from '@mantine/form';
 import { CheckShield, Eye, EyeSlash, InfoCircle } from '@boxicons/react';
 import { useAuth } from '../../shared/hooks/useAuth';
 import { AUTH_MESSAGES, mapLoginError } from '../../shared/utils/authErrors';
+import { clearTokens } from '../../shared/utils/tokenStorage';
 import VerificationCodeModal from '../../shared/components/VerificationCodeModal';
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const isDark = useComputedColorScheme('light') === 'dark';
-  const { login, verify2FALogin } = useAuth();
+  const { login, verify2FALogin, setUser, user } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [twoFAOpen, setTwoFAOpen] = useState(false);
@@ -85,6 +86,15 @@ export default function LoginPage() {
         setTwoFAEmail(result.email || values.email);
         setRememberMe(values.remember);
         setTwoFAOpen(true);
+        setLoading(false);
+        return;
+      }
+
+      // Barangay Tanod accounts use the mobile app — block them from desktop.
+      if (result?.user?.role === 'Barangay Tanod') {
+        clearTokens();
+        setUser(null);
+        setError(AUTH_MESSAGES.DESKTOP_TANOD_BLOCKED);
         setLoading(false);
         return;
       }
@@ -255,7 +265,16 @@ export default function LoginPage() {
         onVerify={async (code) => {
           await verify2FALogin(twoFAEmail, code, rememberMe);
         }}
-        onVerified={() => navigate('/desktop/cameras', { replace: true })}
+        onVerified={() => {
+          if (user?.role === 'Barangay Tanod') {
+            clearTokens();
+            setUser(null);
+            setTwoFAOpen(false);
+            setError(AUTH_MESSAGES.DESKTOP_TANOD_BLOCKED);
+            return;
+          }
+          navigate('/desktop/cameras', { replace: true });
+        }}
         title="Two-Factor Authentication"
         subtitle="Your identity has been verified. You may now continue."
         verifyLabel="Continue to Dashboard"

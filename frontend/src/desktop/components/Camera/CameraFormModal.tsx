@@ -15,9 +15,11 @@ interface CameraFormModalProps {
   onSubmit: (values: any) => void;
   initialValues?: any;
   loading?: boolean;
+  cameras?: any[];
+  editingId?: number;
 }
 
-export function CameraFormModal({ opened, onClose, onSubmit, initialValues, loading }: CameraFormModalProps) {
+export function CameraFormModal({ opened, onClose, onSubmit, initialValues, loading, cameras, editingId }: CameraFormModalProps) {
   const form = useForm({
     initialValues: {
       name: '',
@@ -61,6 +63,26 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
     }
   };
 
+  const handleSubmit = (event: React.FormEvent) => {
+    event.preventDefault();
+    const { hasErrors } = form.validate();
+    if (hasErrors) return;
+
+    const name = (form.values.name || '').trim();
+    const duplicate = (cameras || []).some(
+      (c) =>
+        c.id !== editingId &&
+        (c.name || '').trim().toLowerCase() === name.toLowerCase(),
+    );
+    if (duplicate) {
+      form.setFieldError('name', 'A camera with this name already exists.');
+      return;
+    }
+
+    form.clearFieldError('name');
+    onSubmit(form.values);
+  };
+
   return (
     <Modal
       opened={opened}
@@ -97,7 +119,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
       </Group>
       <hr style={{ border: '0.5px solid var(--mantine-color-default-border)', marginBottom: '25px' }} />
 
-      <form onSubmit={form.onSubmit(onSubmit)}>
+      <form onSubmit={handleSubmit}>
         <Stack gap="lg">
           <TextInput
             label={

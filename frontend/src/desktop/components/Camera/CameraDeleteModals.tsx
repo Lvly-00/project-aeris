@@ -134,12 +134,8 @@ export function MassDeleteCamerasModal({
               Delete CCTV Camera{count === 1 ? '' : 's'}
             </Text>
 
-            <Text size="sm" c="dimmed" ta="center" maw={430} lh={1.5}>
-              Are you sure you want to delete the selected{' '}
-              <Text span fw={700} c="var(--mantine-color-text)">
-                {count} CCTV camera{count === 1 ? '' : 's'}
-              </Text>
-              ? This action cannot be undone.
+            <Text size="sm" c="dimmed" ta="center" maw={350} lh={1.5}>
+              Are you sure you want to delete the selected     {count} CCTV camera{count === 1 ? '' : 's'} ? This action cannot be undone.
             </Text>
           </Stack>
         </Stack>
@@ -195,22 +191,6 @@ export function MassDeleteCamerasModal({
             </Stack>
           </Paper>
 
-          {/* Warning */}
-          <Group gap={9} align="flex-start" wrap="nowrap" mt={2}>
-            <AlertCircle
-              size="xs"
-              color="var(--mantine-color-red-6)"
-              style={{
-                marginTop: 2,
-                flexShrink: 0,
-              }}
-            />
-
-            <Text size="xs" c="var(--mantine-color-dimmed)" lh={1.45}>
-              Deleting these cameras will also remove their
-              associated incidents, detections, and notifications.
-            </Text>
-          </Group>
         </Stack>
 
         {/* Footer */}

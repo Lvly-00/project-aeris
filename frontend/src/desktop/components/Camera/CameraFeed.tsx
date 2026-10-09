@@ -8,8 +8,13 @@
  */
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Box, Text } from '@mantine/core';
-import { Video } from '@boxicons/react';
-import { useFps, IDLE_FEED_STATS } from './useFps';
+import { VideoSlash, Video } from '@boxicons/react';
+import { useFps, IDLE_FEED_STATS, CONNECT_TIMEOUT_MS } from './useFps';
+import {
+  markFeedFailed,
+  clearFeedFailure,
+  isFeedRecentlyFailed,
+} from './feedConnectionCache';
 import type { FeedStats, FeedState } from './useFps';
 import { DetectionOverlay } from './DetectionOverlay';
 import { RTSPCameraFeed } from './RTSPCameraFeed';
@@ -56,12 +61,44 @@ export function CameraFeed({ camera, onIncidentDetected, onStats }: CameraFeedPr
   const [playState, setPlayState] = useState<'connecting' | 'live'>('connecting');
   const [stats, setStats] = useState<FeedStats>(IDLE_FEED_STATS);
 
+  const delegates = camera.stream_type === 'RTSP';
+
   // Shared hook resolves the token from localStorage *and* sessionStorage, so
   // MP4 keeps working when the user logged in without "Remember Me".
   const { streamUrl, hasError, errorMsg, handleError } = useCameraFeed({
     cameraId: camera.id,
     streamType: camera.stream_type,
   });
+
+  // A handshake stuck in 'connecting' too long is a failed connection. The
+  // failure is sticky across remounts (fullscreen wall, navigation).
+  const [connectTimeout, setConnectTimeout] = useState(() =>
+    isFeedRecentlyFailed(camera.id, camera.stream_url),
+  );
+
+  useEffect(() => {
+    if (hasError || delegates || !streamUrl) {
+      setConnectTimeout(false);
+      return;
+    }
+    if (isFeedRecentlyFailed(camera.id, camera.stream_url)) {
+      setConnectTimeout(true);
+      return;
+    }
+    if (playState === 'live') {
+      setConnectTimeout(false);
+      return;
+    }
+    const t = setTimeout(() => {
+      setConnectTimeout(true);
+      markFeedFailed(camera.id, camera.stream_url);
+    }, CONNECT_TIMEOUT_MS);
+    return () => clearTimeout(t);
+  }, [playState, hasError, streamUrl, delegates, camera.id, camera.stream_url]);
+
+  useEffect(() => {
+    if (hasError) markFeedFailed(camera.id, camera.stream_url);
+  }, [hasError, camera.id, camera.stream_url]);
 
   const report = useCallback(
     (patch: Partial<FeedStats>) =>
@@ -96,14 +133,16 @@ export function CameraFeed({ camera, onIncidentDetected, onStats }: CameraFeedPr
     };
   }, [streamUrl, report]);
 
-  const state: FeedState = hasError ? 'offline' : playState;
+  const state: FeedState =
+    hasError || (connectTimeout && !delegates && playState !== 'live')
+      ? 'offline'
+      : playState;
 
   useEffect(() => report({ fps }), [fps, report]);
   useEffect(() => report({ state }), [state, report]);
 
   // RTSP reports for itself; reporting here as well would overwrite its real
   // numbers with these placeholders on mount.
-  const delegates = camera.stream_type === 'RTSP';
   useEffect(() => {
     if (!delegates) onStats?.(camera.id, stats);
   }, [stats, onStats, delegates, camera.id]);
@@ -157,32 +196,62 @@ export function CameraFeed({ camera, onIncidentDetected, onStats }: CameraFeedPr
       ref={containerRef}
       style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}
     >
-      <video
-        ref={videoRef}
-        key={streamUrl}
-        src={streamUrl}
-        autoPlay
-        loop
-        muted
-        playsInline
-        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-        onError={handleError}
-        onPlaying={() => {
-          setPlayState('live');
-          startCounting();
-        }}
-        onWaiting={() => { setPlayState('connecting'); stopCounting(); }}
-        onStalled={() => { setPlayState('connecting'); stopCounting(); }}
-        onAbort={() => { setPlayState('connecting'); stopCounting(); }}
-        onPause={() => { setPlayState('connecting'); stopCounting(); }}
-      />
-      <DetectionOverlay
-        videoRef={videoRef}
-        cameraId={camera.id}
-        streamType={camera.stream_type}
-        cameraName={camera.name}
-        onIncidentDetected={onIncidentDetected}
-      />
+      {!connectTimeout && (
+        <>
+          <video
+            ref={videoRef}
+            key={streamUrl}
+            src={streamUrl}
+            autoPlay
+            loop
+            muted
+            playsInline
+            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+            onError={handleError}
+            onPlaying={() => {
+              clearFeedFailure(camera.id);
+              setPlayState('live');
+              startCounting();
+            }}
+            onWaiting={() => { setPlayState('connecting'); stopCounting(); }}
+            onStalled={() => { setPlayState('connecting'); stopCounting(); }}
+            onAbort={() => { setPlayState('connecting'); stopCounting(); }}
+            onPause={() => { setPlayState('connecting'); stopCounting(); }}
+          />
+          <DetectionOverlay
+            videoRef={videoRef}
+            cameraId={camera.id}
+            streamType={camera.stream_type}
+            cameraName={camera.name}
+            onIncidentDetected={onIncidentDetected}
+          />
+        </>
+      )}
+
+      {connectTimeout && (
+        <Box
+          pos="absolute"
+          style={{
+            inset: 0,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            textAlign: 'center',
+            backgroundColor: 'rgba(0, 0, 0, 0.55)',
+            padding: 12,
+          }}
+        >
+          <VideoSlash width={40} height={40} color="var(--mantine-color-dimmed)" />
+          <Text fw={700} size="md" c="white" mt="xs">
+            Connection failure
+          </Text>
+          <Text size="sm" c="var(--mantine-color-dimmed)" mt={4} w="90%" lh={1.5}>
+            Unable to connect to the camera source. Verify the configuration
+            and connection.
+          </Text>
+        </Box>
+      )}
     </Box>
   );
 }

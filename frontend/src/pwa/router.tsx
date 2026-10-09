@@ -21,7 +21,7 @@ import ProfilePage from './pages/ProfilePage';
  * Guard that checks if user is authenticated and matches the required role.
  * Role is typically a string on your User type (e.g. user.role)
  */
-function RoleGuard({ children, allowedRole }: { children: React.ReactNode; allowedRole: string }) {
+function RoleGuard({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) {
     const { user, isAuthenticated, loading } = useAuth();
 
     if (loading) return <LoadingOverlay visible zIndex={1000} />;
@@ -32,11 +32,11 @@ function RoleGuard({ children, allowedRole }: { children: React.ReactNode; allow
 
     // Normalize role check (handling case sensitivity)
     const currentRole = user?.role?.toLowerCase();
-    const targetRole = allowedRole.toLowerCase();
+    const isAdminRole = currentRole === 'cctv chief' || currentRole === 'cctv operator';
 
-    if (currentRole !== targetRole) {
+    if (!currentRole || !allowedRoles.includes(currentRole)) {
         // If they are in the wrong area, push them to their correct home
-        return <Navigate to={currentRole === 'cctv chief' ? "/pwa/admin" : "/pwa/tanod"} replace />;
+        return <Navigate to={isAdminRole ? "/pwa/admin" : "/pwa/tanod"} replace />;
     }
 
     return <>{children}</>;
@@ -54,6 +54,7 @@ export default function PwaRouter() {
     }
 
     const userRole = user?.role?.toLowerCase();
+    const isAdminRole = userRole === 'cctv chief' || userRole === 'cctv operator';
 
     return (
         <Routes>
@@ -62,7 +63,7 @@ export default function PwaRouter() {
                 path="login"
                 element={
                     isAuthenticated ? (
-                        <Navigate to={userRole === 'cctv chief' ? "/pwa/admin" : "/pwa/tanod"} replace />
+                        <Navigate to={isAdminRole ? "/pwa/admin" : "/pwa/tanod"} replace />
                     ) : (
                         <LoginPage />
                     )
@@ -73,7 +74,7 @@ export default function PwaRouter() {
             <Route
                 path="admin"
                 element={
-                    <RoleGuard allowedRole="cctv chief">
+                    <RoleGuard allowedRoles={["cctv chief", "cctv operator"]}>
                         <AdminLayout />
                     </RoleGuard>
                 }
@@ -91,7 +92,7 @@ export default function PwaRouter() {
             <Route
                 path="tanod"
                 element={
-                    <RoleGuard allowedRole="barangay tanod">
+                    <RoleGuard allowedRoles={["barangay tanod"]}>
                         <TanodLayout />
                     </RoleGuard>
                 }
@@ -109,7 +110,7 @@ export default function PwaRouter() {
                 path="/"
                 element={
                     <Navigate
-                        to={!isAuthenticated ? "login" : (userRole === 'cctv chief' ? "admin" : "tanod")}
+                        to={!isAuthenticated ? "login" : (isAdminRole ? "admin" : "tanod")}
                         replace
                     />
                 }

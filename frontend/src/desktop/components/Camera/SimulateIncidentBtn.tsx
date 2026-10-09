@@ -1,6 +1,6 @@
 import { useState } from 'react';
 import { Button } from '@mantine/core';
-import { BoltCircle } from '@boxicons/react';
+import { Bolt, BoltCircle } from '@boxicons/react';
 import { incidentsAPI } from '../../../shared/services/api';
 import { notifications } from '@mantine/notifications';
 
@@ -86,7 +86,7 @@ export function SimulateIncidentBtn({ cameras }: Props) {
       type="button"
       variant="filled"
       color="orange"
-      leftSection={<BoltCircle  width={ 18 } height={ 18 } fill="white" />}
+      leftSection={<Bolt  width={ 20 } height={ 20 } fill="white" />}
       onClick={handleSimulate}
       loading={loading}
       disabled={loading || !hasCamera(cameras)}

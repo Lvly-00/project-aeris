@@ -18,7 +18,7 @@ interface AuthContextType {
   user: User | null;
   setUser: Dispatch<SetStateAction<User | null>>;
   loading: boolean;
-  login: (data: any) => Promise<{ requires_2fa?: boolean; email?: string }>;
+  login: (data: any) => Promise<{ requires_2fa?: boolean; email?: string; user?: User }>;
   verify2FALogin: (email: string, code: string, remember?: boolean) => Promise<void>;
   logout: () => Promise<void>;
   isAuthenticated: boolean;
@@ -129,7 +129,7 @@ export function AuthProvider({
 
     // Always start in Operator mode.
     setViewMode('Operator');
-    return {};
+    return { user: response.data.user };
   };
 
   const verify2FALogin = async (email: string, code: string, remember?: boolean) => {

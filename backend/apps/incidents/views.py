@@ -11,6 +11,8 @@ from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
 from apps.accounts.models import User
+from apps.audit.models import AuditLog
+from apps.audit.services import write_audit
 from apps.cameras.models import Camera
 from apps.dispatch.models import DispatchMessage, IncidentTimeline
 from apps.lookups.models import IncidentStatus, IncidentType, NotificationType
@@ -310,7 +312,16 @@ class IncidentViewSet(viewsets.ModelViewSet):
         return IncidentSerializer
 
     def perform_destroy(self, instance):
+        incident_id = instance.pk
         instance.delete()
+        write_audit(
+            self.request,
+            AuditLog.Action.INCIDENT_ARCHIVED,
+            user=self.request.user,
+            resource_type="Incident",
+            resource_id=incident_id,
+            details={"reason": "deleted"},
+        )
         # Every incident write moves the dashboard's incident tallies.
         broadcast_stats_changed()
 
@@ -322,6 +333,20 @@ class IncidentViewSet(viewsets.ModelViewSet):
             event_type=IncidentTimeline.EventType.DETECTED,
             title=f"{incident.incident_type.name} detected",
             actor=self.request.user,
+        )
+
+        write_audit(
+            self.request,
+            AuditLog.Action.INCIDENT_DETECTED,
+            user=self.request.user,
+            resource_type="Incident",
+            resource_id=incident.pk,
+            details={
+                "incident_type": incident.incident_type.name,
+                "severity": incident.severity,
+                "camera": incident.camera.name if incident.camera else None,
+                "source": incident.source,
+            },
         )
 
         data = IncidentSerializer(
@@ -475,6 +500,20 @@ class IncidentViewSet(viewsets.ModelViewSet):
             context={"request": request}
         ).data
 
+        write_audit(
+            request,
+            AuditLog.Action.INCIDENT_DETECTED,
+            user=request.user,
+            resource_type="Incident",
+            resource_id=incident.pk,
+            details={
+                "incident_type": incident.incident_type.name,
+                "severity": incident.severity,
+                "camera": incident.camera.name if incident.camera else None,
+                "source": incident.source,
+            },
+        )
+
         broadcast_incident(
             "incident_created",
             data
@@ -531,6 +570,25 @@ class IncidentViewSet(viewsets.ModelViewSet):
             incident.dismissed_by = user
 
         incident.save()
+
+        transition_action = {
+            "Verified": AuditLog.Action.INCIDENT_VERIFIED,
+            "Dismissed": AuditLog.Action.INCIDENT_DISMISSED,
+            "Dispatched": AuditLog.Action.INCIDENT_DISPATCHED,
+            "Resolved": AuditLog.Action.INCIDENT_RESOLVED,
+        }.get(new_status)
+        if transition_action is not None:
+            write_audit(
+                request,
+                transition_action,
+                user=user,
+                resource_type="Incident",
+                resource_id=incident.pk,
+                details={
+                    "from_status": current_status,
+                    "notes": notes or None,
+                },
+            )
 
         # Notes are recorded as timeline entries (review_notes was removed).
         if notes:
@@ -700,6 +758,17 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
         deleted = doomed.count()
         doomed.delete()
+        write_audit(
+            request,
+            AuditLog.Action.INCIDENT_ARCHIVED,
+            user=request.user,
+            resource_type="Incident",
+            details={
+                "camera_ids": camera_ids,
+                "include_unassigned": include_unassigned,
+                "deleted": deleted,
+            },
+        )
         broadcast_stats_changed()
 
         return Response({"deleted": deleted})

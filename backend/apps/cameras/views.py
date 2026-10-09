@@ -15,6 +15,8 @@ from rest_framework.permissions import IsAuthenticated, AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import AccessToken
 from apps.lookups.models import CameraStatus
+from apps.audit.models import AuditLog
+from apps.audit.services import write_audit
 from apps.incidents.views import broadcast_camera_changed, broadcast_stats_changed
 from .models import Camera
 from .serializers import CameraSerializer, CameraStatusSerializer
@@ -75,6 +77,14 @@ class CameraViewSet(viewsets.ModelViewSet):
 
     def perform_create(self, serializer):
         camera = serializer.save(status=CameraStatus.objects.get(name="Online"))
+        write_audit(
+            self.request,
+            AuditLog.Action.CAMERA_CREATED,
+            user=self.request.user,
+            resource_type="Camera",
+            resource_id=camera.pk,
+            details={"name": camera.name, "location": camera.location_name},
+        )
         # The dashboard counts cameras, and a client that just created one
         # would otherwise keep showing the old tile until its next poll.
         broadcast_stats_changed()
@@ -83,6 +93,14 @@ class CameraViewSet(viewsets.ModelViewSet):
 
     def perform_update(self, serializer):
         camera = serializer.save()
+        write_audit(
+            self.request,
+            AuditLog.Action.CAMERA_UPDATED,
+            user=self.request.user,
+            resource_type="Camera",
+            resource_id=camera.pk,
+            details={"name": camera.name, "location": camera.location_name},
+        )
         broadcast_stats_changed()
         # The Incidents page prints this camera's name and location on every
         # one of its cards, so a rename has to reach other clients too.
@@ -92,7 +110,17 @@ class CameraViewSet(viewsets.ModelViewSet):
     def perform_destroy(self, instance):
         # Incidents, detections, timeline and notifications go with it:
         # Incident.camera cascades.
+        camera_id = instance.pk
+        camera_name = instance.name
         instance.delete()
+        write_audit(
+            self.request,
+            AuditLog.Action.CAMERA_DELETED,
+            user=self.request.user,
+            resource_type="Camera",
+            resource_id=camera_id,
+            details={"name": camera_name},
+        )
         broadcast_stats_changed()
         broadcast_camera_changed(instance, "deleted")
 
@@ -123,6 +151,17 @@ class CameraViewSet(viewsets.ModelViewSet):
         # One query for the cascade, then one message per camera so other
         # clients drop each of them, exactly like a single delete would.
         Camera.objects.filter(id__in=[c.id for c in cameras]).delete()
+        write_audit(
+            request,
+            AuditLog.Action.CAMERA_DELETED,
+            user=request.user,
+            resource_type="Camera",
+            details={
+                "camera_ids": [c.id for c in cameras],
+                "names": [c.name for c in cameras],
+                "count": len(cameras),
+            },
+        )
         broadcast_stats_changed()
         for camera in cameras:
             broadcast_camera_changed(camera, "deleted")
@@ -145,6 +184,14 @@ class CameraViewSet(viewsets.ModelViewSet):
         else:
             camera.last_seen = datetime.now()
         camera.save()
+        write_audit(
+            request,
+            AuditLog.Action.CAMERA_UPDATED,
+            user=request.user,
+            resource_type="Camera",
+            resource_id=camera.pk,
+            details={"name": camera.name, "status": camera.status.name},
+        )
         logger.info("Camera %s status updated to %s", camera.name, camera.status.name)
         return Response(CameraSerializer(camera).data)
 

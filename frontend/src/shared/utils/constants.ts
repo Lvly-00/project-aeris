@@ -53,7 +53,7 @@ export const PRIORITY_COLORS: Record<string, string> = {
 export const AUDIT_ACTION_LABELS: Record<string, string> = {
   Login: 'Login',
   Logout: 'Logout',
-  Incident_Created: 'Incident Created',
+  Incident_Detected: 'Incident Detected',
   Incident_Verified: 'Incident Verified',
   Incident_Dismissed: 'Incident Dismissed',
   Incident_Dispatched: 'Incident Dispatched',

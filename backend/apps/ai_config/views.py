@@ -4,6 +4,8 @@ from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 from apps.accounts.permissions import IsAdmin
+from apps.audit.models import AuditLog
+from apps.audit.services import write_audit
 from .models import AIConfiguration
 from .serializers import AIConfigurationSerializer
 
@@ -25,6 +27,14 @@ class AIConfigurationViewSet(viewsets.GenericViewSet):
         serializer = self.get_serializer(config, data=request.data, partial=True)
         serializer.is_valid(raise_exception=True)
         serializer.save()
+        write_audit(
+            request,
+            AuditLog.Action.AI_CONFIG_CHANGED,
+            user=request.user,
+            resource_type="AI_Config",
+            resource_id=config.pk,
+            details={"fields": list(request.data.keys())},
+        )
         logger.info("AI configuration updated by %s", request.user.email)
         return Response(serializer.data)
 
@@ -35,6 +45,14 @@ class AIConfigurationViewSet(viewsets.GenericViewSet):
             serializer = self.get_serializer(config, data=request.data, partial=True)
             serializer.is_valid(raise_exception=True)
             serializer.save()
+            write_audit(
+                request,
+                AuditLog.Action.AI_CONFIG_CHANGED,
+                user=request.user,
+                resource_type="AI_Config",
+                resource_id=config.pk,
+                details={"fields": list(request.data.keys())},
+            )
             return Response(serializer.data)
         serializer = self.get_serializer(config)
         return Response(serializer.data)

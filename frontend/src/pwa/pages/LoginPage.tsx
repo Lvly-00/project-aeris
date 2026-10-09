@@ -119,7 +119,7 @@ export default function LoginPage() {
                 return;
             }
 
-            navigate('/pwa/dashboard', {
+            navigate('/pwa', {
                 replace: true,
             });
         } catch (err: any) {
@@ -393,7 +393,7 @@ export default function LoginPage() {
                 onVerify={async (code) => {
                     await verify2FALogin(twoFAEmail, code, rememberMe);
                 }}
-                onVerified={() => navigate('/pwa/dashboard', { replace: true })}
+                onVerified={() => navigate('/pwa', { replace: true })}
                 title="Two-Factor Authentication"
                 subtitle="Your identity has been verified. You may now continue."
                 verifyLabel="Continue to Dashboard"

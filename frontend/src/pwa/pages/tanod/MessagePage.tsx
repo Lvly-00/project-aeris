@@ -62,8 +62,11 @@ export default function MessagesPage() {
                 <Center py="xl">
                     <Stack align="center" gap="sm">
                         <Inbox  width={48} height={48} color="var(--mantine-color-gray-5)" />
-                        <Text c="dimmed" fw={500}>
-                            No dispatch messages yet.
+                        <Text fw={600} size="md">
+                            No dispatch messages yet
+                        </Text>
+                        <Text c="dimmed" fw={500} size="sm" ta="center" style={{ maxWidth: 260 }}>
+                            When an incident is dispatched, the order will appear here in real time.
                         </Text>
                     </Stack>
                 </Center>

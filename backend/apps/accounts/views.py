@@ -15,6 +15,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from apps.audit.models import AuditLog
+from apps.audit.services import write_audit
 from apps.incidents.views import broadcast_stats_changed
 
 from .models import PasswordResetCode, EmailChangeCode, TwoFactorCode, TrustedDevice
@@ -100,21 +102,23 @@ class VerifyPasswordRateThrottle(SimpleRateThrottle):
         return super().wait()
 
 
-def _audit_action(user, request, action: str, details: dict | None = None) -> None:
+def _audit_action(
+    user,
+    request,
+    action,
+    details: dict | None = None,
+    resource_id: int | None = None,
+    resource_type: str = "Auth",
+) -> None:
     """Best-effort audit trail entry for authentication events."""
-    try:
-        from apps.audit.models import AuditLog
-
-        AuditLog.objects.create(
-            user=user,
-            action=action,
-            resource_type="Auth",
-            ip_address=request.META.get("REMOTE_ADDR") or None,
-            user_agent=(request.META.get("HTTP_USER_AGENT") or "")[:500],
-            details=details or {},
-        )
-    except Exception:
-        logger.warning("AuditLog entry failed for action %s", action)
+    write_audit(
+        request,
+        action,
+        user=user,
+        resource_type=resource_type,
+        resource_id=resource_id,
+        details=details,
+    )
 
 
 class RegisterView(generics.CreateAPIView):
@@ -133,6 +137,14 @@ class RegisterView(generics.CreateAPIView):
         user = serializer.save()
         # Total Users / Total Tanods both move when an account is added.
         broadcast_stats_changed()
+        _audit_action(
+            request.user if request.user.is_authenticated else None,
+            request,
+            AuditLog.Action.USER_CREATED,
+            {"created_user": user.email},
+            resource_id=user.id,
+            resource_type="User",
+        )
         return Response(
             UserSerializer(user, context={"request": request}).data,
             status=status.HTTP_201_CREATED,
@@ -181,7 +193,7 @@ class UserDetailView(generics.RetrieveUpdateAPIView):
 
         # --- Audit trail (FR-PP-009) ---
         _audit_action(
-            user, request, "PROFILE_UPDATED",
+            user, request, AuditLog.Action.PROFILE_UPDATED,
             {"fields": list(request.data.keys())},
         )
         return response
@@ -235,6 +247,19 @@ class UserViewSet(viewsets.ModelViewSet):
             return []
         return super().get_authenticators()
 
+    def perform_create(self, serializer):
+        user = serializer.save()
+        broadcast_stats_changed()
+        _audit_action(
+            self.request.user,
+            self.request,
+            AuditLog.Action.USER_CREATED,
+            {"created_user": user.email},
+            resource_id=user.id,
+            resource_type="User",
+        )
+        return user
+
     def list(self, request):
         # Soft-deleted (is_active=False) accounts are hidden from the User
         # Management dashboard so a mass/single delete actually removes the
@@ -275,6 +300,15 @@ class UserViewSet(viewsets.ModelViewSet):
         # `role` is writable here and the dashboard tallies tanods by role.
         broadcast_stats_changed()
 
+        _audit_action(
+            request.user,
+            request,
+            AuditLog.Action.USER_UPDATED,
+            {"updated_user": instance.email},
+            resource_id=instance.id,
+            resource_type="User",
+        )
+
         if getattr(instance, '_prefetched_objects_cache', None):
             instance._prefetched_objects_cache = {}
 
@@ -303,19 +337,15 @@ class UserViewSet(viewsets.ModelViewSet):
         # The dashboard counts active users and tanods, both of which this
         # soft delete changes.
         broadcast_stats_changed()
-        
-        # Logging the action
-        try:
-            from apps.audit.models import AuditLog
-            AuditLog.objects.create(
-                user=request.user,
-                action="USER_DEACTIVATED", # Matches your AuditLog choices
-                resource_type="User",
-                resource_id=user.id,
-                details={"deactivated_user": user.email},
-            )
-        except ImportError:
-            logger.warning("AuditLog model not found; skipping log entry.")
+
+        _audit_action(
+            request.user,
+            request,
+            AuditLog.Action.USER_DEACTIVATED,
+            {"deactivated_user": user.email},
+            resource_id=user.id,
+            resource_type="User",
+        )
 
         return Response(status=status.HTTP_204_NO_CONTENT)
 
@@ -358,7 +388,7 @@ class UserViewSet(viewsets.ModelViewSet):
             # Brute-force protection relies solely on the per-client rate
             # limit (5 requests/minute → HTTP 429 "time out").
             known_user = User.objects.filter(email__iexact=email).first()
-            _audit_action(known_user, request, "LOGIN_FAILED", {"email": email})
+            _audit_action(known_user, request, AuditLog.Action.LOGIN_FAILED, {"email": email})
             # NFR-LG-009 — identical response whether the email or password is wrong
             return Response(
                 {"detail": "Invalid email or password."},
@@ -366,7 +396,7 @@ class UserViewSet(viewsets.ModelViewSet):
             )
 
         if not user.is_active:
-            _audit_action(user, request, "LOGIN_FAILED", {"reason": "account_disabled"})
+            _audit_action(user, request, AuditLog.Action.LOGIN_FAILED, {"reason": "account_disabled"})
             return Response(
                 {"detail": "User account is disabled."},
                 status=status.HTTP_403_FORBIDDEN,
@@ -388,7 +418,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 TrustedDevice.objects.filter(user=user, device_id=device_id).update(
                     last_used_at=timezone.now()
                 )
-                _audit_action(user, request, "LOGIN", {"method": "trusted_device"})
+                _audit_action(user, request, AuditLog.Action.LOGIN, {"method": "trusted_device"})
                 return Response({
                     "refresh": str(refresh),
                     "access": str(refresh.access_token),
@@ -439,7 +469,7 @@ class UserViewSet(viewsets.ModelViewSet):
             except Exception:
                 logger.warning("2FA login email failed for %s", user.email)
 
-            _audit_action(user, request, "TWO_FACTOR_ENABLED", {"phase": "login_code_sent"})
+            _audit_action(user, request, AuditLog.Action.TWO_FACTOR_ENABLED, {"phase": "login_code_sent"})
 
             return Response({
                 "requires_2fa": True,
@@ -449,7 +479,7 @@ class UserViewSet(viewsets.ModelViewSet):
 
         # FR-LG-008 — record successful authentication
         refresh = RefreshToken.for_user(user)
-        _audit_action(user, request, "LOGIN", {})
+        _audit_action(user, request, AuditLog.Action.LOGIN, {})
 
         return Response({
             "refresh": str(refresh),
@@ -471,7 +501,7 @@ class UserViewSet(viewsets.ModelViewSet):
             except TokenError:
                 pass  # token already expired/blacklisted — nothing to invalidate
 
-        _audit_action(request.user, request, "LOGOUT", {})
+        _audit_action(request.user, request, AuditLog.Action.LOGOUT, {})
         return Response({"detail": "Logged out successfully"})
 
     @action(
@@ -504,7 +534,7 @@ class UserViewSet(viewsets.ModelViewSet):
             _audit_action(
                 None,
                 request,
-                "PASSWORD_RESET_REQUESTED",
+                AuditLog.Action.PASSWORD_RESET_REQUESTED,
                 {"requested_for": requested_for, "reason": "account_not_found"},
             )
             return Response(
@@ -560,7 +590,7 @@ class UserViewSet(viewsets.ModelViewSet):
         except Exception:
             logger.warning("Password reset email failed for %s", user.email)
 
-        _audit_action(user, request, "PASSWORD_RESET_REQUESTED", {"requested_for": requested_for})
+        _audit_action(user, request, AuditLog.Action.PASSWORD_RESET_REQUESTED, {"requested_for": requested_for})
 
         return Response({
             "detail": "Password reset instructions have been sent to your email address."
@@ -686,7 +716,7 @@ class UserViewSet(viewsets.ModelViewSet):
         user.save(update_fields=["password"])
 
         self._mark_code_used(reset_code)
-        _audit_action(user, request, "PASSWORD_RESET_COMPLETED", {"email": user.email})
+        _audit_action(user, request, AuditLog.Action.PASSWORD_RESET_COMPLETED, {"email": user.email})
 
         return Response({"detail": "Password has been reset."})
 
@@ -748,15 +778,27 @@ class UserViewSet(viewsets.ModelViewSet):
 
                 remaining = max(0, self.TWO_FACTOR_MAX_ATTEMPTS - code_obj.attempts)
                 if remaining == 0:
+                    _audit_action(
+                        user, request, AuditLog.Action.TWO_FACTOR_FAILED,
+                        {"reason": "attempts_exhausted"},
+                    )
                     return Response(
                         {"detail": "Too many verification attempts. Please log in again."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
+                _audit_action(
+                    user, request, AuditLog.Action.TWO_FACTOR_FAILED,
+                    {"reason": "invalid_code", "attempts_remaining": remaining},
+                )
                 return Response(
                     {"detail": "The verification code is invalid. Please try again.", "attempts_remaining": remaining},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            _audit_action(
+                user, request, AuditLog.Action.TWO_FACTOR_FAILED,
+                {"reason": "expired_or_missing"},
+            )
             return Response(
                 {"detail": "This verification code has expired. Please log in again."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -779,8 +821,8 @@ class UserViewSet(viewsets.ModelViewSet):
             )
 
         refresh = RefreshToken.for_user(user)
-        _audit_action(user, request, "LOGIN", {"method": "2fa"})
-        _audit_action(user, request, "TWO_FACTOR_VERIFIED", {})
+        _audit_action(user, request, AuditLog.Action.LOGIN, {"method": "2fa"})
+        _audit_action(user, request, AuditLog.Action.TWO_FACTOR_VERIFIED, {})
 
         return Response({
             "refresh": str(refresh),
@@ -817,7 +859,7 @@ class UserViewSet(viewsets.ModelViewSet):
             user.agreement_accepted = True
             user.agreement_accepted_at = timezone.now()
             user.save(update_fields=["agreement_accepted", "agreement_accepted_at"])
-            _audit_action(user, request, "Agreement_Accepted", {})
+            _audit_action(user, request, AuditLog.Action.AGREEMENT_ACCEPTED, {})
         return Response(UserSerializer(user, context={"request": request}).data)
 
     # ── Profile: Change Password (FR-PP-004 / FR-PP-005) ──────────────────────
@@ -834,7 +876,7 @@ class UserViewSet(viewsets.ModelViewSet):
         request.user.set_password(serializer.validated_data["new_password"])
         request.user.save(update_fields=["password"])
 
-        _audit_action(request.user, request, "PASSWORD_CHANGED", {})
+        _audit_action(request.user, request, AuditLog.Action.PASSWORD_CHANGED, {})
 
         # Invalidate all refresh tokens so the user must re-login.
         try:
@@ -910,7 +952,7 @@ class UserViewSet(viewsets.ModelViewSet):
             logger.warning("Email change verification email failed for %s", user.email)
 
         _audit_action(
-            user, request, "EMAIL_CHANGE_REQUESTED",
+            user, request, AuditLog.Action.EMAIL_CHANGE_REQUESTED,
             {},
         )
 
@@ -953,7 +995,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 code_obj.save(update_fields=fields)
 
             _audit_action(
-                user, request, "EMAIL_CHANGE_REQUESTED",
+                user, request, AuditLog.Action.EMAIL_CHANGE_REQUESTED,
                 {"success": False, "reason": "invalid_code"},
             )
 
@@ -1035,7 +1077,7 @@ class UserViewSet(viewsets.ModelViewSet):
         except Exception:
             logger.warning("Could not blacklist tokens for user %s", user.email)
 
-        _audit_action(user, request, "EMAIL_CHANGE_COMPLETED", {"new_email": new_email})
+        _audit_action(user, request, AuditLog.Action.EMAIL_CHANGE_COMPLETED, {"new_email": new_email})
 
         return Response({"detail": "Your email address has been successfully updated."})
 
@@ -1049,7 +1091,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 {"detail": "'entered' must be a boolean."},
                 status=status.HTTP_400_BAD_REQUEST,
             )
-        action_name = "CHIEF_MODE_ENTERED" if entered else "CHIEF_MODE_EXITED"
+        action_name = AuditLog.Action.CHIEF_MODE_ENTERED if entered else AuditLog.Action.CHIEF_MODE_EXITED
         _audit_action(request.user, request, action_name, {})
         return Response({"detail": f"{action_name} logged."})
 
@@ -1118,7 +1160,7 @@ class UserViewSet(viewsets.ModelViewSet):
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,
             )
 
-        _audit_action(user, request, "TWO_FACTOR_ENABLED", {"phase": "code_sent"})
+        _audit_action(user, request, AuditLog.Action.TWO_FACTOR_ENABLED, {"phase": "code_sent"})
 
         return Response(
             {"detail": "Verification code sent to your email address."},
@@ -1163,21 +1205,37 @@ class UserViewSet(viewsets.ModelViewSet):
 
                 remaining = max(0, self.TWO_FACTOR_MAX_ATTEMPTS - code_obj.attempts)
                 if remaining == 0:
+                    _audit_action(
+                        request.user, request, AuditLog.Action.TWO_FACTOR_FAILED,
+                        {"reason": "attempts_exhausted"},
+                    )
                     return Response(
                         {"detail": "Too many verification attempts. Please return to Login and start a new verification process."},
                         status=status.HTTP_400_BAD_REQUEST,
                     )
+                _audit_action(
+                    request.user, request, AuditLog.Action.TWO_FACTOR_FAILED,
+                    {"reason": "invalid_code", "attempts_remaining": remaining},
+                )
                 return Response(
                     {"detail": "The verification code is invalid. Please try again.", "attempts_remaining": remaining},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
             if code_obj is not None and code_obj.is_exhausted:
+                _audit_action(
+                    request.user, request, AuditLog.Action.TWO_FACTOR_FAILED,
+                    {"reason": "attempts_exhausted"},
+                )
                 return Response(
                     {"detail": "Too many verification attempts. Please return to Login and start a new verification process."},
                     status=status.HTTP_400_BAD_REQUEST,
                 )
 
+            _audit_action(
+                request.user, request, AuditLog.Action.TWO_FACTOR_FAILED,
+                {"reason": "expired_or_missing"},
+            )
             return Response(
                 {"detail": "This verification code has expired. Request a new code to continue."},
                 status=status.HTTP_400_BAD_REQUEST,
@@ -1194,7 +1252,7 @@ class UserViewSet(viewsets.ModelViewSet):
         user.two_factor_enabled = not user.two_factor_enabled
         user.save(update_fields=["two_factor_enabled"])
 
-        action_name = "TWO_FACTOR_ENABLED" if user.two_factor_enabled else "TWO_FACTOR_DISABLED"
+        action_name = AuditLog.Action.TWO_FACTOR_ENABLED if user.two_factor_enabled else AuditLog.Action.TWO_FACTOR_DISABLED
         _audit_action(user, request, action_name, {})
 
         return Response({

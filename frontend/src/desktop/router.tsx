@@ -43,7 +43,7 @@ function AuthGuard({ children }: { children: React.ReactNode }) {
 }
 
 export default function DesktopRouter() {
-  const { isAuthenticated, loading } = useAuth();
+  const { isAuthenticated, loading, user } = useAuth();
 
   if (loading) {
     return (
@@ -53,6 +53,12 @@ export default function DesktopRouter() {
         overlayProps={{ blur: 2 }}
       />
     );
+  }
+
+  // Barangay Tanod accounts use the mobile app only. This also catches a
+  // persisted tanod session when the desktop app reopens.
+  if (isAuthenticated && user?.role === 'Barangay Tanod') {
+    return <Navigate to="/desktop/unauthorized" replace />;
   }
 
   return (

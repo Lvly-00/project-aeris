@@ -29,6 +29,9 @@ export function useFps() {
 
 export type FeedState = 'connecting' | 'live' | 'offline';
 
+/** How long a feed may stay connecting before it is reported as failed. */
+export const CONNECT_TIMEOUT_MS = 30_000;
+
 /**
  * What the feed knows about itself, measured rather than configured.
  * width/height stay 0 until the decoder reports real pixel dimensions.

@@ -245,7 +245,7 @@ export interface DispatchMessage {
 
 // Audit types
 export type AuditAction =
-  | 'Login' | 'Logout' | 'Incident_Created' | 'Incident_Verified'
+  | 'Login' | 'Logout' | 'Incident_Detected' | 'Incident_Verified'
   | 'Incident_Dismissed' | 'Incident_Dispatched' | 'Incident_Resolved'
   | 'Incident_Archived' | 'Incident_Updated' | 'Camera_Created'
   | 'Camera_Updated' | 'Camera_Deleted' | 'User_Created' | 'User_Updated'

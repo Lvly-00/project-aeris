@@ -20,6 +20,8 @@ export const AUTH_MESSAGES = {
     'A verification code has been sent to your email address. Please check your inbox.',
   RESET_FAILED:
     'We could not send a reset code. Please check the email and try again.',
+  DESKTOP_TANOD_BLOCKED:
+    'Desktop access is for CCTV Chief and Operator accounts only. Please use the mobile app to sign in.',
 } as const;
 
 export interface LoginFieldError {

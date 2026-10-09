@@ -129,3 +129,9 @@ class IncidentConsumer(AsyncJsonWebsocketConsumer):
             "action": "dispatch_update",
             "payload": event.get("payload"),
         })
+
+    async def audit_changed(self, event):
+        await self.send_json({
+            "action": "audit_changed",
+            "payload": event.get("payload"),
+        })

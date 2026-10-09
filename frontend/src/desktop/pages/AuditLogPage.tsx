@@ -5,6 +5,7 @@ import {
   Paper, Loader, Center, ScrollArea,
 } from '@mantine/core';
 import { useDebouncedValue } from '@mantine/hooks';
+import { DatePickerInput } from '@mantine/dates';
 import { CalendarAlt, Clock, Filter, Search } from '@boxicons/react';
 import { useQuery } from '@tanstack/react-query';
 import { auditAPI } from '../../shared/services/api';
@@ -12,26 +13,12 @@ import { resolveMediaUrl } from '../../shared/utils/mediaUrl';
 import { PageHeader } from '../components/Layout/PageHeader';
 import type { AuditLog, AuditAction, PaginatedResponse } from '../../shared/types';
 
-const FALLBACK_ACTIONS: AuditAction[] = ['Login', 'Logout', 'Incident_Created', 'Incident_Verified', 'Incident_Dispatched', 'Camera_Created', 'User_Created', 'AI_Config_Changed'];
-
-const getDateRange = (key: string | null) => {
-  const now = new Date();
-  const start = new Date();
-  if (!key) return { start: null, end: null };
-  switch (key) {
-    case 'today': start.setHours(0, 0, 0, 0); break;
-    case 'yesterday': start.setDate(now.getDate() - 1); start.setHours(0, 0, 0, 0); now.setHours(0, 0, 0, 0); break;
-    case '7d': start.setDate(now.getDate() - 7); break;
-    case '30d': start.setDate(now.getDate() - 30); break;
-    default: return { start: null, end: null };
-  }
-  return { start: start.toISOString(), end: now.toISOString() };
-};
+const FALLBACK_ACTIONS: AuditAction[] = ['Login', 'Logout', 'Incident_Detected', 'Incident_Verified', 'Incident_Dispatched', 'Camera_Created', 'User_Created', 'AI_Config_Changed'];
 
 export default function AuditLogPage() {
   const [page, setPage] = useState(1);
   const [search, setSearch] = useState('');
-  const [dateRangeKey, setDateRangeKey] = useState<string | null>(null);
+  const [dates, setDates] = useState<Date[]>([]);
   const [action, setAction] = useState<string | null>(null);
   const [debouncedSearch] = useDebouncedValue(search, 400);
 
@@ -45,7 +32,15 @@ export default function AuditLogPage() {
     label: value.replace(/_/g, ' '),
   }));
 
-  const { start, end } = useMemo(() => getDateRange(dateRangeKey), [dateRangeKey]);
+  const { start, end } = useMemo(() => {
+    if (!dates.length) return { start: null, end: null };
+    const sorted = [...dates].sort((a, b) => a.getTime() - b.getTime());
+    const rangeStart = new Date(sorted[0]);
+    rangeStart.setHours(0, 0, 0, 0);
+    const rangeEnd = new Date(sorted[sorted.length - 1]);
+    rangeEnd.setHours(23, 59, 59, 999);
+    return { start: rangeStart.toISOString(), end: rangeEnd.toISOString() };
+  }, [dates]);
 
   const { data, isLoading } = useQuery<PaginatedResponse<AuditLog>>({
     queryKey: ['audit-logs', page, debouncedSearch, start, end, action],
@@ -53,7 +48,7 @@ export default function AuditLogPage() {
   });
 
   const handleReset = () => {
-    setSearch(''); setDateRangeKey(null); setAction(null); setPage(1);
+    setSearch(''); setDates([]); setAction(null); setPage(1);
   };
 
   return (
@@ -82,7 +77,17 @@ export default function AuditLogPage() {
               value={search}
               onChange={(e) => { setSearch(e.currentTarget.value); setPage(1); }}
             />
-            <Select label="Date" placeholder="All Time" data={['today', 'yesterday', '7d', '30d']} value={dateRangeKey} onChange={(val) => { setDateRangeKey(val); setPage(1); }} clearable size="md" style={{ flex: 1, minWidth: 160 }} />
+            <DatePickerInput
+              label="Date"
+              placeholder="Pick a date or a range"
+              type="multiple"
+              clearable
+              value={dates}
+              onChange={(val) => { setDates(val.length > 2 ? val.slice(-2) : val); setPage(1); }}
+              size="md"
+              radius="md"
+              style={{ flex: 1.2, minWidth: 260 }}
+            />
             <Select label="Action" placeholder="All" data={ACTION_OPTIONS} value={action} onChange={(val) => { setAction(val); setPage(1); }} clearable searchable size="md" style={{ flex: 1, minWidth: 160 }} />
             <Button variant="light" color="gray" onClick={handleReset} h={40} leftSection={<Filter width={16} height={16} />}>Reset</Button>
           </Group>

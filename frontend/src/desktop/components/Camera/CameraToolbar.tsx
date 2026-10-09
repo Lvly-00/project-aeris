@@ -87,7 +87,7 @@ export function CameraToolbar({
               leftSection={<Fullscreen width={16} height={16} />}
               onClick={onFullscreen}
               style={{
-                height: 36,
+                height: 40,
                 padding: '0 20px',
                 fontWeight: 600,
                 display: 'flex',
@@ -112,7 +112,7 @@ export function CameraToolbar({
               styles={{
                 input: {
                   width: 110,
-                  height: 36,
+                  height: 40,
                   fontWeight: 600,
                   fontSize: 14,
                   display: 'flex',
