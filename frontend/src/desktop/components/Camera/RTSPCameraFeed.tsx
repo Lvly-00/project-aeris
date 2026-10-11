@@ -5,7 +5,7 @@
  */
 import { useRef, useState, useEffect, useCallback } from 'react';
 import { Box, Text } from '@mantine/core';
-import { Video } from '@boxicons/react';
+import { VideoSlash } from '@boxicons/react';
 import { useFps, IDLE_FEED_STATS, CONNECT_TIMEOUT_MS } from './useFps';
 import {
   markFeedFailed,
@@ -267,9 +267,9 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
             pointerEvents: 'none',
           }}
         >
-          <Video width={40} height={40} color="var(--mantine-color-dimmed)" />
-          <Text fw={700} size="sm" c="white" mt="xs">Connection failure</Text>
-          <Text size="xs" c="var(--mantine-color-dimmed)" mt={4} w="90%" lh={1.5}>
+          <VideoSlash width={40} height={40} color="var(--mantine-color-dimmed)" />
+          <Text fw={700} size="md" c="white" mt="xs">Connection failure</Text>
+          <Text size="sm" c="var(--mantine-color-dimmed)" mt={4} w="90%" lh={1.5}>
             {feed.state === 'error' && feed.detail
               ? feed.detail
               : 'Unable to connect to the camera source. Verify the configuration and connection.'}

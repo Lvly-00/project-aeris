@@ -12,6 +12,17 @@ files:
 
 electronDist: node_modules/electron/dist
 
+# Bundled deployment: the desktop app loads the local ai-service origin
+# (SPA + /ai). When scripts\build-desktop.ps1 is run with -IncludeAi, the
+# PyInstaller-built sidecar is staged into ai-bundle\ and shipped here as
+# resources\ai-service, where electron/main.cjs auto-launches it. Without it,
+# the committed ai-bundle\README.txt keeps the directory present and the app
+# expects the AI service to be started separately.
+extraResources:
+  - from: ai-bundle
+    to: ai-service
+    filter: ["**/*"]
+
 # Thin client: the backend, database and AI service run on the deployed
 # server — nothing Python-related is packaged with the desktop app.
 # The server address is resolved at runtime (AERIS_SERVER_URL env var or

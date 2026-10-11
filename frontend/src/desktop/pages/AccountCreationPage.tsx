@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useMemo } from 'react';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Stack, Button, Paper, Tabs, Text, TextInput, Group,
     Table, ScrollArea, Avatar, Box, Badge, ActionIcon, Menu,
-    Pagination, Center, useMantineTheme, Checkbox, Modal, Container
+    Pagination, Center, useMantineTheme, Checkbox, Modal, Container, Loader
 } from '@mantine/core';
 import { DotsVerticalRounded, Eye, Pencil, Plus, Search, Trash } from '@boxicons/react';
 import { PageHeader } from '../components/Layout/PageHeader';
@@ -13,7 +14,7 @@ import { DeleteUserModal } from '../components/common/DeleteUserModal';
 
 export default function UserManagement() {
     const theme = useMantineTheme();
-    const [users, setUsers] = useState<any[]>([]);
+    const queryClient = useQueryClient();
     const [loading, setLoading] = useState(false);
     const [activeTab, setActiveTab] = useState<string | null>('all-users');
     const [searchQuery, setSearchQuery] = useState('');
@@ -29,15 +30,19 @@ export default function UserManagement() {
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
     const [bulkDeleteOpened, setBulkDeleteOpened] = useState(false);
 
-    useEffect(() => { loadData(); }, []);
+    const { data: users = [], isLoading: loadingData } = useQuery<any[]>({
+        queryKey: ['users'],
+        queryFn: async () => {
+            const usersRes = await authAPI.getUsers();
+            return Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.results || [];
+        },
+    });
+
     useEffect(() => { setActivePage(1); }, [searchQuery, activeTab]);
 
-    const loadData = async () => {
-        try {
-            const usersRes = await authAPI.getUsers();
-            setUsers(Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.results || []);
-            setSelectedIds([]);
-        } catch (error) { console.error(error); }
+    const refreshUsers = () => {
+        setSelectedIds([]);
+        return queryClient.invalidateQueries({ queryKey: ['users'] });
     };
 
     const filteredUsers = useMemo(() => {
@@ -74,7 +79,7 @@ export default function UserManagement() {
             if (selectedUser) await authAPI.updateUser(selectedUser.id, values);
             else await authAPI.register(values);
             setFormOpened(false);
-            loadData();
+            refreshUsers();
         } catch (error: any) { console.error(error); }
         finally { setLoading(false); }
     };
@@ -84,7 +89,7 @@ export default function UserManagement() {
         try {
             await authAPI.deleteUser(selectedUser.id);
             setDeleteOpened(false);
-            loadData();
+            refreshUsers();
         } catch (error) { console.error(error); }
         finally { setLoading(false); }
     };
@@ -103,7 +108,7 @@ export default function UserManagement() {
             }
 
             setBulkDeleteOpened(false);
-            loadData();
+            refreshUsers();
         } catch (error) { console.error(error); }
         finally { setLoading(false); }
     };
@@ -357,7 +362,9 @@ export default function UserManagement() {
                             </Table.Tr>
                         </Table.Thead>
                         <Table.Tbody>
-                            {paginatedUsers.length > 0 ? (
+                            {loadingData ? (
+                                <Table.Tr><Table.Td colSpan={5}><Center py="xl"><Loader color="orange" /></Center></Table.Td></Table.Tr>
+                            ) : paginatedUsers.length > 0 ? (
                                 paginatedUsers.map((user) => (
                                     <Table.Tr key={user.id}>
                                         <Table.Td style={{ width: 44 }}>

@@ -26,7 +26,14 @@ export function useCameraFeed({ cameraId, streamType }: UseCameraFeedOptions): U
 
   const buildStreamUrl = () => {
     const token = getAccessToken();
-    return `/api/cameras/${cameraId}/stream/?token=${encodeURIComponent(token || '')}`;
+    // The stream lives on the Django backend. In the PWA/dev this is the same
+    // origin behind the Vite/nginx proxy, but in the packaged desktop app the
+    // SPA is served by the local AI service, so a relative /api path would hit
+    // that origin instead of the backend and 404. Build the absolute URL from
+    // the configured backend origin (same source as resolveMediaUrl).
+    const base =
+      (import.meta.env.VITE_BACKEND_URL as string | undefined) || 'http://localhost:8000';
+    return `${base.replace(/\/$/, '')}/api/cameras/${cameraId}/stream/?token=${encodeURIComponent(token || '')}`;
   };
 
   useEffect(() => {

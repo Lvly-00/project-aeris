@@ -1,11 +1,12 @@
 const { contextBridge, ipcRenderer } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
-  // Origin of the deployed backend (thin client — resolved by main process).
+  // Origin of the deployed backend (API/media) — resolved by main process.
   getBackendUrl: () => ipcRenderer.sendSync('get-server-url'),
 
-  // The AI service is reached through the same-origin /ai proxy
-  // (Vite dev server in development, nginx on the deployed server).
+  // The AI service lives on the same origin as the SPA: in the bundled
+  // desktop product the ai-service serves both and exposes its API under /ai
+  // (Vite dev server proxies /ai in development).
   getAiUrl: () => '/ai',
 
   // Used by React to determine whether it's running in Electron

@@ -1,3 +1,4 @@
-{
-  "url": "https://project-aeris-pearl.vercel.app"
+﻿{
+    "url":  "http://localhost:8005",
+    "backendUrl":  "https://project-aeris.onrender.com"
 }

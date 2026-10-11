@@ -1,0 +1,6 @@
+# Ignore everything staged here at build time (ai-server.exe + _internal,
+# .env with the service key, model weights, SPA). Only these two files are
+# tracked so a fresh clone still has the directory for electron-builder.
+*
+!.gitignore
+!README.txt
