@@ -196,36 +196,37 @@ export function CameraFeed({ camera, onIncidentDetected, onStats }: CameraFeedPr
       ref={containerRef}
       style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}
     >
+      {/* Keep the <video> mounted while "connectTimeout" so it can recover on
+          its own once the source responds — the failure overlay sits on top
+          rather than replacing the element and killing the retry. */}
+      <video
+        ref={videoRef}
+        key={streamUrl}
+        src={streamUrl}
+        autoPlay
+        loop
+        muted
+        playsInline
+        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+        onError={handleError}
+        onPlaying={() => {
+          clearFeedFailure(camera.id);
+          setPlayState('live');
+          startCounting();
+        }}
+        onWaiting={() => { setPlayState('connecting'); stopCounting(); }}
+        onStalled={() => { setPlayState('connecting'); stopCounting(); }}
+        onAbort={() => { setPlayState('connecting'); stopCounting(); }}
+        onPause={() => { setPlayState('connecting'); stopCounting(); }}
+      />
       {!connectTimeout && (
-        <>
-          <video
-            ref={videoRef}
-            key={streamUrl}
-            src={streamUrl}
-            autoPlay
-            loop
-            muted
-            playsInline
-            style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-            onError={handleError}
-            onPlaying={() => {
-              clearFeedFailure(camera.id);
-              setPlayState('live');
-              startCounting();
-            }}
-            onWaiting={() => { setPlayState('connecting'); stopCounting(); }}
-            onStalled={() => { setPlayState('connecting'); stopCounting(); }}
-            onAbort={() => { setPlayState('connecting'); stopCounting(); }}
-            onPause={() => { setPlayState('connecting'); stopCounting(); }}
-          />
-          <DetectionOverlay
-            videoRef={videoRef}
-            cameraId={camera.id}
-            streamType={camera.stream_type}
-            cameraName={camera.name}
-            onIncidentDetected={onIncidentDetected}
-          />
-        </>
+        <DetectionOverlay
+          videoRef={videoRef}
+          cameraId={camera.id}
+          streamType={camera.stream_type}
+          cameraName={camera.name}
+          onIncidentDetected={onIncidentDetected}
+        />
       )}
 
       {connectTimeout && (

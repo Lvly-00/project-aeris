@@ -27,6 +27,7 @@
 const { app, BrowserWindow, Tray, Menu, nativeImage, dialog, ipcMain } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const net = require('net');
 const { spawn, spawnSync } = require('child_process');
 
 const isDev = !app.isPackaged;
@@ -39,6 +40,10 @@ const DEFAULT_BACKEND_URL = 'https://project-aeris.onrender.com';
 let mainWindow = null;
 let tray = null;
 let aiProcess = null;
+// When the configured bundle port is already taken (e.g. a leftover dev AI
+// service), the bundled sidecar is started on a free port instead and the
+// window loads from that port. /ai is same-origin, so nothing else changes.
+let bundlePortOverride = null;
 
 function writeLog(msg) {
   try {
@@ -74,7 +79,59 @@ function resolveServerUrl() {
 
   if (!url) url = DEFAULT_BUNDLE_URL;
   if (!/^https?:\/\//i.test(url)) url = `https://${url}`;
-  return url.replace(/\/+$/, '');
+  url = url.replace(/\/+$/, '');
+
+  // If the requested port was busy and we moved the local sidecar to another
+  // port, rewrite the origin so the window (and its same-origin /ai calls)
+  // follow the sidecar.
+  if (bundlePortOverride) {
+    try {
+      const parsed = new URL(url);
+      if (isLocalHost(parsed.hostname)) {
+        parsed.port = String(bundlePortOverride);
+        url = parsed.toString().replace(/\/+$/, '');
+      }
+    } catch (_) {}
+  }
+
+  return url;
+}
+
+function isLocalHost(hostname) {
+  return hostname === 'localhost' || hostname === '127.0.0.1' || hostname === '::1';
+}
+
+function isLocalUrl(rawUrl) {
+  try {
+    return isLocalHost(new URL(rawUrl).hostname);
+  } catch (_) {
+    return false;
+  }
+}
+
+// Return true when something is already accepting connections on the port.
+// A bind test is unreliable on Windows: Node sets SO_REUSEADDR, so listen()
+// can succeed even while another process holds the wildcard 0.0.0.0:port.
+function isPortInUse(port) {
+  return new Promise((resolve) => {
+    const socket = net.connect({ host: '127.0.0.1', port });
+    const done = (inUse) => {
+      socket.removeAllListeners();
+      socket.destroy();
+      resolve(inUse);
+    };
+    socket.once('connect', () => done(true));
+    socket.once('error', () => done(false));
+    socket.setTimeout(1500, () => done(false));
+  });
+}
+
+// Resolve with the first free TCP port at or after `start`.
+async function findFreePort(start) {
+  for (let port = start; port <= start + 50; port++) {
+    if (!(await isPortInUse(port))) return port;
+  }
+  return start;
 }
 
 function resolveBackendUrl() {
@@ -112,20 +169,25 @@ function ensureAiServiceBundled() {
   }
   writeLog(`Spawning bundled ai-service launcher: ${executable}`);
   const isScript = /\.(cmd|bat)$/i.test(executable);
+  const env = {
+    ...process.env,
+    // Keep the persisted AI config in the user data folder — it is writable
+    // regardless of where the app gets installed (e.g. Program Files).
+    AI_CONFIG_FILE: path.join(app.getPath('userData'), 'ai_config.json'),
+    // The SPA is staged beside the exe (frontend/dist) by the build script.
+    AI_FRONTEND_DIR: path.join(aiDir, 'frontend', 'dist'),
+  };
+  // If the configured bundle port was busy, start the sidecar on the free port.
+  if (bundlePortOverride) {
+    env.AI_SERVICE_PORT = String(bundlePortOverride);
+  }
   const child = spawn(executable, [], {
     cwd: aiDir,
     detached: true,
     stdio: 'ignore',
     windowsHide: true,
     shell: isScript,
-    env: {
-      ...process.env,
-      // Keep the persisted AI config in the user data folder — it is writable
-      // regardless of where the app gets installed (e.g. Program Files).
-      AI_CONFIG_FILE: path.join(app.getPath('userData'), 'ai_config.json'),
-      // The SPA is staged beside the exe (frontend/dist) by the build script.
-      AI_FRONTEND_DIR: path.join(aiDir, 'frontend', 'dist'),
-    },
+    env,
   });
   child.on('error', (err) => writeLog(`Failed to spawn ai-service: ${err.message}`));
   child.unref();
@@ -268,7 +330,7 @@ ipcMain.on('get-server-url', (event) => {
   event.returnValue = isDev ? DEV_BACKEND_URL : resolveBackendUrl();
 });
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   writeLog('App starting (bundled client)...');
 
   if (isDev) {
@@ -281,6 +343,25 @@ app.whenReady().then(() => {
   }
 
   writeLog(`Backend URL: ${resolveBackendUrl()}`);
+
+  // The bundled sidecar owns the bundle origin. If that port is already taken
+  // (typically a leftover dev AI service pointing at a different backend),
+  // silently reusing it would make every camera fail to register. Start the
+  // sidecar on a free port instead and load the window from there.
+  try {
+    const base = resolveServerUrl();
+    if (isLocalUrl(base)) {
+      const desired = Number(new URL(base).port || 80);
+      const free = await findFreePort(desired);
+      if (free !== desired) {
+        bundlePortOverride = free;
+        writeLog(`Bundle port ${desired} busy; using ${free} for the sidecar`);
+      }
+    }
+  } catch (err) {
+    writeLog(`Port pre-flight check failed: ${err.message}`);
+  }
+
   ensureAiServiceBundled();
 
   createWindow();

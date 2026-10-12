@@ -227,29 +227,34 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
       ref={containerRef}
       style={{ position: 'relative', width: '100%', height: '100%', overflow: 'hidden' }}
     >
+      {/*
+        The canvas poller stays mounted even while the feed is flagged as
+        failed. Unmounting it (as before) stopped the retry loop, so a camera
+        that was merely slow to start (e.g. the backend/AI service was still
+        warming up) stayed OFFLINE forever — the failure overlay is drawn on
+        top instead, and the poller clears it as soon as a frame arrives.
+      */}
+      <canvas
+        ref={canvasRef}
+        style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
+      />
+      <RtspCanvas
+        canvasRef={canvasRef}
+        cameraId={camera.id}
+        baseUrl={baseUrl}
+        onFrame={tick}
+        onStatus={handleStatus}
+        onSize={handleSize}
+      />
       {!failed && (
-        <>
-          <canvas
-            ref={canvasRef}
-            style={{ width: '100%', height: '100%', objectFit: 'cover', display: 'block' }}
-          />
-          <RtspCanvas
-            canvasRef={canvasRef}
-            cameraId={camera.id}
-            baseUrl={baseUrl}
-            onFrame={tick}
-            onStatus={handleStatus}
-            onSize={handleSize}
-          />
-          <DetectionOverlay
-            videoRef={videoRef}
-            cameraId={camera.id}
-            streamType={camera.stream_type}
-            source={camera.stream_url}
-            cameraName={camera.name}
-            onIncidentDetected={onIncidentDetected}
-          />
-        </>
+        <DetectionOverlay
+          videoRef={videoRef}
+          cameraId={camera.id}
+          streamType={camera.stream_type}
+          source={camera.stream_url}
+          cameraName={camera.name}
+          onIncidentDetected={onIncidentDetected}
+        />
       )}
 
       {failed ? (
