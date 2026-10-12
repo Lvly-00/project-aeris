@@ -176,6 +176,9 @@ function ensureAiServiceBundled() {
     AI_CONFIG_FILE: path.join(app.getPath('userData'), 'ai_config.json'),
     // The SPA is staged beside the exe (frontend/dist) by the build script.
     AI_FRONTEND_DIR: path.join(aiDir, 'frontend', 'dist'),
+    // The bundled ai-service ships with a dev BACKEND_API_URL (localhost:8000)
+    // in its .env. Override it so auto-registration can reach the real backend.
+    BACKEND_API_URL: `${resolveBackendUrl()}/api`,
   };
   // If the configured bundle port was busy, start the sidecar on the free port.
   if (bundlePortOverride) {

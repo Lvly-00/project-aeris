@@ -1,6 +1,5 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 from apps.ai_config.models import AIConfiguration
 from apps.lookups.models import Role
 
@@ -76,8 +75,6 @@ class Command(BaseCommand):
                     first_name=first_name,
                     last_name=last_name,
                     role=chief_role,
-                    agreement_accepted=True,
-                    agreement_accepted_at=timezone.now(),
                 )
                 self.stdout.write(self.style.SUCCESS(
                     f"Created admin account — email: {email}, password: {DEFAULT_PASSWORD}"

@@ -1,6 +1,5 @@
 from django.core.management.base import BaseCommand
 from django.contrib.auth import get_user_model
-from django.utils import timezone
 from apps.lookups.models import Role
 
 User = get_user_model()
@@ -88,8 +87,6 @@ class Command(BaseCommand):
                 first_name=data["first_name"],
                 last_name=data["last_name"],
                 role=data["role"],
-                agreement_accepted=True,
-                agreement_accepted_at=timezone.now(),
                 receive_notifications=True,
             )
             created[data["role"].name] += 1
