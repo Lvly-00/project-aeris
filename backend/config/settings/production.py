@@ -50,6 +50,16 @@ else:
 # Example: CORS_ALLOWED_ORIGINS=https://aeris.barangay.local
 CORS_ALLOWED_ORIGINS = config("CORS_ALLOWED_ORIGINS", cast=Csv())
 CORS_ALLOW_CREDENTIALS = True
+# The bundled Electron app loads the SPA from the local AI sidecar origin,
+# which is http://localhost:<port> — and that port can vary (8005, or the next
+# free port if 8005 is already taken). Match any localhost port so the desktop
+# bundle can reach this API while still refusing arbitrary remote origins.
+# Hardcoded (not via decouple's Csv) because Csv's shlex parsing strips the
+# backslashes in these regexes.
+CORS_ALLOWED_ORIGIN_REGEXES = [
+    r"^http://localhost:\d+$",
+    r"^http://127\.0\.0\.1:\d+$",
+]
 CSRF_TRUSTED_ORIGINS = config(
     "CSRF_TRUSTED_ORIGINS",
     cast=Csv(),

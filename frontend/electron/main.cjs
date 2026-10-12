@@ -333,6 +333,11 @@ ipcMain.on('get-server-url', (event) => {
   event.returnValue = isDev ? DEV_BACKEND_URL : resolveBackendUrl();
 });
 
+// Renderer asks for the AI service origin (RTSP frame polling, detection).
+ipcMain.on('get-ai-url', (event) => {
+  event.returnValue = isDev ? 'http://localhost:8005/ai' : resolveServerUrl() + '/ai';
+});
+
 app.whenReady().then(async () => {
   writeLog('App starting (bundled client)...');
 

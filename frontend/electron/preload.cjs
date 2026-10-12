@@ -7,7 +7,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // The AI service lives on the same origin as the SPA: in the bundled
   // desktop product the ai-service serves both and exposes its API under /ai
   // (Vite dev server proxies /ai in development).
-  getAiUrl: () => '/ai',
+  getAiUrl: () => ipcRenderer.sendSync('get-ai-url'),
 
   // Used by React to determine whether it's running in Electron
   isDesktop: true,
