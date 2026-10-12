@@ -151,8 +151,17 @@ REST_FRAMEWORK = {
 
 # ── SimpleJWT ─────────────────────────────────────────────────────────────────
 SIMPLE_JWT = {
-    "ACCESS_TOKEN_LIFETIME": timedelta(minutes=30),
-    "REFRESH_TOKEN_LIFETIME": timedelta(days=1),
+    # Access token is short-lived and silently refreshed by the SPA
+    # (frontend api.ts); its expiry alone never signs a user out.
+    "ACCESS_TOKEN_LIFETIME": timedelta(
+        minutes=config("JWT_ACCESS_MINUTES", default=30, cast=int)
+    ),
+    # The refresh token is what actually keeps a session alive. Default to a
+    # very long lifetime so users are never signed out for inactivity; override
+    # with JWT_REFRESH_DAYS if a hard session limit is ever required.
+    "REFRESH_TOKEN_LIFETIME": timedelta(
+        days=config("JWT_REFRESH_DAYS", default=3650, cast=int)
+    ),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,   # leaked refresh tokens expire after one use
     "AUTH_HEADER_TYPES": ("Bearer",),

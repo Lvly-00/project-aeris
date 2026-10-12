@@ -5,6 +5,13 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# Pin production settings so manage.py (migrate/seed) and Daphne both target the
+# deployed database. Without this, manage.py falls back to config.settings.
+# development (SQLite) even inside the container. A platform-provided
+# DJANGO_SETTINGS_MODULE still overrides this default at runtime.
+ENV DJANGO_SETTINGS_MODULE=config.settings.production
+ENV DJANGO_ENV=production
+
 # ── System dependencies ──────────────────────────────────────────────────────
 # PostgreSQL client libraries for Neon PostgreSQL
 RUN apt-get update && apt-get install -y \
@@ -35,6 +42,10 @@ USER appuser
 EXPOSE 8000
 
 # ── Production server ─────────────────────────────────────────────────────────
-# Run migrations, seed default admin, then start Daphne (ASGI) so HTTP and
-# WebSockets (/ws/incidents/) both work. Gunicorn (WSGI) cannot serve Channels.
+# Every start/redeploy: apply migrations, then idempotently ensure the baseline
+# data (lookup tables, default/extra admins, AI config) exists. Both seed
+# commands use get_or_create, so existing data is preserved and the result is
+# identical on every deploy — never use `flush` here, it deletes live data.
+# Finally start Daphne (ASGI) so HTTP and WebSockets (/ws/incidents/) both work;
+# Gunicorn (WSGI) cannot serve Channels.
 CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_lookups && python manage.py seed_default_admin && daphne -b 0.0.0.0 -p $PORT config.asgi:application"]
