@@ -76,7 +76,8 @@ class CameraViewSet(viewsets.ModelViewSet):
     ordering_fields = ["name", "status", "last_seen", "created_at"]
 
     def perform_create(self, serializer):
-        camera = serializer.save(status=CameraStatus.objects.get(name="Online"))
+        status, _ = CameraStatus.objects.get_or_create(name="Online")
+        camera = serializer.save(status=status)
         write_audit(
             self.request,
             AuditLog.Action.CAMERA_CREATED,
