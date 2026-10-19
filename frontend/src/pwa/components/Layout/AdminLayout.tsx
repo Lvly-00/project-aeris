@@ -3,7 +3,7 @@ import {
     AppShell, Group, ActionIcon, Text, Stack, UnstyledButton,
     Container, rem, Image, Avatar, Indicator, useMantineTheme
 } from '@mantine/core';
-import { Bell, Clipboard, Home, ShieldAlt, User } from '@boxicons/react';
+import { Bell, Clipboard, Home, SirenAlt, User } from '@boxicons/react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { authAPI, notificationsAPI } from '../../../shared/services/api';
 import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
@@ -12,7 +12,7 @@ import { NotificationsModal } from '../NotificationsModal';
 
 const navData = [
     { icon: Home, label: 'Dashboard', path: '/pwa/admin/dashboard' },
-    { icon: ShieldAlt, label: 'Incidents', path: '/pwa/admin/incidents' },
+    { icon: SirenAlt, label: 'Incidents', path: '/pwa/admin/incidents' },
     { icon: Clipboard, label: 'History', path: '/pwa/admin/history' },
     { icon: User, label: 'Profile', path: '/pwa/admin/profile', isAvatar: true },
 ];

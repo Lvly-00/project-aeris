@@ -179,7 +179,7 @@ try {
         )
         Set-Content -LiteralPath (Join-Path $staged ".env") -Value $envLines -Encoding ascii
 
-        # Convenience launcher (used by main.cjs candidates if the exe name differs).
+        # Convenience lamag uncher (used by main.cjs candidates if the exe name differs).
         Set-Content -LiteralPath (Join-Path $staged "start-ai.cmd") -Value "@echo off`r`ncd /d `"%~dp0`"`r`nai-server.exe" -Encoding ascii
 
         Write-Host "  Sidecar staged to ai-bundle\" -ForegroundColor Green

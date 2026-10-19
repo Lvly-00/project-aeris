@@ -62,12 +62,6 @@ export const IncidentSummary = ({ byType, loading = false }: Props) => {
                             Loading…
                         </Text>
                     </Center>
-                ) : total === 0 ? (
-                    <Center h={200}>
-                        <Text c="dimmed" size="sm" ta="center">
-                            No incidents recorded yet.
-                        </Text>
-                    </Center>
                 ) : (
                     <>
                         <Center>

@@ -120,7 +120,7 @@ export interface Detection {
   camera_name?: string;
   incident_type: IncidentType;
   confidence_score: number;
-  bbox_coords?: number[] | Record<string, number>;
+  bbox_coords?: number[];
   fps?: number;
   frame_timestamp: string;
   snapshot_image: string | null;

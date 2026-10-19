@@ -60,18 +60,15 @@ def record_detection_hit(incident, type_obj, camera, confidence, evidence, bbox_
     if incident.detections.count() >= MAX_DETECTIONS_PER_INCIDENT:
         return None
 
-    bbox = {}
+    bbox = []
     if bbox_raw:
         try:
             parsed = json.loads(bbox_raw) if isinstance(bbox_raw, str) else bbox_raw
             if isinstance(parsed, (list, tuple)):
-                bbox = {
-                    "x1": parsed[0], "y1": parsed[1],
-                    "x2": parsed[2], "y2": parsed[3],
-                }
-            elif isinstance(parsed, dict):
-                bbox = parsed
-        except (ValueError, TypeError, IndexError):
+                bbox = [parsed[0], parsed[1], parsed[2], parsed[3]]
+            elif isinstance(parsed, dict) and {"x1", "y1", "x2", "y2"} <= parsed.keys():
+                bbox = [parsed["x1"], parsed["y1"], parsed["x2"], parsed["y2"]]
+        except (ValueError, TypeError, IndexError, KeyError):
             logger.debug("Ignoring unparseable bbox: %r", bbox_raw)
 
     return Detection.objects.create(

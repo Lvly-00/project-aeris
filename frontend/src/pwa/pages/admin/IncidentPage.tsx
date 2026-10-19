@@ -11,17 +11,18 @@ import {
   rem,
   Menu,
   ActionIcon,
-  Modal,
   Button,
   Group,
   Box,
   Checkbox,
+  Paper,
 } from '@mantine/core';
-import { AlertCircle, DotsVerticalRounded, Filter, Trash } from '@boxicons/react';
+import { DotsVerticalRounded, Trash, Siren } from '@boxicons/react';
 import { notifications } from '@mantine/notifications';
 
 import type { CameraIncidentRow } from '../../../shared/types/index';
 import { CameraIncidentCard } from '../../components/commons/CameraIncidentCard';
+import { DeleteConfirmModal } from '../../components/commons/DeleteConfirmModal';
 import { incidentsAPI } from '../../../shared/services/api';
 
 /*
@@ -121,6 +122,11 @@ export default function IncidentsPage() {
     setSelectedIds([]);
   };
 
+  /* Names for the delete confirmation list, in selection order. */
+  const selectedNames = selectedIds.map(
+    (id) => rows.find((r) => r.camera === id)?.camera_name ?? 'Unassigned'
+  );
+
   /*
    * Delete the open incidents behind the selected cameras
    */
@@ -201,8 +207,8 @@ export default function IncidentsPage() {
       </Stack>
 
       {/* Control Bar */}
-      <Group justify="space-between" mb="lg" style={{ flexShrink: 0 }}>
-        {selectMode ? (
+      <Group justify={selectMode ? 'space-between' : 'flex-end'} mb="lg" style={{ flexShrink: 0 }}>
+        {selectMode && (
           <Checkbox
             label="Select all"
             checked={allSelected}
@@ -210,15 +216,6 @@ export default function IncidentsPage() {
             onChange={toggleSelectAll}
             radius="sm"
           />
-        ) : (
-          <Button
-            variant="outline"
-            color="gray"
-            leftSection={<Filter  width={ 18 } height={ 18 } />}
-            radius="sm"
-          >
-            Filter
-          </Button>
         )}
 
         {selectMode ? (
@@ -295,11 +292,14 @@ export default function IncidentsPage() {
             />
           </Center>
         ) : rows.length === 0 ? (
-          <Center py="xl">
-            <Text c="dimmed">
-              No active incidents. Cameras with detections will appear here.
-            </Text>
-          </Center>
+          <Paper p="xl" py={80} ta="center" radius="md" bg="var(--mantine-color-body)">
+            <Stack align="center" gap="sm">
+              <Siren width={48} height={48} color="#adb5bd" />
+              <Text fw={400} c="dimmed">
+                No active incidents. Cameras with detections will appear here.
+              </Text>
+            </Stack>
+          </Paper>
         ) : (
           rows.map((row) => (
             <Group
@@ -336,54 +336,39 @@ export default function IncidentsPage() {
       </Stack>
 
       {/* Delete Selected Confirmation */}
-      <Modal
+      <DeleteConfirmModal
         opened={deleteSelectedModal}
-        onClose={() =>
-          setDeleteSelectedModal(false)
+        onClose={() => setDeleteSelectedModal(false)}
+        onConfirm={handleDeleteSelected}
+        loading={deletePending}
+        title={
+          selectedIds.length === 1 ? 'Delete Incident' : 'Delete Incidents'
         }
-        title="Confirm Delete"
-        centered
-      >
-        <Stack
-          align="center"
-          gap="md"
-          py="md"
-        >
-          <AlertCircle
-             width={48} height={48}
-            color="var(--mantine-color-red-6)"
-          />
-
-          <Text ta="center">
-            Delete all open incidents for{' '}
-            <b>{selectedIds.length}</b> selected{' '}
-            {describeSelection(selectedIds)}? This clears every
-            active incident on {selectedIds.length > 1 ? 'them' : 'it'},
-            including any older ones not shown in the list, and cannot
-            be undone.
-          </Text>
-
-          <Group grow w="100%">
-            <Button
-              variant="outline"
-              color="gray"
-              onClick={() =>
-                setDeleteSelectedModal(false)
-              }
-            >
-              Cancel
-            </Button>
-
-            <Button
-              color="red"
-              loading={deletePending}
-              onClick={handleDeleteSelected}
-            >
-              Yes, Delete
-            </Button>
-          </Group>
-        </Stack>
-      </Modal>
+        description={
+          selectedIds.length === 1 ? (
+            <>
+              Are you sure you want to delete all open incidents for{' '}
+              <Text span fw={600} c="var(--mantine-color-text)">
+                {selectedNames[0]}
+              </Text>
+              ? This action cannot be undone.
+            </>
+          ) : (
+            <>
+              Delete all open incidents for{' '}
+              <Text span fw={600} c="var(--mantine-color-text)">
+                {selectedIds.length} selected {describeSelection(selectedIds)}
+              </Text>
+              ? This clears every active incident on them, including any older
+              ones not shown in the list, and cannot be undone.
+            </>
+          )
+        }
+        items={selectedNames}
+        noun="Camera"
+        listTitle="Cameras to be deleted"
+        confirmLabel={`Delete (${selectedIds.length})`}
+      />
     </Container>
   );
 }

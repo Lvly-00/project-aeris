@@ -35,7 +35,7 @@ class Detection(models.Model):
     confidence_score = models.FloatField(default=0.0)
     bbox_coords = models.JSONField(
         help_text="Bounding box coordinates [x1, y1, x2, y2]",
-        default=dict, blank=True,
+        default=list, blank=True,
     )
     fps = models.FloatField(null=True, blank=True)
     frame_timestamp = models.DateTimeField(null=True, blank=True)
