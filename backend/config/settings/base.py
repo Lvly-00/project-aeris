@@ -156,11 +156,12 @@ SIMPLE_JWT = {
     "ACCESS_TOKEN_LIFETIME": timedelta(
         minutes=config("JWT_ACCESS_MINUTES", default=30, cast=int)
     ),
-    # The refresh token is what actually keeps a session alive. Default to a
-    # very long lifetime so users are never signed out for inactivity; override
-    # with JWT_REFRESH_DAYS if a hard session limit is ever required.
+    # The refresh token is what actually keeps a session alive. It rotates on
+    # every use, so this is an inactivity window, not a fixed session length:
+    # 15 days after the last request the session ends and the SPA sends the
+    # user back to sign in. There is no shorter idle timeout.
     "REFRESH_TOKEN_LIFETIME": timedelta(
-        days=config("JWT_REFRESH_DAYS", default=30, cast=int)
+        days=config("JWT_REFRESH_DAYS", default=15, cast=int)
     ),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,   # leaked refresh tokens expire after one use

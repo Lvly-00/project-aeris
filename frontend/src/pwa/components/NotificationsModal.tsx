@@ -6,17 +6,19 @@ import {
   Text,
   Group,
   Button,
-  Loader,
+  Badge,
   Center,
   Box,
   rem,
   UnstyledButton,
   ScrollArea,
+  Skeleton,
+  ThemeIcon,
   Title,
   ActionIcon,
   Divider,
 } from '@mantine/core';
-import { Bell, Check, Inbox, LocationPin, Tag, X } from '@boxicons/react';
+import { Bell, Check, Inbox, LocationPin, X } from '@boxicons/react';
 import { notifications } from '@mantine/notifications';
 
 import { AppNotification } from '../../shared/types/index';
@@ -27,11 +29,99 @@ import { PRIORITY_COLORS } from '../../shared/utils/constants';
 
 const ORANGE = '#FF6B00';
 
+/** Type badges follow the same colour language as the incident cards. */
+const TYPE_BADGE_COLORS: Record<string, string> = {
+  Fire: 'red',
+  Smoke: 'orange',
+  Vehicle_Accident: 'yellow',
+};
+
 interface NotificationsModalProps {
   opened: boolean;
   onClose: () => void;
   onUnreadChange?: Dispatch<SetStateAction<number>>;
   onNavigate?: (notification: AppNotification) => void;
+}
+
+/**
+ * A single alert in the tray. The left stripe carries priority, so what needs
+ * attention reads before the text does; read alerts fall back to a neutral
+ * stripe and a plain background.
+ */
+function NotificationRow({
+  notification,
+  onOpen,
+}: {
+  notification: AppNotification;
+  onOpen: (notification: AppNotification) => void;
+}) {
+  const [hovered, setHovered] = useState(false);
+
+  const isUnread = !notification.is_read;
+  const priorityColor = PRIORITY_COLORS[notification.priority] || '#888888';
+  const typeColor = TYPE_BADGE_COLORS[notification.incident_type ?? ''] || 'gray';
+
+  return (
+    <UnstyledButton
+      onClick={() => onOpen(notification)}
+      onMouseEnter={() => setHovered(true)}
+      onMouseLeave={() => setHovered(false)}
+      aria-label={`Open notification for incident ${notification.incident ?? 'unknown'}`}
+      w="100%"
+      style={{
+        border: '1px solid',
+        borderColor: hovered
+          ? 'var(--mantine-color-gray-4)'
+          : 'var(--mantine-color-default-border)',
+        borderLeft: `${rem(4)} solid ${isUnread ? priorityColor : 'var(--mantine-color-gray-4)'}`,
+        borderRadius: rem(10),
+        padding: rem(12),
+        backgroundColor: isUnread ? 'var(--mantine-color-orange-light)' : 'transparent',
+        boxShadow: hovered ? 'var(--mantine-shadow-sm)' : 'none',
+        transition: 'background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease',
+      }}
+    >
+      <Stack gap={rem(6)}>
+        {/* Which incident, and when */}
+        <Group justify="space-between" wrap="nowrap" align="center" gap="xs"  >
+          <Text fw={700} size="sm" truncate>
+            Incident #{notification.incident ?? '—'}
+          </Text>
+          <Text size="xs" c="dimmed" style={{ whiteSpace: 'nowrap', flexShrink: 0 }}>
+            {formatRelativeTime(notification.created_at)}
+          </Text>
+        </Group>
+
+        {/* What happened, and where */}
+        <Group gap={6} wrap="nowrap" align="center">
+          <Badge
+            size="xs"
+            variant="light"
+            color={typeColor}
+            radius="sm"
+            tt="none"
+            styles={{ label: { fontWeight: 700 } }}
+          >
+            {notification.incident_type?.replace(/_/g, ' ') ?? 'Unknown type'}
+          </Badge>
+
+          {notification.location && (
+            <Group gap={4} wrap="nowrap" align="center" style={{ minWidth: 0 }}>
+              <LocationPin
+                width={13}
+                height={13}
+                color="var(--mantine-color-dimmed)"
+                style={{ flexShrink: 0 }}
+              />
+              <Text size="xs" c="dimmed" truncate>
+                {notification.location}
+              </Text>
+            </Group>
+          )}
+        </Group>
+      </Stack>
+    </UnstyledButton>
+  );
 }
 
 export function NotificationsModal({
@@ -226,10 +316,17 @@ export function NotificationsModal({
       <Divider my="lg" />
 
       {/* Toolbar */}
-      <Group justify="space-between" mb="md">
-        <Text size="sm" c="dimmed">
+      <Group justify="space-between" mb="md" wrap="nowrap" gap="sm">
+        <Badge
+          size="sm"
+          variant="light"
+          color={unreadCount > 0 ? 'orange' : 'gray'}
+          radius="sm"
+          tt="none"
+          styles={{ label: { fontWeight: 700 } }}
+        >
           {unreadCount} unread
-        </Text>
+        </Badge>
 
         <Button
           variant="light"
@@ -245,139 +342,46 @@ export function NotificationsModal({
 
       <ScrollArea.Autosize mah={420}>
         {loading ? (
-          <Center py="xl">
-            <Loader variant="dots" color="blue" />
-          </Center>
+          /* Row-shaped placeholders so the tray keeps its height. */
+          <Stack gap="xs" aria-busy="true" aria-label="Loading notifications">
+            {[0, 1, 2].map((placeholder) => (
+              <Box
+                key={placeholder}
+                p={rem(12)}
+                style={{
+                  border: '1px solid var(--mantine-color-default-border)',
+                  borderLeft: `${rem(4)} solid var(--mantine-color-default-border)`,
+                  borderRadius: rem(10),
+                }}
+              >
+                <Group justify="space-between" wrap="nowrap" mb={rem(8)}>
+                  <Skeleton h={12} w="45%" radius="xl" />
+                  <Skeleton h={10} w={rem(48)} radius="xl" />
+                </Group>
+                <Group gap={6} wrap="nowrap">
+                  <Skeleton h={18} w={rem(70)} radius="sm" />
+                  <Skeleton h={10} w="40%" radius="xl" />
+                </Group>
+              </Box>
+            ))}
+          </Stack>
         ) : items.length === 0 ? (
           <Center py="xl">
-            <Stack align="center" gap="xs">
-              <Inbox
-                width={40}
-                height={40}
-                color="var(--mantine-color-dimmed)"
-              />
-              <Text c="dimmed">No notifications yet.</Text>
+            <Stack align="center" gap="sm">
+              <ThemeIcon size={rem(52)} radius="xl" variant="light" color="orange">
+                <Inbox width={26} height={26} />
+              </ThemeIcon>
+              <Text fw={600}>No notifications yet</Text>
+              <Text size="sm" c="dimmed" ta="center" maw={260}>
+                Incident alerts and dispatch orders appear here as they happen.
+              </Text>
             </Stack>
           </Center>
         ) : (
           <Stack gap="xs">
-            {items.map((n) => {
-              const color =
-                PRIORITY_COLORS[n.priority] || '#888888';
-
-              return (
-                <UnstyledButton
-                  key={n.id}
-                  onClick={() => handleOpen(n)}
-                  w="100%"
-                  style={{
-                    border:
-                      '1px solid var(--mantine-color-default-border)',
-                    borderRadius: rem(10),
-                    padding: rem(12),
-                    backgroundColor: n.is_read
-                      ? 'transparent'
-                      : 'var(--mantine-color-orange-light)',
-                  }}
-                >
-                  <Stack gap={8} align="stretch">
-                    {/* Incident id + time */}
-                    <Group
-                      justify="space-between"
-                      wrap="nowrap"
-                      align="center"
-                    >
-                      <Group
-                        gap="xs"
-                        wrap="nowrap"
-                        align="center"
-                        style={{ minWidth: 0 }}
-                      >
-                        <Box
-                          style={{
-                            width: 8,
-                            height: 8,
-                            borderRadius: '50%',
-                            backgroundColor: n.is_read
-                              ? 'var(--mantine-color-dimmed)'
-                              : color,
-                            flexShrink: 0,
-                          }}
-                        />
-                        <Text
-                          fw={700}
-                          size="sm"
-                          lineClamp={1}
-                        >
-                          Incident #{n.incident ?? '—'}
-                        </Text>
-                      </Group>
-                      <Text
-                        size="xs"
-                        c="dimmed"
-                        style={{ whiteSpace: 'nowrap' }}
-                      >
-                        {formatRelativeTime(n.created_at)}
-                      </Text>
-                    </Group>
-
-                    <Divider />
-
-                    {/* Incident type */}
-                    <Group
-                      justify="space-between"
-                      wrap="nowrap"
-                      gap="sm"
-                    >
-                      <Group gap="xs" wrap="nowrap" align="center">
-                        <Tag
-                          width={15}
-                          height={15}
-                          color="var(--mantine-color-dimmed)"
-                        />
-                        <Text size="sm" c="dimmed" fw={500}>
-                          Incident Type
-                        </Text>
-                      </Group>
-                      <Text
-                        size="sm"
-                        fw={600}
-                        lineClamp={1}
-                        ta="right"
-                      >
-                        {n.incident_type ?? '—'}
-                      </Text>
-                    </Group>
-
-                    {/* Location */}
-                    <Group
-                      justify="space-between"
-                      wrap="nowrap"
-                      gap="sm"
-                    >
-                      <Group gap="xs" wrap="nowrap" align="center">
-                        <LocationPin
-                          width={15}
-                          height={15}
-                          color="var(--mantine-color-dimmed)"
-                        />
-                        <Text size="sm" c="dimmed" fw={500}>
-                          Location
-                        </Text>
-                      </Group>
-                      <Text
-                        size="sm"
-                        fw={600}
-                        lineClamp={1}
-                        ta="right"
-                      >
-                        {n.location ?? '—'}
-                      </Text>
-                    </Group>
-                  </Stack>
-                </UnstyledButton>
-              );
-            })}
+            {items.map((n) => (
+              <NotificationRow key={n.id} notification={n} onOpen={handleOpen} />
+            ))}
           </Stack>
         )}
       </ScrollArea.Autosize>

@@ -8,6 +8,16 @@ export function formatDate(date: string | null): string {
   return dayjs(date).format('MMM D, YYYY h:mm:ss A');
 }
 
+export function formatDay(date: string | null): string {
+  if (!date) return 'N/A';
+  return dayjs(date).format('MMM D, YYYY');
+}
+
+export function formatTime(date: string | null): string {
+  if (!date) return 'N/A';
+  return dayjs(date).format('h:mm A');
+}
+
 export function formatRelativeTime(date: string | null): string {
   if (!date) return 'N/A';
   return dayjs(date).fromNow();

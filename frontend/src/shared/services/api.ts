@@ -24,6 +24,13 @@ function isPublicAuthPath(): boolean {
   );
 }
 
+/** The refresh token is gone or expired: end the session and say why. */
+function redirectToExpiredLogin(): void {
+  if (isPublicAuthPath()) return;
+  const isPwa = window.location.pathname.startsWith('/pwa');
+  window.location.href = `${isPwa ? '/pwa/login' : '/desktop/login'}?expired=1`;
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
   headers: {
@@ -90,11 +97,7 @@ api.interceptors.response.use(
      */
     if (error.response?.status === 401 && isRefreshRequest) {
       clearTokens();
-
-      if (!isPublicAuthPath()) {
-        const isPwa = window.location.pathname.startsWith('/pwa');
-        window.location.href = `${isPwa ? '/pwa/login' : '/desktop/login'}?expired=1`;
-      }
+      redirectToExpiredLogin();
 
       return Promise.reject(error);
     }
@@ -113,7 +116,10 @@ api.interceptors.response.use(
         const refresh = getRefreshToken();
 
         if (!refresh) {
-          throw new Error('No refresh token');
+          // Nothing stored to refresh with, so there is no session to keep.
+          clearTokens();
+          redirectToExpiredLogin();
+          return Promise.reject(new Error('No refresh token'));
         }
 
         // Use plain axios to avoid interceptor loop.
@@ -133,13 +139,19 @@ api.interceptors.response.use(
           `Bearer ${newAccess}`;
 
         return api(originalRequest);
-      } catch (refreshError) {
-        clearTokens();
-
-        if (!isPublicAuthPath()) {
-          const isPwa = window.location.pathname.startsWith('/pwa');
-          window.location.href = `${isPwa ? '/pwa/login' : '/desktop/login'}?expired=1`;
+      } catch (refreshError: any) {
+        /*
+         * Only the server rejecting the refresh token ends a session — that is
+         * the 15-day inactivity window lapsing, or a blacklisted token. A
+         * network drop or a 5xx must not sign anyone out mid-incident, so it
+         * leaves the stored session untouched for the next request to retry.
+         */
+        if (refreshError?.response?.status !== 401) {
+          return Promise.reject(refreshError);
         }
+
+        clearTokens();
+        redirectToExpiredLogin();
 
         return Promise.reject(refreshError);
       }
