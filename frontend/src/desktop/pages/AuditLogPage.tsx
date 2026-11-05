@@ -11,6 +11,7 @@ import { useQuery } from '@tanstack/react-query';
 import { auditAPI } from '../../shared/services/api';
 import { resolveMediaUrl } from '../../shared/utils/mediaUrl';
 import { PageHeader } from '../components/Layout/PageHeader';
+import { SkeletonTableRows } from '../components/common/SkeletonTableRows';
 import type { AuditLog, AuditAction, PaginatedResponse } from '../../shared/types';
 
 const FALLBACK_ACTIONS: AuditAction[] = ['Login', 'Logout', 'Incident_Detected', 'Incident_Verified', 'Incident_Dispatched', 'Camera_Created', 'User_Created', 'AI_Config_Changed'];
@@ -110,7 +111,7 @@ export default function AuditLogPage() {
               </Table.Thead>
               <Table.Tbody>
                 {isLoading ? (
-                  <Table.Tr><Table.Td colSpan={7}><Center py="xl"><Loader /></Center></Table.Td></Table.Tr>
+                  <SkeletonTableRows columns={[220, 175, 110, 190, 135]} rows={8} />
                 ) : !data?.results.length ? (
                   <Table.Tr><Table.Td colSpan={7}><Center py="xl"><Text c="dimmed">No audit logs found.</Text></Center></Table.Td></Table.Tr>
                 ) : data.results.map((log) => (
@@ -143,7 +144,11 @@ export default function AuditLogPage() {
                     </Table.Td>
 
                     <Table.Td ta="center" style={{ width: 110 }}><Text size="xs" fw={700} c="orange" style={{ textTransform: 'uppercase' }}>{log.resource_type}</Text></Table.Td>
-                    <Table.Td style={{ width: 190, maxWidth: 190 }}><Text size="sm" lineClamp={1}>{log.action.replace(/_/g, ' ')}</Text></Table.Td>
+                    <Table.Td style={{ width: 190, maxWidth: 190 }}><Text size="sm" lineClamp={1}>{
+                      log.action === 'Incident_Detected' && log.details?.incident_type
+                        ? `Incident Detected - ${String(log.details.incident_type).replace(/_/g, ' ')}`
+                        : log.action.replace(/_/g, ' ')
+                    }</Text></Table.Td>
 
                     <Table.Td style={{ width: 135, maxWidth: 135 }}><Text size="xs" ff="monospace" c="dimmed" lineClamp={1}>{log.ip_address || '0.0.0.0'}</Text></Table.Td>
 

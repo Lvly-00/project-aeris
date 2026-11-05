@@ -43,6 +43,28 @@ export const STATUS_COLORS: Record<string, string> = {
   Dismissed: '#888888',
 };
 
+/**
+ * Mantine color *names* for status badges, icons, and themed panels.
+ * Use these for any `color=` prop or `var(--mantine-color-…)` interpolation.
+ * STATUS_COLORS above holds the matching hex values for raw CSS (borders, etc.).
+ */
+export const STATUS_BADGE_COLORS: Record<string, string> = {
+  Detected: 'red',
+  Verified: 'orange',
+  Dispatched: 'blue',
+  Resolved: 'green',
+  Dismissed: 'gray',
+};
+
+/** Human-readable labels for status badges. */
+export const STATUS_LABELS: Record<string, string> = {
+  Detected: 'Detected',
+  Verified: 'Verified',
+  Dispatched: 'Dispatched',
+  Resolved: 'Resolved',
+  Dismissed: 'Dismissed',
+};
+
 export const PRIORITY_COLORS: Record<string, string> = {
   Low: '#888888',
   Medium: '#FFAA00',

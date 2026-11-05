@@ -1,4 +1,4 @@
-import { Paper, Text, RingProgress, Center, Stack, Group, ColorSwatch, useMantineTheme } from '@mantine/core';
+import { Paper, Text, RingProgress, Center, Stack, Group, ColorSwatch, Skeleton, useMantineTheme } from '@mantine/core';
 import type { DashboardTally } from '../../../shared/types';
 
 /** Keep the dashboard rings consistent with the incident type badges. */
@@ -57,11 +57,21 @@ export const IncidentSummary = ({ byType, loading = false }: Props) => {
                 </Text>
 
                 {loading ? (
-                    <Center h={200}>
-                        <Text c="dimmed" size="sm">
-                            Loading…
-                        </Text>
-                    </Center>
+                    <Stack gap="md" w="100%" align="center" aria-busy="true">
+                        {/* Ring-shaped placeholder, so the card keeps its height. */}
+                        <Center h={200} w={200}>
+                            <Skeleton height={200} width={200} circle />
+                        </Center>
+
+                        <Stack gap="xs" w="100%" px="lg">
+                            {[0, 1, 2].map((row) => (
+                                <Group key={row} justify="space-between" wrap="nowrap">
+                                    <Skeleton h={12} w={`${35 + row * 12}%`} radius="xl" />
+                                    <Skeleton h={12} w={24} radius="xl" />
+                                </Group>
+                            ))}
+                        </Stack>
+                    </Stack>
                 ) : (
                     <>
                         <Center>

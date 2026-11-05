@@ -22,7 +22,7 @@ from .api.health_routes import router as health_router
 from .api.camera_routes import router as camera_router
 from .api.frame_routes import router as frame_router
 from .api.detect_routes import router as detect_router
-from .config import AI_SERVICE_API_KEY
+from .config import AI_SERVICE_API_KEY, BACKEND_API_URL, INTERNAL_API_KEY
 
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
@@ -66,6 +66,92 @@ def _frontend_dist_dir() -> Path:
         return Path(sys.executable).resolve().parent / "frontend" / "dist"
     # <repo-root>/frontend/dist  (main.py lives at <repo-root>/ai-service/app/)
     return Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+
+def _auto_register_cameras():
+    """
+    Called once at startup in a background thread.
+
+    Fetches every active camera from Django and registers it with the
+    CameraManager so detection starts without waiting for a user to open
+    the camera monitoring page.
+
+    - RTSP/HTTP cameras → registered as streaming sources; FrameReader pulls
+      frames autonomously.
+    - MP4 cameras → registered in uploaded-frame mode; a companion loop reads
+      the file with cv2.VideoCapture and feeds frames into the worker, looping
+      forever so the test file acts like a live stream.
+
+    Non-fatal errors are logged and skipped — a missing model or unreachable
+    backend should not prevent the rest of startup from completing.
+    """
+    import time
+    import requests
+
+    # Wait briefly for the Django backend to be reachable.
+    django_root = BACKEND_API_URL.rstrip("/")
+    if django_root.endswith("/api"):
+        django_root = django_root[:-4]
+    cameras_url = f"{django_root}/internal/cameras/list/"
+    internal_key = INTERNAL_API_KEY or AI_SERVICE_API_KEY
+
+    for attempt in range(10):
+        try:
+            resp = requests.get(
+                cameras_url,
+                headers={"X-Internal-Key": internal_key},
+                timeout=5,
+            )
+            if resp.status_code == 200:
+                cameras = resp.json()
+                break
+            logger.warning("Camera list returned %d, retrying…", resp.status_code)
+        except requests.exceptions.ConnectionError:
+            logger.info("Backend not reachable yet (attempt %d/10), waiting…", attempt + 1)
+        except Exception as exc:
+            logger.warning("Error fetching camera list: %s", exc)
+        time.sleep(3)
+    else:
+        logger.warning("Could not fetch camera list from backend — skipping auto-registration")
+        return
+
+    from .core.camera_manager import CameraManager
+    manager = CameraManager()
+
+    import threading
+    for cam in cameras:
+        cam_id = cam.get("id")
+        stream_url = cam.get("stream_url") or ""
+        stream_type = (cam.get("stream_type") or "RTSP").upper()
+        is_active = cam.get("is_active", True)
+
+        if not cam_id or not is_active or not stream_url:
+            continue
+
+        if stream_type in ("RTSP", "HTTP"):
+            try:
+                manager.register_camera(cam_id, stream_url, stream_type)
+                logger.info("Auto-registered camera %d (%s)", cam_id, stream_type)
+            except Exception as exc:
+                logger.warning("Failed to register camera %d: %s", cam_id, exc)
+
+        elif stream_type == "MP4":
+            try:
+                # Register in uploaded-frame mode (FrameReader will wait for frames).
+                manager.register_camera(cam_id, stream_url, "MP4")
+                logger.info("Auto-registered MP4 camera %d (file=%s)", cam_id, stream_url)
+                # Spin up a feeder thread that loops the video file forever.
+                from .core.mp4_feeder import start_mp4_feeder
+                t = threading.Thread(
+                    target=start_mp4_feeder,
+                    args=(cam_id, stream_url, manager),
+                    name=f"mp4-feeder-{cam_id}",
+                    daemon=True,
+                )
+                t.start()
+            except Exception as exc:
+                logger.warning("Failed to register MP4 camera %d: %s", cam_id, exc)
+
 
 
 def create_app() -> FastAPI:
@@ -157,6 +243,12 @@ def create_app() -> FastAPI:
                 _cm.confidence_filter.set_type_threshold(inc_type, float(threshold))
             except (TypeError, ValueError):
                 logger.warning("Ignoring invalid persisted threshold for %s: %r", inc_type, threshold)
+
+        # Auto-register all active cameras from Django so RTSP streams and
+        # MP4 test files start detecting immediately — without waiting for a
+        # user to open the camera monitoring page.
+        import threading
+        threading.Thread(target=_auto_register_cameras, daemon=True).start()
 
         logger.info("AI service ready")
 

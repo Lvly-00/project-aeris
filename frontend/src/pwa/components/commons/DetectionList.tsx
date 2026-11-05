@@ -1,9 +1,10 @@
 import { useMemo } from 'react';
-import { Card, Text, Group, Stack, Image, ActionIcon, ThemeIcon, Badge, Center, Loader, ScrollArea, Tooltip, rem, useMantineTheme } from '@mantine/core';
+import { Card, Text, Group, Stack, Image, ActionIcon, ThemeIcon, Badge, ScrollArea, Skeleton, Tooltip, useMantineTheme } from '@mantine/core';
 import { Car, Check, Cloud, Flame, X, RotateCcw } from '@boxicons/react';
 
 import type { Detection, DetectionVerdict } from '../../../shared/types';
 import { formatRelativeTime } from '../../../shared/utils/helpers';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 
 interface DetectionListProps {
   detections: Detection[];
@@ -36,64 +37,82 @@ const TYPE_COLOR: Record<string, string> = {
 export const DetectionList = ({ detections, isLoading, onVerdict, isPendingId, totalHits }: DetectionListProps) => {
   const theme = useMantineTheme();
 
+  const uniqueDetections = useMemo(() => {
+    const seen = new Set<number>();
+    const result: Detection[] = [];
+    for (const d of detections) {
+      // One row per incident so a repeated detection never shows twice.
+      const key = (d as any).incident || d.id;
+      if (!seen.has(key)) {
+        seen.add(key);
+        result.push(d);
+      }
+    }
+    return result;
+  }, [detections]);
+
   const counts = useMemo(
     () => ({
-      pending: detections.filter((d) => d.verdict === 'pending').length,
-      true: detections.filter((d) => d.verdict === 'true').length,
-      false: detections.filter((d) => d.verdict === 'false').length,
+      pending: uniqueDetections.filter((d) => d.verdict === 'pending').length,
+      true: uniqueDetections.filter((d) => d.verdict === 'true').length,
+      false: uniqueDetections.filter((d) => d.verdict === 'false').length,
     }),
-    [detections]
+    [uniqueDetections]
   );
 
-  const isCapped = !!totalHits && totalHits > detections.length;
+  const isCapped = !!totalHits && totalHits > uniqueDetections.length;
 
+  /* Placeholder rows keep the incident detail sections from jumping. */
   if (isLoading) {
     return (
-      <Center h={120}>
-        <Loader variant="dots" color="blue" size="sm" />
-      </Center>
-    );
-  }
+      <Stack gap="xs" aria-busy="true" aria-label="Loading detections">
+        {[0, 1, 2].map((placeholder) => (
+          <Card key={placeholder} withBorder radius="md" p="sm">
+            <Group wrap="nowrap" gap="sm">
+              <Skeleton h={52} w={64} radius="sm" />
 
-  if (detections.length === 0) {
-    return (
-      <Center h={100}>
-        <Text c="dimmed" fz="xs">
-          No detections recorded yet.
-        </Text>
-      </Center>
+              <Stack gap={6} style={{ flex: 1, minWidth: 0 }}>
+                <Skeleton h={12} w="40%" radius="xl" />
+                <Skeleton h={10} w="25%" radius="xl" />
+              </Stack>
+
+              <Skeleton h={32} w={76} radius="xl" />
+            </Group>
+          </Card>
+        ))}
+      </Stack>
     );
   }
 
   return (
     <Stack gap="sm">
       {/* Summary */}
-      <Group gap={6} wrap="nowrap">
-        <Badge size="sm" variant="light" color="gray" styles={{ label: { fontWeight: 700 } }}>
-          {detections.length} listed
+      <Group gap={6} wrap="wrap">
+        <Badge size="sm" variant="light" color="gray" radius="sm" tt="none" styles={{ label: { fontWeight: 700 } }}>
+          {uniqueDetections.length} listed
         </Badge>
-        <Badge size="sm" variant="light" color="green" styles={{ label: { fontWeight: 700 } }}>
+        <Badge size="sm" variant="light" color="green" radius="sm" tt="none" styles={{ label: { fontWeight: 700 } }}>
           {counts.true} true
         </Badge>
-        <Badge size="sm" variant="light" color="red" styles={{ label: { fontWeight: 700 } }}>
+        <Badge size="sm" variant="light" color="red" radius="sm" tt="none" styles={{ label: { fontWeight: 700 } }}>
           {counts.false} false
         </Badge>
         {counts.pending > 0 && (
-          <Badge size="sm" variant="light" color="yellow" styles={{ label: { fontWeight: 700 } }}>
+          <Badge size="sm" variant="light" color="yellow" radius="sm" tt="none" styles={{ label: { fontWeight: 700 } }}>
             {counts.pending} pending
           </Badge>
         )}
       </Group>
 
       {isCapped && (
-        <Text fz={10} c="dimmed">
-          Showing the most recent {detections.length} of {totalHits} hits.
+        <Text fz="xs" c="dimmed">
+          Showing the most recent {uniqueDetections.length} of {totalHits} hits.
         </Text>
       )}
 
       <ScrollArea.Autosize mah={340} offsetScrollbars type="auto">
         <Stack gap="xs" pr={4}>
-          {detections.map((detection) => {
+          {uniqueDetections.map((detection) => {
             const Icon = TYPE_ICON[detection.incident_type] || Car;
             const color = TYPE_COLOR[detection.incident_type] || 'gray';
             const busy = isPendingId === detection.id;
@@ -102,8 +121,8 @@ export const DetectionList = ({ detections, isLoading, onVerdict, isPendingId, t
               <Card
                 key={detection.id}
                 withBorder
-                radius="sm"
-                p="xs"
+                radius="md"
+                p="sm"
                 style={{
                   opacity: busy ? 0.6 : 1,
                   borderColor:
@@ -118,35 +137,35 @@ export const DetectionList = ({ detections, isLoading, onVerdict, isPendingId, t
                   {/* Snapshot thumbnail */}
                   {detection.snapshot_image ? (
                     <Image
-                      src={detection.snapshot_image}
-                      w={rem(64)}
-                      h={rem(48)}
+                      src={resolveMediaUrl(detection.snapshot_image)}
+                      w={64}
+                      h={52}
                       fit="cover"
-                      radius="xs"
+                      radius="sm"
                       fallbackSrc="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg'/%3E"
                     />
                   ) : (
-                    <ThemeIcon size={48} radius="xs" variant="light" color={color}>
+                    <ThemeIcon size={52} radius="sm" variant="light" color={color}>
                       <Icon size={26} />
                     </ThemeIcon>
                   )}
 
                   {/* Detection info */}
-                  <Stack gap={1} style={{ flex: 1, minWidth: 0 }}>
+                  <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
                     <Group gap={6} wrap="nowrap">
-                      <Text fw={700} fz="xs" truncate>
+                      <Text fw={600} fz="sm" truncate>
                         {detection.incident_type?.replace(/_/g, ' ')}
                       </Text>
-                      <Badge size="xs" variant="outline" color="gray" styles={{ label: { fontWeight: 600 } }}>
+                      <Badge size="xs" variant="light" color="gray" radius="sm" tt="none" styles={{ label: { fontWeight: 600 } }}>
                         {Math.round(detection.confidence_score * 100)}%
                       </Badge>
                     </Group>
-                    <Text fz={10} c="dimmed" truncate>
+                    <Text fz="xs" c="dimmed" truncate>
                       {formatRelativeTime(detection.frame_timestamp || detection.created_at)}
                     </Text>
                     {detection.reviewed_by_name && (
-                      <Text fz={9} c="dimmed" truncate>
-                        by {detection.reviewed_by_name}
+                      <Text fz="xs" c="dimmed" truncate>
+                        Reviewed by {detection.reviewed_by_name}
                       </Text>
                     )}
                   </Stack>

@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState, type ReactNode } from 'react';
 import {
   Container,
   Card,
@@ -10,37 +10,59 @@ import {
   RingProgress,
   Image,
   Box,
-  SimpleGrid,
   Divider,
   Button,
-  rem,
   ThemeIcon,
-  Loader,
   Center,
+  Skeleton,
+  SimpleGrid,
+  Modal,
+  Collapse,
   useMantineTheme,
   useComputedColorScheme,
+  Timeline,
+  rem,
 } from '@mantine/core';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
 
-import { AlertCircle, ArrowLeft, Bell, Car, Check, CheckCircle, CheckShield, Clock, Cloud, EyeSlash, Flame, LocationPin, Maximize, RotateCcw, Siren, Star, Video, XCircle } from '@boxicons/react';
+import {
+  AlertCircle,
+  ArrowLeft,
+  Car,
+  Check,
+  CheckCircle,
+  CheckShield,
+  ChevronDown,
+  Clipboard,
+  Clock,
+  Cloud,
+  Flame,
+  Maximize,
+  Phone,
+  RotateCcw,
+  Siren,
+  Star,
+  Video,
+  XCircle,
+} from '@boxicons/react';
 
-import { incidentsAPI, detectionsAPI } from '../../../shared/services/api';
-import { STATUS_COLORS, SEVERITY_COLORS } from '../../../shared/utils/constants';
+import { incidentsAPI, detectionsAPI, contactsAPI } from '../../../shared/services/api';
 import { formatDate, formatConfidence } from '../../../shared/utils/helpers';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
+import { STATUS_BADGE_COLORS as STATUS_COLOR } from '../../../shared/utils/constants';
 import { DetectionList } from '../../components/commons/DetectionList';
 import type { Detection, Incident, IncidentStatus, DetectionVerdict } from '../../../shared/types';
 
-
 const STATUS_ACTIONS: Record<string, { label: string; next: IncidentStatus; color: string; variant?: string; icon: any }[]> = {
   Detected: [
-    { label: 'Incident Verified', next: 'Verified', color: 'orange', icon: CheckShield },
-    { label: 'Dismiss Incident', next: 'Dismissed', color: 'red', variant: 'outline', icon: XCircle },
+    { label: 'Verify Incident', next: 'Verified', color: 'orange', icon: CheckShield },
+    { label: 'Dismiss Incident', next: 'Dismissed', color: 'red', variant: 'light', icon: XCircle },
   ],
   Verified: [
     { label: 'Dispatch Tanod', next: 'Dispatched', color: 'red', icon: Car },
-    { label: 'Dismiss', next: 'Dismissed', color: 'gray', variant: 'subtle', icon: XCircle },
+    { label: 'Dismiss Incident', next: 'Dismissed', color: 'gray', variant: 'light', icon: XCircle },
   ],
   Dispatched: [
     { label: 'Mark as Resolved', next: 'Resolved', color: 'green', icon: CheckCircle },
@@ -53,32 +75,84 @@ const STATUS_ACTIONS: Record<string, { label: string; next: IncidentStatus; colo
 
 const TYPE_INFO: Record<string, { label: string; Icon: any; recommendation: string; responder: string }> = {
   Fire: {
-    label: 'FIRE',
+    label: 'Fire',
     Icon: Flame,
     recommendation: 'Emergency Escalation',
     responder: 'BFP',
   },
   Vehicle_Accident: {
-    label: 'VEHICULAR ACCIDENT',
+    label: 'Vehicular Accident',
     Icon: Car,
     recommendation: 'Dispatch Responders',
     responder: 'NDRRMC',
   },
   Smoke: {
-    label: 'SMOKE',
+    label: 'Smoke',
     Icon: Cloud,
     recommendation: 'Continue Monitoring',
-    responder: 'Barangay Tanod',
+    responder: 'PNP',
   },
 };
 
-const STATUS_BADGE_COLOR: Record<string, string> = {
-  Detected: 'red',
-  Verified: 'orange',
-  Dispatched: 'blue',
-  Resolved: 'green',
-  Dismissed: 'gray',
+const SEVERITY_COLOR: Record<string, string> = {
+  Low: 'gray',
+  Medium: 'yellow',
+  High: 'orange',
+  Critical: 'red',
 };
+
+const TYPE_COLOR: Record<string, string> = {
+  Fire: 'red',
+  Smoke: 'orange',
+  Vehicle_Accident: 'yellow',
+};
+
+const SOURCE_LABEL: Record<string, string> = {
+  ai: 'AI detection',
+  simulation: 'Simulated',
+  manual: 'Manual entry',
+};
+
+/** Consistent card shell: readable section title, optional trailing slot. */
+function SectionCard({
+  title,
+  icon: Icon,
+  right,
+  children,
+}: {
+  title: string;
+  icon: any;
+  right?: ReactNode;
+  children: ReactNode;
+}) {
+  return (
+    <Card withBorder radius="lg" p="md" mb="md">
+      <Group justify="space-between" align="center" mb="sm" wrap="wrap" gap="sm">
+        <Group gap={8} wrap="nowrap">
+          <Icon width={16} height={16} color="var(--mantine-color-dimmed)" />
+          <Text fw={600} fz="sm">
+            {title}
+          </Text>
+        </Group>
+        {right}
+      </Group>
+      {children}
+    </Card>
+  );
+}
+
+function InfoItem({ label, value }: { label: string; value: ReactNode }) {
+  return (
+    <Box style={{ minWidth: 0 }}>
+      <Text fz="xs" c="dimmed" mb={2}>
+        {label}
+      </Text>
+      <Text fz="sm" fw={600} style={{ wordBreak: 'break-word' }}>
+        {value}
+      </Text>
+    </Box>
+  );
+}
 
 export default function IncidentDetailPage() {
   const theme = useMantineTheme();
@@ -89,6 +163,8 @@ export default function IncidentDetailPage() {
   const queryClient = useQueryClient();
 
   const incidentId = Number(id);
+  const [evidenceOpen, setEvidenceOpen] = useState(false);
+  const [timelineOpen, setTimelineOpen] = useState(true);
 
   const { data: incident, isLoading } = useQuery({
     queryKey: ['incident', incidentId],
@@ -118,12 +194,33 @@ export default function IncidentDetailPage() {
     refetchInterval: 15000,
   });
 
+  /*
+   * Emergency contact for this incident type — powers the Call button.
+   * No contact configured means the button renders disabled.
+   */
+  const { data: emergencyContacts = [] } = useQuery({
+    queryKey: ['contacts', incident?.incident_type],
+    queryFn: async () => {
+      const res = await contactsAPI.list({
+        incident_type: incident?.incident_type,
+        is_active: true,
+      });
+      return (res.data.results || res.data) as {
+        id: number;
+        name: string;
+        phone_number: string;
+      }[];
+    },
+    enabled: !!incident,
+  });
+  const callContact = emergencyContacts[0];
+
   const [pendingVerdictId, setPendingVerdictId] = useState<number | null>(null);
 
   /*
    * Check / cross on a single detection. Annotation only — it deliberately
    * does not touch the incident's status, which still moves through the
-   * Verify/Dispatch buttons below.
+   * Verify/Dispatch buttons above.
    */
   const verdictMutation = useMutation({
     mutationFn: ({ id, verdict }: { id: number; verdict: DetectionVerdict }) =>
@@ -221,24 +318,83 @@ export default function IncidentDetailPage() {
 
   if (isLoading) {
     return (
-      <Container size="xs" py="xl">
-        <Center h={300}>
-          <Loader variant="dots" color="blue" />
-        </Center>
+      <Container size="sm" py="md" pb="xl" aria-busy="true" aria-label="Loading incident">
+        {/* Header: back button + incident id */}
+        <Group justify="space-between" align="center" mb="md" wrap="nowrap" gap="sm">
+          <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+            <Skeleton h={rem(36)} w={rem(36)} radius="md" />
+            <Stack gap={6}>
+              <Skeleton h={rem(10)} w={rem(84)} radius="xl" />
+              <Skeleton h={rem(14)} w={rem(140)} radius="xl" />
+            </Stack>
+          </Group>
+        </Group>
+
+        {/* Summary hero */}
+        <Card withBorder radius="lg" p="lg" mb="md">
+          <Group align="flex-start" gap="md" wrap="nowrap">
+            <Skeleton h={rem(56)} w={rem(56)} radius="md" />
+
+            <Stack gap={rem(10)} style={{ flex: 1, minWidth: 0 }}>
+              <Group justify="space-between" wrap="nowrap" gap="xs">
+                <Skeleton h={rem(18)} w="55%" radius="xl" />
+                <Skeleton h={rem(24)} w={rem(92)} radius="sm" />
+              </Group>
+              <Skeleton h={rem(12)} w="40%" radius="xl" />
+              <Skeleton h={rem(20)} w={rem(110)} radius="sm" />
+              <Skeleton h={rem(12)} w="55%" radius="xl" />
+            </Stack>
+          </Group>
+        </Card>
+
+        {/* Status timeline */}
+        <Card withBorder radius="lg" p="lg" mb="md">
+          <Group justify="space-between" mb="md" wrap="nowrap">
+            <Group gap="xs" wrap="nowrap">
+              <Skeleton h={rem(16)} w={rem(16)} radius="sm" />
+              <Skeleton h={rem(13)} w={rem(110)} radius="xl" />
+            </Group>
+            <Skeleton h={rem(24)} w={rem(24)} radius="sm" />
+          </Group>
+
+          <Stack gap="sm">
+            {[0, 1, 2, 3].map((step) => (
+              <Group key={step} gap="md" wrap="nowrap">
+                <Skeleton h={rem(22)} w={rem(22)} circle />
+                <Skeleton h={rem(12)} w={`${58 - step * 8}%`} radius="xl" />
+              </Group>
+            ))}
+          </Stack>
+        </Card>
+
+        {/* Evidence */}
+        <Card withBorder radius="lg" p="lg" mb="md">
+          <Group gap="xs" mb="md" wrap="nowrap">
+            <Skeleton h={rem(16)} w={rem(16)} radius="sm" />
+            <Skeleton h={rem(13)} w={rem(90)} radius="xl" />
+          </Group>
+          <Skeleton h={rem(180)} radius="md" />
+        </Card>
+
+        {/* Status actions */}
+        <Group grow gap="sm" wrap="nowrap">
+          <Skeleton h={rem(38)} radius="md" />
+          <Skeleton h={rem(38)} radius="md" />
+        </Group>
       </Container>
     );
   }
 
   if (!incident) {
     return (
-      <Container size="xs" py="xl">
+      <Container size="sm" py="xl">
         <Stack align="center" gap="md" py="xl" style={{ textAlign: 'center' }}>
           <ThemeIcon size={80} radius="xl" color={isDark ? 'gray.9' : 'gray.1'}>
-            <AlertCircle  width={40} height={40} color={isDark ? theme.colors.gray[4] : theme.colors.gray[5]} />
+            <AlertCircle width={40} height={40} color={isDark ? theme.colors.gray[4] : theme.colors.gray[5]} />
           </ThemeIcon>
           <Text fw={700} fz="xl">Incident Not Found</Text>
           <Text c="dimmed">This incident does not exist.</Text>
-          <Button variant="subtle" onClick={() => navigate('/pwa/incidents')}>
+          <Button variant="subtle" onClick={() => navigate('/pwa/admin/incidents')}>
             Back to Incidents
           </Button>
         </Stack>
@@ -248,8 +404,11 @@ export default function IncidentDetailPage() {
 
   const typeInfo = TYPE_INFO[incident.incident_type] || TYPE_INFO.Fire;
   const status = incident.status;
-  const statusColor = STATUS_COLORS[status] || SEVERITY_COLORS[incident.severity] || '#888';
-
+  const statusColor = STATUS_COLOR[status] || 'gray';
+  const typeColor = TYPE_COLOR[incident.incident_type] || 'gray';
+  const severityColor = SEVERITY_COLOR[incident.severity] || 'gray';
+  const cameraName = incident.camera_name
+    || (incident.camera ? `Camera #${incident.camera}` : 'Unknown camera');
 
   const activeStep =
     status === 'Verified' ? 2 :
@@ -258,420 +417,481 @@ export default function IncidentDetailPage() {
 
   const isResolved = status === 'Resolved';
   const isDismissed = status === 'Dismissed';
-  const cardBg = isDismissed
-    ? (isDark ? 'gray.9' : 'gray.0')
-    : isResolved
-      ? (isDark ? 'green.9' : 'green.0')
-      : status === 'Verified'
-        ? (isDark ? 'orange.9' : 'orange.0')
-        : (isDark ? 'red.9' : 'red.0');
-  const borderBase = isDismissed ? 'gray' : isResolved ? 'green' : 'red';
-  const cardBorder = isDark
-    ? `var(--mantine-color-${borderBase}-9)`
-    : theme.colors[borderBase as 'green' | 'red'][1];
+
+  const confidencePct = Math.round(incident.confidence_score * 100);
+  const confidenceLabel =
+    confidencePct >= 85 ? 'Very high'
+      : confidencePct >= 70 ? 'High'
+        : confidencePct >= 50 ? 'Moderate'
+          : 'Low';
+
+  const evidenceSrc = resolveMediaUrl(incident.evidence_image);
 
   /*
    * Dismissed incidents show a red Detected -> Dismissed timeline,
-   * everything else shows the full active flow.
+   * everything else shows the full active flow. Each step carries its
+   * own timestamp so the operator can see when it actually happened.
    */
-  type TimelineStep = { label: string; color?: string; done?: boolean };
+  type TimelineStep = {
+    label: string;
+    time: string | null;
+    done: boolean;
+    color: string;
+    icon: any;
+  };
   const timelineSteps: TimelineStep[] = isDismissed
     ? [
-      { label: 'Detected', color: 'red' },
-      { label: 'Dismissed', color: 'red' },
+      { label: 'Detected', time: incident.detected_at, done: true, color: 'red', icon: AlertCircle },
+      { label: 'Dismissed', time: incident.dismissed_at, done: true, color: 'red', icon: XCircle },
     ]
     : [
-      { label: 'Detected', done: activeStep > 0 },
-      { label: 'Verified', done: activeStep > 1 },
-      { label: 'Dispatch', done: activeStep > 2 },
-      { label: 'Resolved', done: activeStep > 3 },
+      { label: 'Detected', time: incident.detected_at, done: activeStep > 0, color: 'red', icon: AlertCircle },
+      { label: 'Verified', time: incident.verified_at, done: activeStep > 1, color: 'orange', icon: CheckShield },
+      { label: 'Dispatched', time: incident.dispatched_at, done: activeStep > 2, color: 'blue', icon: Car },
+      { label: 'Resolved', time: incident.resolved_at, done: activeStep > 3, color: 'green', icon: CheckCircle },
     ];
 
   const actions = STATUS_ACTIONS[status] || [];
 
   return (
-    <Container size="xs" py="md" bg="var(--mantine-color-body)" style={{ minHeight: '100vh' }}>
-      {/* Header */}
-      <Group justify="space-between" mb="lg">
-        <Group>
-          <ActionIcon variant="subtle" color="gray" onClick={goBack}>
-            <ArrowLeft  width={20} height={20} />
+    <Container size="sm" py="md" pb="xl">
+      {/* Page header */}
+      <Group justify="space-between" align="center" mb="md" wrap="nowrap" gap="sm">
+        <Group gap="sm" wrap="nowrap" style={{ minWidth: 0 }}>
+          <ActionIcon
+            variant="default"
+            size="lg"
+            radius="md"
+            onClick={goBack}
+            aria-label="Go back"
+          >
+            <ArrowLeft width={18} height={18} />
           </ActionIcon>
-          <Text fw={700} fz="lg">INC-2026-{String(incident.id).padStart(6, '0')}</Text>
+          <Box style={{ minWidth: 0 }}>
+            <Text fz="xs" c="dimmed" fw={600}>
+              Incident details
+            </Text>
+            <Text fw={700} fz="md" truncate>
+              INC-2026-{String(incident.id).padStart(6, '0')}
+            </Text>
+          </Box>
         </Group>
       </Group>
 
-      {/* Main Alert Card */}
+      {/* Summary hero */}
       <Card
-        radius="lg"
-        p="md"
-        mb="md"
-        bg={cardBg}
         withBorder
-        style={{
-          borderColor: cardBorder,
-          overflow: "hidden",
-        }}
+        radius="lg"
+        p="lg"
+        mb="md"
+        pos="relative"
+        style={{ overflow: 'hidden' }}
       >
-        <Group
-          align="center"
-          gap="md"
-          wrap="nowrap"
-        >
-          {/* Incident Icon */}
+        <Box pos="absolute" top={0} left={0} right={0} h={4} bg={`${statusColor}.6`} />
+
+        <Group align="flex-start" gap="md" wrap="nowrap" mt={4}>
           <ThemeIcon
-            size={64}
-            radius="50%"
-            color={
-              isDismissed
-                ? isDark
-                  ? "gray.9"
-                  : "gray.1"
-                : isResolved
-                  ? isDark
-                    ? "green.9"
-                    : "green.1"
-                  : isDark
-                    ? "red.9"
-                    : "red.1"
-            }
-            style={{
-              flexShrink: 0,
-            }}
+            size={56}
+            radius="md"
+            variant="light"
+            color={statusColor}
+            style={{ flexShrink: 0 }}
           >
-            <typeInfo.Icon
-              size={34}
-              color={isDark ? theme.colors.red[4] : theme.colors.red[6]}
-              fill={isDark ? theme.colors.red[4] : theme.colors.red[6]}
-            />
+            <Video width={28} height={28} />
           </ThemeIcon>
 
-          {/* Incident Information */}
-          <Stack
-            gap={4}
-            style={{
-              minWidth: 0,
-              flex: 1,
-            }}
-          >
-            {/* Title */}
-            <Text
-              fw={800}
-              fz="xl"
-              lh={1}
-              truncate
-            >
-              {typeInfo.label}
-            </Text>
-
-            {/* Status */}
-            <Badge
-              variant="light"
-              color={
-                status === "Dismissed"
-                  ? "gray"
-                  : status === "Detected"
-                    ? "red"
-                    : status === "Verified"
-                      ? "orange"
-                      : "green"
-              }
-              size="sm"
-              radius="xl"
-              w="fit-content"
-              styles={{
-                label: {
-                  fontWeight: 800,
-                },
-              }}
-            >
-              {status.toUpperCase()}
-            </Badge>
-
-            {/* Detected Time */}
-            <Group gap={5} mt={2} wrap="nowrap">
-              <Clock
-                 width={16} height={16}
-                color={theme.colors.gray[6]}
-                style={{ flexShrink: 0 }}
-              />
-
+          <Stack gap={8} style={{ flex: 1, minWidth: 0 }}>
+            <Group gap={8} align="center" wrap="nowrap">
               <Text
-                c="dimmed"
-                fz="sm"
-                fw={400}
+                fw={800}
+                fz="lg"
+                lh={1.2}
                 truncate
+                title={typeInfo.label}
+                style={{ flex: 1, minWidth: 0 }}
               >
-                Detected: {formatDate(incident.detected_at)}
+                {typeInfo.label}
+              </Text>
+
+              {/* Status badge beside the incident name */}
+              <Badge
+                variant="light"
+                color={statusColor}
+                size="md"
+                radius="sm"
+                tt="none"
+                style={{ flexShrink: 0 }}
+                leftSection={
+                  <Box
+                    w={6}
+                    h={6}
+                    bg={`${statusColor}.6`}
+                    style={{ borderRadius: '50%' }}
+                  />
+                }
+                styles={{ label: { fontWeight: 700 } }}
+              >
+                {status}
+              </Badge>
+            </Group>
+
+            {/* Camera where the incident was detected */}
+            <Group gap={6} wrap="nowrap">
+              <Video width={14} height={14} color="var(--mantine-color-dimmed)" />
+              <Text fz="xs" c="dimmed" truncate title={cameraName}>
+                {cameraName}
+              </Text>
+            </Group>
+
+            <Group gap={6} wrap="wrap">
+              <Badge
+                variant="light"
+                color={severityColor}
+                size="sm"
+                radius="sm"
+                tt="none"
+                styles={{ label: { fontWeight: 600 } }}
+              >
+                {incident.severity} severity
+              </Badge>
+            </Group>
+
+            <Group gap={6} wrap="nowrap">
+              <Clock width={14} height={14} color="var(--mantine-color-dimmed)" />
+              <Text fz="xs" c="dimmed" truncate>
+                {formatDate(incident.detected_at)}
               </Text>
             </Group>
           </Stack>
         </Group>
       </Card>
 
-      {/* Status Timeline */}
-      <Card withBorder radius="lg" p="md" mb="md">
-        <Text
-          fw={700}
-          fz="xs"
-          c="dimmed"
-          tt="uppercase"
-          mb="lg"
-        >
-          Status Timeline
-        </Text>
 
-        <Group gap={0} align="flex-start" wrap="nowrap">
-          {timelineSteps.map((step, index, arr) => (
-            <React.Fragment key={step.label}>
-              <Stack align="center" gap={6} style={{ flex: 1, minWidth: 0 }}>
-                <ThemeIcon
-                  size={32}
-                  radius="xl"
-                  variant="filled"
-                  color={step.color || (step.done ? 'green' : 'gray')}
-                >
-                  <Check  width={16} height={16} />
-                </ThemeIcon>
-
-                <Text
-                  size="xs"
-                  fw={600}
-                  ta="center"
-                  lh={1.2}
-                >
-                  {step.label}
-                </Text>
-              </Stack>
-
-              {index < arr.length - 1 && (
-                <Divider
-                  flex={1}
-                  mt={16}
-                  color={step.color || (step.done ? 'green' : 'gray.3')}
-                />
-              )}
-            </React.Fragment>
-          ))}
-        </Group>
-      </Card>
-
-      {/* Grid: Confidence & Evidence */}
-      <SimpleGrid cols={2} mb="md">
-        <Card withBorder radius="lg" p="md">
-          <Text fw={700} fz={10} c="dimmed" tt="uppercase" mb="lg">Confidence Level</Text>
-          <Box style={{ display: 'flex', justifyContent: 'center' }}>
-            <RingProgress
-              size={120}
-              thickness={12}
-              roundCaps
-              sections={[{ value: Math.round(incident.confidence_score * 100), color: 'orange' }]}
-              label={<Text fw={700} ta="center" fz="xl">{Math.round(incident.confidence_score * 100)}%</Text>}
+      {/* Status timeline */}
+      <SectionCard
+        title="Status timeline"
+        icon={Clock}
+        right={
+          <ActionIcon
+            variant="subtle"
+            color="gray"
+            size="md"
+            radius="md"
+            aria-label={timelineOpen ? 'Collapse status timeline' : 'Expand status timeline'}
+            aria-expanded={timelineOpen}
+            onClick={() => setTimelineOpen((open) => !open)}
+          >
+            <ChevronDown
+              width={16}
+              height={16}
+              style={{
+                transform: timelineOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                transition: 'transform 150ms ease',
+              }}
             />
-          </Box>
+          </ActionIcon>
+        }
+      >
+        <Collapse in={timelineOpen}>
+          <Timeline
+            active={isDismissed ? 1 : activeStep - 1}
+            bulletSize={28}
+            lineWidth={2}
+            color={isDismissed ? 'red' : 'green'}
+          >
+            {timelineSteps.map((step) => (
+              <Timeline.Item
+                key={step.label}
+                bullet={
+                  <ThemeIcon
+                    size={28}
+                    radius="xl"
+                    variant={step.done ? 'filled' : 'light'}
+                    color={step.done ? step.color : 'gray'}
+                  >
+                    <step.icon width={15} height={15} />
+                  </ThemeIcon>
+                }
+                title={
+                  <Group justify="space-between" gap="xs" wrap="wrap">
+                    <Text fw={600} fz="sm" c={step.done ? undefined : 'dimmed'}>
+                      {step.label}
+                    </Text>
+                    <Text fz="xs" c="dimmed">
+                      {step.time ? formatDate(step.time) : 'Pending'}
+                    </Text>
+                  </Group>
+                }
+              />
+            ))}
+          </Timeline>
+        </Collapse>
+      </SectionCard>
+
+      <SimpleGrid cols={2} spacing="md" mb="md">
+        {/* Detection confidence */}
+        <Card withBorder radius="lg" p="md">
+          <Group justify="space-between" align="center" mb="sm" wrap="wrap" gap="sm">
+            <Group gap={8} wrap="nowrap">
+              <CheckShield width={16} height={16} color="var(--mantine-color-dimmed)" />
+              <Text fw={600} fz="sm">
+                Detection confidence
+              </Text>
+            </Group>
+            <Badge variant="light" color="orange" size="sm" radius="sm" tt="none">
+              {confidenceLabel}
+            </Badge>
+          </Group>
+
+          <Group justify="space-between" align="center" gap="md" wrap="nowrap">
+            <RingProgress
+              size={64}
+              thickness={7}
+              roundCaps
+              sections={[{ value: confidencePct, color: 'orange' }]}
+              label={
+                <Text fw={800} fz="sm" ta="center">
+                  {confidencePct}%
+                </Text>
+              }
+            />
+
+            <Text fz="xs" c="dimmed" lh={1.5} style={{ flex: 1, minWidth: 0 }}>
+              {confidenceLabel} confidence this is a real{' '}
+              {incident.incident_type.replace(/_/g, ' ').toLowerCase()}.
+            </Text>
+          </Group>
         </Card>
 
+        {/* Emergency call */}
         <Card withBorder radius="lg" p="md">
-          <Text fw={700} fz={10} c="dimmed" tt="uppercase" mb="xs">Evidence</Text>
-          <Box pos="relative" style={{ borderRadius: theme.radius.md, overflow: 'hidden' }}>
-            <Image
-              src={incident.evidence_image || undefined}
-              height={100}
-              fallbackSrc="https://images.unsplash.com/photo-1516496636080-14fb876e029d?q=80&w=400"
-            />
-            <Badge
-              pos="absolute"
-              top={8}
-              left={8}
+          <Group gap={8} wrap="nowrap" mb="sm">
+            <Phone width={16} height={16} color="var(--mantine-color-dimmed)" />
+            <Text fw={600} fz="sm">
+              Emergency call
+            </Text>
+          </Group>
+
+          <Stack gap="sm">
+            <Button
+              component="a"
+              href={callContact ? `tel:${callContact.phone_number}` : undefined}
               color="red"
-              radius={0}
-              size="xs"
-              fz={8}
+              radius="md"
+              size="md"
+              fullWidth
+              disabled={!callContact}
+              leftSection={<Phone width={16} height={16} />}
             >
-              {incident.incident_type} {formatConfidence(incident.confidence_score)}
-            </Badge>
-            <ActionIcon pos="absolute" bottom={4} right={4} variant="transparent" color="white">
-              <Maximize  width={14} height={14} />
-            </ActionIcon>
-          </Box>
+              Call {typeInfo.responder}
+            </Button>
+
+            <Stack gap={2}>
+              {callContact ? (
+                <>
+                  <Text fz="xs" fw={600} lh={1.3}>
+                    {callContact.name}
+                  </Text>
+                  <Text fz="xs" c="dimmed" lh={1.3}>
+                    {callContact.phone_number}
+                  </Text>
+                </>
+              ) : (
+                <Text fz="xs" c="dimmed" lh={1.5}>
+                  No contact configured.
+                </Text>
+              )}
+            </Stack>
+          </Stack>
         </Card>
       </SimpleGrid>
 
-      {/* Camera Information */}
-      <Card withBorder radius="lg" p="md" mb="md">
-        <Group gap={6} mb="sm">
-          <Video  width={14} height={14} color={theme.colors.gray[6]} />
-          <Text fw={700} fz={11} c="dimmed" tt="uppercase">Camera Information</Text>
-        </Group>
-        <Group grow preventGrowOverflow={false}>
-          <Group gap="xs">
-            <ThemeIcon color="orange" variant="light" radius="xl"><Video  width={16} height={16} color="orange" /></ThemeIcon>
-            <Box style={{ minWidth: 0 }}>
-              <Text fz={9} c="dimmed">Camera</Text>
-              <Text fz={11} fw={700} truncate>{incident.camera_name || `Camera #${incident.camera}`}</Text>
-            </Box>
-          </Group>
-          <Divider orientation="vertical" />
-          <Group gap="xs">
-            <ThemeIcon color="orange" variant="light" radius="xl"><LocationPin  width={16} height={16} color="orange" /></ThemeIcon>
-            <Box style={{ minWidth: 0 }}>
-              <Text fz={9} c="dimmed">Location</Text>
-              <Text fz={11} fw={700} truncate>
-                {incident.camera_name || 'Unknown'}
-              </Text>
-            </Box>
-          </Group>
-        </Group>
-      </Card>
-
-      {/* Detected Incidents — every AI hit for this camera, with check/cross */}
-      <Card withBorder radius="lg" p="md" mb="md">
-        <Group gap={6} mb="sm">
-          <CheckShield  width={14} height={14} color={theme.colors.gray[6]} />
-          <Text fw={700} fz={11} c="dimmed" tt="uppercase">
-            Detected Incidents
-          </Text>
-        </Group>
-
-        <Text fz={10} c="dimmed" mb="sm" lh={1.3}>
-          Every hit the AI produced on this camera while the incident is open.
-          Tick the ones that are real, cross the false positives.
-        </Text>
-
-        <DetectionList
-          detections={detections}
-          isLoading={detectionsLoading}
-          isPendingId={pendingVerdictId}
-          totalHits={incident.detection_count}
-          onVerdict={(id, verdict) => verdictMutation.mutate({ id, verdict })}
-        />
-      </Card>
-
-      {/* AI Recommendation */}
-      <Card
-        withBorder
-        radius="lg"
-        p="md"
-        mb="xl"
+      {/* Evidence */}
+      <SectionCard
+        title="Evidence"
+        icon={Video}
+        right={
+          <Badge variant="light" color="gray" size="sm" radius="sm" tt="none">
+            {incident.incident_type.replace(/_/g, ' ')}
+          </Badge>
+        }
       >
-        <Text
-          fw={700}
-          fz={11}
-          c="dimmed"
-          tt="uppercase"
-          mb="sm"
-        >
-          AI Recommendation
-        </Text>
-
-        <Group
-          align="center"
-          gap="sm"
-          wrap="nowrap"
-        >
-          {/* AI Icon */}
-          <ThemeIcon
-            size={42}
-            color="orange"
-            variant="light"
-            radius="md"
-            style={{ flexShrink: 0 }}
-          >
-            <Star  width={20} height={20} />
-          </ThemeIcon>
-
-          {/* Recommendation */}
-          <Box
-            style={{
-              flex: 1,
-              minWidth: 0,
-            }}
-          >
-            <Text
-              fz={10}
-              c="dimmed"
-              lh={1.3}
+        {evidenceSrc ? (
+          <>
+            <Box
+              pos="relative"
+              style={{
+                aspectRatio: '16 / 9',
+                borderRadius: theme.radius.md,
+                overflow: 'hidden',
+                background: 'var(--mantine-color-default-hover)',
+              }}
             >
-              AI detected{" "}
-              {incident.incident_type.replace(/_/g, " ")}
-              {" — recommended action:"}
-            </Text>
-
-            <Text
-              fz={13}
-              fw={700}
-              lh={1.25}
-              mt={2}
-            >
-              {typeInfo.recommendation}
-            </Text>
-          </Box>
-
-          {/* Responder */}
-          <Stack
-            gap={1}
-            align="center"
-            style={{
-              flexShrink: 0,
-              minWidth: 55,
-            }}
-          >
-            <Text
-              fz={8}
-              c="dimmed"
-              fw={600}
-              tt="uppercase"
-            >
-              Responder
-            </Text>
-
-            <Group gap={3} wrap="nowrap">
-              <Siren
-                 width={18} height={18}
-                color="orange"
+              <Image
+                src={evidenceSrc}
+                alt={`Evidence captured for incident ${incident.id}`}
+                w="100%"
+                h="100%"
+                fit="cover"
               />
 
-              <Text
-                fw={900}
-                fz="sm"
-                c="orange"
+              <Badge
+                pos="absolute"
+                top={10}
+                left={10}
+                variant="filled"
+                color="dark"
+                radius="sm"
+                size="sm"
+                tt="none"
+                styles={{
+                  root: { backgroundColor: 'rgba(0, 0, 0, 0.65)' },
+                  label: { fontWeight: 600 },
+                }}
               >
-                {typeInfo.responder}
-              </Text>
-            </Group>
-          </Stack>
-        </Group>
-      </Card>
+                {formatConfidence(incident.confidence_score)} confidence
+              </Badge>
 
-      {/* Dynamic Action Buttons */}
-      {isResolved ? (
-        <Stack gap="sm">
-          <Card withBorder radius="lg" p="lg" bg={isDark ? 'green.9' : 'green.0'} style={{ textAlign: 'center' }}>
-            <ThemeIcon size={48} radius="xl" color={isDark ? 'green.9' : 'green.1'} mx="auto" mb="xs">
-              <CheckCircle  width={28} height={28} color={isDark ? theme.colors.green[3] : theme.colors.green[6]} />
+              <ActionIcon
+                pos="absolute"
+                bottom={10}
+                right={10}
+                variant="filled"
+                color="dark"
+                radius="md"
+                size="md"
+                aria-label="View evidence full size"
+                onClick={() => setEvidenceOpen(true)}
+                styles={{ root: { backgroundColor: 'rgba(0, 0, 0, 0.65)' } }}
+              >
+                <Maximize width={16} height={16} />
+              </ActionIcon>
+            </Box>
+
+            <Modal
+              opened={evidenceOpen}
+              onClose={() => setEvidenceOpen(false)}
+              title={<Text fw={700}>Incident evidence</Text>}
+              size="xl"
+              centered
+              radius="lg"
+              padding="md"
+            >
+              <Image
+                src={evidenceSrc}
+                alt={`Evidence captured for incident ${incident.id}`}
+                w="100%"
+                radius="md"
+              />
+            </Modal>
+          </>
+        ) : (
+          <Box
+            style={{
+              aspectRatio: '16 / 9',
+              borderRadius: theme.radius.md,
+              background: isDark ? 'var(--mantine-color-dark-6)' : 'var(--mantine-color-gray-1)',
+              border: '1px dashed var(--mantine-color-default-border)',
+            }}
+          >
+            <Center h="100%">
+              <Stack align="center" gap={6}>
+                <ThemeIcon variant="light" color="gray" size={44} radius="xl">
+                  <Video width={22} height={22} />
+                </ThemeIcon>
+                <Text fz="xs" c="dimmed">
+                  No snapshot captured for this incident
+                </Text>
+              </Stack>
+            </Center>
+          </Box>
+        )}
+      </SectionCard>
+
+
+      {/* Closed-state banner */}
+      {(isResolved || isDismissed) && (
+        <Card
+          withBorder
+          radius="lg"
+          p="md"
+          mb="md"
+          bg={isDark ? 'dark.6' : `var(--mantine-color-${statusColor}-0)`}
+          style={{
+            borderColor: isDark
+              ? `var(--mantine-color-${statusColor}-9)`
+              : `var(--mantine-color-${statusColor}-2)`,
+          }}
+        >
+          <Group gap="sm" wrap="nowrap">
+            <ThemeIcon size={40} radius="xl" variant="light" color={statusColor} style={{ flexShrink: 0 }}>
+              {isResolved
+                ? <CheckCircle width={22} height={22} />
+                : <XCircle width={22} height={22} />}
             </ThemeIcon>
-            <Text fw={700}>Incident Resolved</Text>
-            <Text fz={12} c="dimmed">
-              {incident.resolved_at ? `Resolved on ${formatDate(incident.resolved_at)}` : 'This incident has been closed.'}
-            </Text>
-          </Card>
-          <Button fullWidth size="lg" radius="xl" color="orange" onClick={goBack}>
-            Back
-          </Button>
-        </Stack>
-      ) : isDismissed ? (
-        <Button fullWidth size="lg" radius="xl" color="orange" onClick={goBack}>
-          Back
+
+            <Box style={{ flex: 1, minWidth: 0 }}>
+              <Text fw={700} fz="sm">
+                {isResolved ? 'Incident resolved' : 'Incident dismissed'}
+              </Text>
+              <Text fz="xs" c="dimmed">
+                {isResolved
+                  ? (incident.resolved_at
+                    ? formatDate(incident.resolved_at)
+                    : 'This incident has been closed.')
+                  : (incident.dismissed_at
+                    ? formatDate(incident.dismissed_at)
+                    : 'This incident was dismissed.')}
+              </Text>
+            </Box>
+          </Group>
+        </Card>
+      )}
+
+      {/* Primary actions, kept near the top of the page */}
+      {actions.length > 0 && (
+        <Card withBorder radius="lg" p="md" mb="md">
+          <Stack gap="sm">
+            {actions.map((action, index) => {
+              const isPrimary = index === 0;
+              const isThisPending =
+                statusMutation.isPending && statusMutation.variables === action.next;
+
+              return (
+                <Button
+                  key={action.next}
+                  fullWidth
+                  size="md"
+                  radius="md"
+                  color={action.color}
+                  variant={isPrimary ? 'filled' : ((action.variant as any) || 'light')}
+                  leftSection={<action.icon width={18} height={18} />}
+                  loading={isThisPending}
+                  disabled={statusMutation.isPending && !isThisPending}
+                  onClick={() => statusMutation.mutate(action.next)}
+                >
+                  {action.label}
+                </Button>
+              );
+            })}
+          </Stack>
+        </Card>
+      )}
+
+      {/* Back for closed incidents */}
+      {(isResolved || isDismissed) && (
+        <Button
+          fullWidth
+          size="md"
+          radius="md"
+          variant="default"
+          leftSection={<ArrowLeft width={18} height={18} />}
+          onClick={goBack}
+          mb="md"
+        >
+          Back to incidents
         </Button>
-      ) : actions.length > 0 ? (
-        <Stack gap="sm">
-          {actions.map((action) => (
-            <Button key={action.next} fullWidth size="lg" radius="xl" color={action.color} variant={(action.variant as any) || 'filled'} leftSection={<action.icon size={20} />} loading={statusMutation.isPending} onClick={() => statusMutation.mutate(action.next)}>
-              {action.label}
-            </Button>
-          ))}
-        </Stack>
-      ) : null}
+      )}
     </Container>
   );
 }

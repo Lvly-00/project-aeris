@@ -5,7 +5,7 @@ dayjs.extend(relativeTime);
 
 export function formatDate(date: string | null): string {
   if (!date) return 'N/A';
-  return dayjs(date).format('MMM D, YYYY HH:mm:ss');
+  return dayjs(date).format('MMM D, YYYY h:mm:ss A');
 }
 
 export function formatRelativeTime(date: string | null): string {
@@ -33,6 +33,7 @@ export function getStatusColor(status: string): string {
     Verified: 'orange',
     Dispatched: 'blue',
     Resolved: 'green',
+    Dismissed: 'gray',
     Online: 'green',
     Connecting: 'yellow',
     Offline: 'gray',

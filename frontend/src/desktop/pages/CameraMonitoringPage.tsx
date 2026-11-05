@@ -9,6 +9,7 @@ import { camerasAPI, contactsAPI } from '../../shared/services/api';
 import { PageHeader } from '../components/Layout/PageHeader';
 import { CameraToolbar } from '../components/Camera/CameraToolbar';
 import { CameraGrid } from '../components/Camera/CameraGrid';
+import { CameraGridSkeleton } from '../components/Camera/CameraGridSkeleton';
 import { FullscreenGridWall } from '../components/Camera/FullscreenGridWall';
 import { CameraFormModal } from '../components/Camera/CameraFormModal';
 import { SingleDeleteCameraModal, MassDeleteCamerasModal } from '../components/Camera/CameraDeleteModals';
@@ -223,7 +224,9 @@ export default function CameraMonitoringPage() {
           />
 
           {/* 3. Main View Area */}
-          {cameras.length === 0 && !isLoading ? (
+          {isLoading && cameras.length === 0 ? (
+            <CameraGridSkeleton layout={layout} />
+          ) : cameras.length === 0 ? (
             <Paper p={220} ta="center"  radius="md" bg="var(--mantine-color-body)">
               <Stack align="center" gap="sm">
                 <CameraSlash width={48} height={48} color="#adb5bd" />

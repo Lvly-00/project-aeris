@@ -12,7 +12,7 @@ import {
     Divider,
     Box,
     Center,
-    Loader,
+    Skeleton,
     Badge,
     rem,
     useMantineTheme,
@@ -113,10 +113,48 @@ export default function DispatchMessagePage() {
 
     if (isLoading || !message) {
         return (
-            <Container size="sm" py="xl">
-                <Center py="xl">
-                    <Loader color="orange" size="lg" />
-                </Center>
+            <Container size="sm" py="md" aria-busy="true" aria-label="Loading dispatch message">
+                {/* Navigation header */}
+                <Stack gap="xs" mb="lg">
+                    <Group justify="space-between" align="center" wrap="nowrap">
+                        <Skeleton h={rem(30)} w={rem(30)} radius="sm" />
+                        <Skeleton h={rem(20)} w="40%" radius="xl" />
+                        <Box w={rem(30)} />
+                    </Group>
+                    <Divider />
+                    <Center mt="xs">
+                        <Skeleton h={rem(12)} w={rem(160)} radius="xl" />
+                    </Center>
+                </Stack>
+
+                {/* Dispatch card */}
+                <Paper p="xl" radius="lg" mb="xl" bg="var(--mantine-color-orange-light)">
+                    <Group mb="xl" gap="md" wrap="nowrap">
+                        <Skeleton h={rem(52)} w={rem(52)} radius="md" />
+                        <Stack gap={rem(8)}>
+                            <Skeleton h={rem(20)} w={rem(180)} radius="xl" />
+                            <Skeleton h={rem(16)} w={rem(120)} radius="sm" />
+                        </Stack>
+                    </Group>
+
+                    <Stack gap="sm">
+                        <Skeleton h={rem(14)} w="100%" radius="xl" />
+                        <Skeleton h={rem(14)} w="92%" radius="xl" />
+                    </Stack>
+                </Paper>
+
+                {/* Detail rows */}
+                <Stack gap="xs">
+                    {[0, 1, 2, 3].map((row) => (
+                        <Group key={row} gap="md" wrap="nowrap" py="md">
+                            <Skeleton h={rem(32)} w={rem(32)} radius="sm" />
+                            <Stack gap={6} style={{ flex: 1 }}>
+                                <Skeleton h={rem(12)} w={rem(90)} radius="xl" />
+                                <Skeleton h={rem(12)} w={rem(150)} radius="xl" />
+                            </Stack>
+                        </Group>
+                    ))}
+                </Stack>
             </Container>
         );
     }

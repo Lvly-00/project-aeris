@@ -18,6 +18,7 @@ from ..models.fire_detector import SimpleFireDetector
 from ..models.accident_detector import AccidentDetector
 from ..core.confidence_filter import ConfidenceFilter
 from ..core.detection_cache import DetectionCache
+from ..core.incident_pusher import IncidentPusher
 
 logger = logging.getLogger(__name__)
 
@@ -38,6 +39,7 @@ class DetectionWorker:
         fire_detector: SimpleFireDetector,
         accident_detector: AccidentDetector,
         confidence_filter: ConfidenceFilter,
+        incident_pusher: Optional[IncidentPusher] = None,
         frame_skip: int = FRAME_SKIP,
         detection_fps: float = DETECTION_FPS,
     ):
@@ -48,6 +50,7 @@ class DetectionWorker:
         self._fire_detector = fire_detector
         self._accident_detector = accident_detector
         self._confidence_filter = confidence_filter
+        self._incident_pusher = incident_pusher
 
         self._frame_skip = frame_skip
         self._detection_fps = detection_fps
@@ -208,6 +211,11 @@ class DetectionWorker:
         # Remap bounding boxes from padded 640x640 coords to original frame coords
         for d in all_detections:
             d.bbox = self._frame_processor.remap_bbox(d.bbox)
+            # Attach the original frame as evidence for any detector that didn't
+            # set it (FireDetector, AccidentDetector both leave frame=None).
+            # Use the full-resolution original frame, not the padded 640x640 one.
+            if d.frame is None:
+                d.frame = frame
 
         # Store in cache
         h, w = frame.shape[:2]
@@ -218,6 +226,10 @@ class DetectionWorker:
             frame_width=w,
             frame_height=h,
         )
+
+        # Push incident-worthy detections to Django backend
+        if all_detections and self._incident_pusher is not None:
+            self._incident_pusher.push_detections(self.camera_id, all_detections)
 
         # Update stats
         self._inference_count += 1

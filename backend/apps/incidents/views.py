@@ -82,7 +82,7 @@ def record_detection_hit(incident, type_obj, camera, confidence, evidence, bbox_
     )
 
 
-def find_open_incident(camera, lock=False):
+def find_open_incident(camera, lock=False, incident_type=None):
     """
     Return the still-open *live* incident for a camera, or None.
 
@@ -97,7 +97,11 @@ def find_open_incident(camera, lock=False):
     queryset = Incident.objects.filter(
         camera=camera,
         source=Incident.Source.AI,
-    ).exclude(
+    )
+    if incident_type is not None:
+        queryset = queryset.filter(incident_type=incident_type)
+
+    queryset = queryset.exclude(
         status__name__in=CLOSED_INCIDENT_STATUSES
     )
     if lock:
@@ -412,6 +416,28 @@ class IncidentViewSet(viewsets.ModelViewSet):
         evidence = request.FILES.get("evidence") or None
         bbox_raw = request.data.get("bbox")
 
+        # Fallback: if the caller didn't attach a frame snapshot, pull the
+        # latest JPEG from the AI service so the incident always has evidence.
+        if evidence is None and camera_id and source == Incident.Source.AI:
+            try:
+                import os, io
+                import requests as _req
+                from django.core.files.uploadedfile import InMemoryUploadedFile
+                try:
+                    from config.urls.main import AI_SERVICE_URL as _ai_url
+                except ImportError:
+                    _ai_url = os.environ.get("AI_SERVICE_URL", "http://localhost:8005")
+                _ai_key = os.environ.get("AI_SERVICE_API_KEY", "") or getattr(settings, "INTERNAL_API_KEY", "")
+                _resp = _req.get(f"{_ai_url}/cameras/{camera_id}/frame",
+                    headers={"X-API-Key": _ai_key}, timeout=3)
+                if _resp.status_code == 200 and _resp.content:
+                    _buf = io.BytesIO(_resp.content)
+                    evidence = InMemoryUploadedFile(
+                        _buf, "evidence_image", f"snapshot_{camera_id}.jpg",
+                        "image/jpeg", len(_resp.content), None)
+            except Exception:
+                pass
+
         # A simulation can fire a small burst so the review list has something
         # to triage. Live AI cadence is driven by the detector, not by this.
         repeat = 1
@@ -423,7 +449,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             open_incident = (
-                find_open_incident(camera, lock=True)
+                find_open_incident(camera, lock=True, incident_type=type_obj)
                 if group_repeats
                 else None
             )
@@ -438,6 +464,11 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
                 Incident.objects.filter(pk=open_incident.pk).update(**updates)
                 open_incident.refresh_from_db(fields=list(updates))
+
+                # Backfill evidence_image if the incident was created without one.
+                if evidence and not open_incident.evidence_image:
+                    open_incident.evidence_image = evidence
+                    open_incident.save(update_fields=["evidence_image"])
 
                 record_detection_hit(
                     open_incident, type_obj, camera, confidence,

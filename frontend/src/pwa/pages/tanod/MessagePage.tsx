@@ -1,7 +1,7 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery } from '@tanstack/react-query';
-import { Container, Title, Text, Stack, Group, ActionIcon, Box, Center, Loader } from '@mantine/core';
+import { Container, Title, Text, Stack, Group, ActionIcon, Box, Center, Paper, Skeleton, rem } from '@mantine/core';
 import { Car, Cloud, DotsVerticalRounded, Flame, Inbox } from '@boxicons/react';
 import { IncidentCard } from '../../components/tanod/IncidentCard';
 import { dispatchMessagesAPI } from '../../../shared/services/api';
@@ -55,9 +55,28 @@ export default function MessagesPage() {
 
             {/* List Section */}
             {isLoading ? (
-                <Center py="xl">
-                    <Loader color="orange" size="lg" />
-                </Center>
+                <Stack gap="md" aria-busy="true" aria-label="Loading messages">
+                    {[0, 1, 2].map((placeholder) => (
+                        <Paper
+                            key={placeholder}
+                            withBorder
+                            p="md"
+                            radius="md"
+                            bg="var(--mantine-color-body)"
+                        >
+                            <Group gap="md" wrap="nowrap" align="flex-start">
+                                <Skeleton h={rem(48)} w={rem(48)} radius="md" />
+
+                                <Stack gap={rem(6)} style={{ flex: 1, minWidth: 0 }}>
+                                    <Skeleton h={rem(14)} w="60%" radius="xl" />
+                                    <Skeleton h={rem(11)} w="100%" radius="xl" />
+                                    <Skeleton h={rem(11)} w="75%" radius="xl" />
+                                    <Skeleton h={rem(10)} w="30%" radius="xl" />
+                                </Stack>
+                            </Group>
+                        </Paper>
+                    ))}
+                </Stack>
             ) : messages.length === 0 ? (
                 <Center py="xl">
                     <Stack align="center" gap="sm">

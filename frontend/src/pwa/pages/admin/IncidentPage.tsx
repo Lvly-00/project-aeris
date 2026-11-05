@@ -6,8 +6,8 @@ import {
   Title,
   Text,
   Stack,
-  Loader,
-  Center,
+  Badge,
+  ThemeIcon,
   rem,
   Menu,
   ActionIcon,
@@ -20,21 +20,12 @@ import {
 import { DotsVerticalRounded, Trash, Siren } from '@boxicons/react';
 import { notifications } from '@mantine/notifications';
 
-import type { CameraIncidentRow } from '../../../shared/types/index';
-import { CameraIncidentCard } from '../../components/commons/CameraIncidentCard';
+import { Incident } from '../../../shared/types/index';
+import { IncidentCard } from '../../components/commons/IncidentCard';
+import { IncidentCardSkeletonList } from '../../components/commons/IncidentCardSkeleton';
 import { DeleteConfirmModal } from '../../components/commons/DeleteConfirmModal';
 import { incidentsAPI } from '../../../shared/services/api';
 
-/*
- * AdminLayout pins a 70px header and an 85px footer, both fixed, so the page
- * has to live in the band between them. The list used to size itself with a
- * hardcoded calc(100vh - 240px): on a phone `vh` is the *large* viewport, so
- * the list grew past the band and its lower cards rendered underneath the
- * bottom nav. `100dvh` tracks the real viewport as the browser chrome hides,
- * and AppShell publishes its own header/footer offsets, so the band stays
- * correct if either shell height is ever changed. The numbers are only
- * fallbacks for a page rendered outside an AppShell.
- */
 const VIEWPORT_BAND =
   'calc(100dvh - var(--app-shell-header-offset, 70px) - var(--app-shell-footer-offset, 85px))';
 
@@ -42,74 +33,66 @@ export default function IncidentsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const [selectMode, setSelectMode] = useState(false);
-  const [selectedIds, setSelectedIds] = useState<(number | null)[]>([]);
+  const [selectedIds, setSelectedIds] = useState<number[]>([]);
   const [deleteSelectedModal, setDeleteSelectedModal] = useState(false);
   const [deletePending, setDeletePending] = useState(false);
 
   /*
-   * The list is grouped by camera: one row per camera that currently has an
-   * open incident, pointing at that incident. Operators think in cameras, not
-   * in individual detections — the detections themselves are listed on the
-   * incident detail screen.
+   * Always keep newest incidents first.
    */
-  const sortLatestFirst = useCallback((rows: CameraIncidentRow[]) => {
-    return [...rows].sort(
+  const sortLatestFirst = useCallback((items: Incident[]) => {
+    return [...items].sort(
       (a, b) =>
-        new Date(b.incident.detected_at).getTime() -
-        new Date(a.incident.detected_at).getTime()
+        new Date(b.detected_at).getTime() -
+        new Date(a.detected_at).getTime()
     );
   }, []);
 
   /*
-   * Selection may include the placeholder row (id `null`) that holds incidents
-   * whose camera was deleted, so it can't always be phrased as "camera".
-   */
-  const describeSelection = (ids: (number | null)[]) => {
-    const unassigned = ids.filter((id) => id === null).length;
-    const cameras = ids.length - unassigned;
-
-    if (cameras === 0) return 'unassigned cameras';
-    if (unassigned === 0) return `${cameras} camera${cameras === 1 ? '' : 's'}`;
-
-    return `${cameras} camera${cameras === 1 ? '' : 's'} and ${unassigned} unassigned`;
-  };
-
-  /*
-   * Kept fresh the same way the old list was:
+   * Active incidents, kept fresh three ways:
    *   1. refetch on mount (navigating back from the detail page)
    *   2. 10s polling safety net
    *   3. WebSocket events invalidate this key instantly
    */
-  const { data: rows = [], isLoading: loading } = useQuery({
-    queryKey: ['incidents', 'by-camera'],
+  const { data: incidents = [], isLoading: loading } = useQuery({
+    queryKey: ['incidents'],
     queryFn: async () => {
-      const res = await incidentsAPI.byCamera();
-      const data: CameraIncidentRow[] = res.data.results || res.data;
-      return sortLatestFirst(data);
+      const res = await incidentsAPI.list({
+        status__in: 'Detected,Verified,Dispatched',
+        ordering: '-detected_at',
+      });
+
+      const data: Incident[] = res.data.results || res.data;
+
+      // One card per incident, even if the API ever repeats a row.
+      const seen = new Set<number>();
+      const unique = data.filter((incident) =>
+        seen.has(incident.id) ? false : (seen.add(incident.id), true)
+      );
+
+      return sortLatestFirst(unique);
     },
     refetchInterval: 10000,
   });
 
   /*
-   * Selection is tracked by camera id: a row *is* a camera, and a camera can
-   * hold several open incidents (each simulate press opens its own). Deleting
-   * the row therefore clears the whole camera, otherwise the older batches
-   * survive and reappear on the next refresh.
+   * Selection helpers
    */
-  const cameraIds = rows.map((r) => r.camera);
-
   const allSelected =
-    cameraIds.length > 0 && selectedIds.length === cameraIds.length;
+    incidents.length > 0 &&
+    selectedIds.length === incidents.length;
 
   const someSelected =
     selectedIds.length > 0 &&
-    selectedIds.length < cameraIds.length;
+    selectedIds.length < incidents.length;
 
   const toggleSelectAll = () => {
-    setSelectedIds(allSelected ? [] : cameraIds);
+    setSelectedIds(
+      allSelected ? [] : incidents.map((i) => i.id)
+    );
   };
 
-  const toggleSelect = (id: number | null) => {
+  const toggleSelect = (id: number) => {
     setSelectedIds((prev) =>
       prev.includes(id)
         ? prev.filter((x) => x !== id)
@@ -124,24 +107,22 @@ export default function IncidentsPage() {
 
   /* Names for the delete confirmation list, in selection order. */
   const selectedNames = selectedIds.map(
-    (id) => rows.find((r) => r.camera === id)?.camera_name ?? 'Unassigned'
+    (id) => `INC-2026-${String(id).padStart(6, '0')}`
   );
 
   /*
-   * Delete the open incidents behind the selected cameras
+   * Delete selected incidents
    */
   const handleDeleteSelected = async () => {
-    const cameraIdList = selectedIds;
+    const ids = selectedIds;
 
     setDeletePending(true);
 
     try {
-      const res = await incidentsAPI.deleteByCameras(cameraIdList);
-      const deleted = res.data?.deleted ?? 0;
+      await Promise.all(ids.map((id) => incidentsAPI.delete(id)));
 
       queryClient.invalidateQueries({ queryKey: ['incidents'] });
       queryClient.invalidateQueries({ queryKey: ['incident-history'] });
-      // Counts on the dashboard just moved.
       queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
 
       exitSelectMode();
@@ -149,16 +130,11 @@ export default function IncidentsPage() {
 
       notifications.show({
         title: 'Deleted',
-        message: `${deleted} incident${
-          deleted === 1 ? '' : 's'
-        } removed from ${describeSelection(cameraIdList)}`,
+        message: `${ids.length} incident${ids.length === 1 ? '' : 's'} removed successfully`,
         color: 'red',
       });
     } catch (error) {
-      console.error(
-        '[INCIDENTS] Delete selected failed:',
-        error
-      );
+      console.error('[INCIDENTS] Delete selected failed:', error);
 
       notifications.show({
         title: 'Error',
@@ -170,17 +146,11 @@ export default function IncidentsPage() {
     }
   };
 
-  /*
-   * Real-time incident updates are delivered by the single shared WebSocket
-   * (App-level useWebSocket). It invalidates ['incidents'] and
-   * ['incident-history'] on incident_created / incident_update, so the list
-   * below refetches instantly — no per-page socket needed.
-   */
-
   return (
     <Container
       size="sm"
-      py="lg"
+      px={0}
+      py="md"
       style={{
         display: 'flex',
         flexDirection: 'column',
@@ -190,93 +160,119 @@ export default function IncidentsPage() {
     >
       {/* Page Header */}
       <Stack mb="lg" gap={4} style={{ flexShrink: 0 }}>
-        <Title
-          order={1}
-          fz={rem(38)}
-          fw={700}
-          style={{
-            letterSpacing: rem(-1),
-          }}
-        >
-          Incidents
-        </Title>
+        <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
+          <Title
+            order={1}
+            fz={rem(32)}
+            fw={700}
+            style={{
+              letterSpacing: rem(-1),
+            }}
+          >
+            Incidents
+          </Title>
 
-        <Text c="dimmed">
-          Monitor active incidents by camera.
-        </Text>
+          {!selectMode && (
+            <Menu
+              shadow="md"
+              width={200}
+              position="bottom-end"
+            >
+              <Menu.Target>
+                <ActionIcon
+                  variant="transparent"
+                  color="gray"
+                  size="lg"
+                >
+                  <DotsVerticalRounded  width={24} height={24} />
+                </ActionIcon>
+              </Menu.Target>
+
+              <Menu.Dropdown>
+                {/* <Menu.Label>
+                  Global Actions
+                </Menu.Label> */}
+
+                <Menu.Item
+                  color="red"
+                  leftSection={<Trash  width={ 16 } height={ 16 } />}
+                  disabled={incidents.length === 0}
+                  onClick={() => setSelectMode(true)}
+                >
+                  Delete Incidents
+                </Menu.Item>
+              </Menu.Dropdown>
+            </Menu>
+          )}
+        </Group>
+
+        <Group gap={8} wrap="nowrap" align="center">
+          <Text c="dimmed">
+            Monitor and manage active incidents.
+          </Text>
+
+          {/* {!loading && incidents.length > 0 && (
+            <Badge
+              size="sm"
+              variant="light"
+              color="orange"
+              radius="sm"
+              tt="none"
+              styles={{ label: { fontWeight: 700 } }}
+            >
+              {incidents.length} active
+            </Badge>
+          )} */}
+        </Group>
       </Stack>
 
-      {/* Control Bar */}
-      <Group justify={selectMode ? 'space-between' : 'flex-end'} mb="lg" style={{ flexShrink: 0 }}>
-        {selectMode && (
-          <Checkbox
-            label="Select all"
-            checked={allSelected}
-            indeterminate={someSelected}
-            onChange={toggleSelectAll}
-            radius="sm"
-          />
-        )}
+      {/* Control Bar (selection mode only) */}
+      {selectMode && (
+        <Paper
+          // withBorder
+          radius="md"
+          // px="xs"
+          py={rem(6)}
+          mb="md"
+          // bg="var(--mantine-color-gray-light)"
+          style={{ flexShrink: 0 }}
+        >
+          <Group justify="space-between" align="center" gap="sm" wrap="nowrap">
+            <Checkbox
+              label={`Select all (${incidents.length})`}
+              checked={allSelected}
+              indeterminate={someSelected}
+              onChange={toggleSelectAll}
+              radius="sm"
+              styles={{ label: { fontWeight: 600 } }}
+            />
 
-        {selectMode ? (
-          <Group gap="xs">
-            <Button
-              variant="subtle"
-              color="gray"
-              onClick={exitSelectMode}
-            >
-              Cancel
-            </Button>
-
-            <Button
-              color="red"
-              leftSection={<Trash  width={ 16 } height={ 16 } />}
-              disabled={selectedIds.length === 0}
-              onClick={() => setDeleteSelectedModal(true)}
-            >
-              Delete ({selectedIds.length})
-            </Button>
-          </Group>
-        ) : (
-          <Menu
-            shadow="md"
-            width={200}
-            position="bottom-end"
-          >
-            <Menu.Target>
-              <ActionIcon
-                variant="transparent"
+            <Group gap="xs" wrap="nowrap">
+              <Button
+                variant="subtle"
                 color="gray"
-                size="lg"
+                onClick={exitSelectMode}
               >
-                <DotsVerticalRounded  width={24} height={24} />
-              </ActionIcon>
-            </Menu.Target>
+                Cancel
+              </Button>
 
-            <Menu.Dropdown>
-              <Menu.Label>
-                Global Actions
-              </Menu.Label>
-
-              <Menu.Item
+              <Button
                 color="red"
                 leftSection={<Trash  width={ 16 } height={ 16 } />}
-                disabled={rows.length === 0}
-                onClick={() => setSelectMode(true)}
+                disabled={selectedIds.length === 0}
+                onClick={() => setDeleteSelectedModal(true)}
               >
-                Delete Incidents
-              </Menu.Item>
-            </Menu.Dropdown>
-          </Menu>
-        )}
-      </Group>
+                Delete ({selectedIds.length})
+              </Button>
+            </Group>
+          </Group>
+        </Paper>
+      )}
 
       {/* Scrollable Incident List */}
       <Stack
         gap="md"
         style={{
-          // Takes whatever is left in the band and scrolls internally, so the
-          // list can never extend past the fixed footer.
           flex: 1,
           minHeight: 0,
           overflowY: 'auto',
@@ -285,25 +281,33 @@ export default function IncidentsPage() {
         }}
       >
         {loading ? (
-          <Center py="xl">
-            <Loader
-              variant="dots"
-              color="blue"
-            />
-          </Center>
-        ) : rows.length === 0 ? (
-          <Paper p="xl" py={80} ta="center" radius="md" bg="var(--mantine-color-body)">
+          <IncidentCardSkeletonList />
+        ) : incidents.length === 0 ? (
+          <Paper
+            withBorder
+            p="xl"
+            py={rem(72)}
+            ta="center"
+            radius="md"
+            bg="var(--mantine-color-body)"
+          >
             <Stack align="center" gap="sm">
-              <Siren width={48} height={48} color="#adb5bd" />
-              <Text fw={400} c="dimmed">
-                No active incidents. Cameras with detections will appear here.
+              <ThemeIcon size={rem(64)} radius="xl" variant="light" color="orange">
+                <Siren width={30} height={30} />
+              </ThemeIcon>
+
+              <Text fw={700}>All clear</Text>
+
+              <Text size="sm" c="dimmed" maw={260}>
+                No active incidents right now. New detections will appear here
+                automatically.
               </Text>
             </Stack>
           </Paper>
         ) : (
-          rows.map((row) => (
+          incidents.map((incident) => (
             <Group
-              key={row.camera}
+              key={incident.id}
               wrap="nowrap"
               align="center"
               gap="xs"
@@ -311,23 +315,28 @@ export default function IncidentsPage() {
               {/* Selection Checkbox */}
               {selectMode && (
                 <Checkbox
-                  checked={selectedIds.includes(row.camera)}
-                  onChange={() => toggleSelect(row.camera)}
+                  checked={selectedIds.includes(incident.id)}
+                  onChange={() => toggleSelect(incident.id)}
                   radius="sm"
-                  aria-label={`Select incidents for ${row.camera_name}`}
+                  aria-label={`Select incident ${incident.id}`}
                 />
               )}
 
-              {/* Camera Incident Card */}
+              {/* Incident Card */}
               <Box
                 style={{
                   flex: 1,
                   minWidth: 0,
                 }}
               >
-                <CameraIncidentCard
-                  row={row}
-                  onClick={() => navigate(`/pwa/admin/incidents/${row.incident.id}`)}
+                <IncidentCard
+                  incident={incident}
+                  selected={selectMode && selectedIds.includes(incident.id)}
+                  onClick={(item) =>
+                    selectMode
+                      ? toggleSelect(item.id)
+                      : navigate(`/pwa/admin/incidents/${item.id}`)
+                  }
                 />
               </Box>
             </Group>
@@ -347,7 +356,7 @@ export default function IncidentsPage() {
         description={
           selectedIds.length === 1 ? (
             <>
-              Are you sure you want to delete all open incidents for{' '}
+              Are you sure you want to delete incident{' '}
               <Text span fw={600} c="var(--mantine-color-text)">
                 {selectedNames[0]}
               </Text>
@@ -355,18 +364,17 @@ export default function IncidentsPage() {
             </>
           ) : (
             <>
-              Delete all open incidents for{' '}
+              Delete{' '}
               <Text span fw={600} c="var(--mantine-color-text)">
-                {selectedIds.length} selected {describeSelection(selectedIds)}
+                {selectedIds.length} selected incidents
               </Text>
-              ? This clears every active incident on them, including any older
-              ones not shown in the list, and cannot be undone.
+              ? This action cannot be undone.
             </>
           )
         }
         items={selectedNames}
-        noun="Camera"
-        listTitle="Cameras to be deleted"
+        noun="Incident"
+        listTitle="Incidents to be deleted"
         confirmLabel={`Delete (${selectedIds.length})`}
       />
     </Container>

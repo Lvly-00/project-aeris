@@ -3,6 +3,7 @@ import {
   getAccessToken,
   getRefreshToken,
   persistAccessToken,
+  persistRefreshToken,
   clearTokens,
 } from '../utils/tokenStorage';
 
@@ -124,7 +125,9 @@ api.interceptors.response.use(
         );
 
         const newAccess = response.data.access;
+        const newRefresh = response.data.refresh;
         persistAccessToken(newAccess);
+        if (newRefresh) persistRefreshToken(newRefresh);
 
         originalRequest.headers.Authorization =
           `Bearer ${newAccess}`;

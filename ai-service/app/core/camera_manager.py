@@ -23,6 +23,7 @@ from ..pipeline.frame_reader import FrameReader, ReaderState
 from ..pipeline.detection_worker import DetectionWorker
 from ..core.detection_cache import DetectionCache, CachedDetection
 from ..core.model_registry import ModelRegistry
+from ..core.incident_pusher import IncidentPusher
 from ..models.yolo_detector import YOLODetector
 from ..models.fire_detector import SimpleFireDetector
 from ..models.accident_detector import AccidentDetector
@@ -91,6 +92,7 @@ class CameraManager:
         self._accident_detector = AccidentDetector()
         self._confidence_filter = ConfidenceFilter()
         self._cache = DetectionCache()
+        self._incident_pusher = IncidentPusher()
 
         # Auto-registration bookkeeping
         self._auto_registered: set = set()
@@ -139,6 +141,7 @@ class CameraManager:
                 fire_detector=self._fire_detector,
                 accident_detector=self._accident_detector,
                 confidence_filter=self._confidence_filter,
+                incident_pusher=self._incident_pusher,
             )
             state = CameraState(
                 camera_id=camera_id,
@@ -262,7 +265,7 @@ class CameraManager:
                 # Django's CameraInfoView returns "stream_url" (internal.py).
                 # Accept "rtsp_url" as a legacy alias.
                 rtsp_url = cam.get("stream_url") or cam.get("rtsp_url") or ""
-                stream_type = cam.get("stream_type") or "RTSP"
+                stream_type = (cam.get("stream_type") or "RTSP").upper()
                 if not cam.get("is_active", True):
                     logger.info("Camera %d: inactive, skipping auto-register", camera_id)
                     return False
@@ -276,7 +279,17 @@ class CameraManager:
                 if success:
                     with self._auto_register_lock:
                         self._auto_registered.add(camera_id)
-                    logger.info("Camera %d: Auto-registered (%s)", camera_id, rtsp_url)
+                    logger.info("Camera %d: Auto-registered (%s, type=%s)", camera_id, rtsp_url, stream_type)
+                    # For MP4 cameras, kick off a frame-feeder loop
+                    if stream_type == "MP4":
+                        import threading as _threading
+                        from ..core.mp4_feeder import start_mp4_feeder
+                        _threading.Thread(
+                            target=start_mp4_feeder,
+                            args=(camera_id, rtsp_url, self),
+                            name=f"mp4-feeder-{camera_id}",
+                            daemon=True,
+                        ).start()
                 return success
             except Exception as e:
                 logger.warning("Camera %d: Auto-register failed: %s", camera_id, e)

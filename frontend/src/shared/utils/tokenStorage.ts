@@ -50,6 +50,21 @@ export function persistAccessToken(access: string): void {
   }
 }
 
+/**
+ * Persists a rotated refresh token into whichever storage currently holds
+ * the session. SimpleJWT rotates refresh tokens, so the new one must be
+ * saved or the next refresh (and the whole session) fails.
+ */
+export function persistRefreshToken(refresh: string): void {
+  for (const store of stores()) {
+    if (store.getItem(REFRESH_KEY) || store.getItem(ACCESS_KEY)) {
+      store.setItem(REFRESH_KEY, refresh);
+      return;
+    }
+  }
+  localStorage.setItem(REFRESH_KEY, refresh);
+}
+
 /** Removes every trace of the session from both storages. */
 export function clearTokens(): void {
   for (const store of stores()) {

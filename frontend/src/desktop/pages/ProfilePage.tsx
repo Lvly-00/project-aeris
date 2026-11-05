@@ -2,7 +2,7 @@ import { useState, useEffect, useRef } from 'react';
 import {
   Container, Grid, Paper, Text, Title, Avatar, Divider,
   Stack, Group, Switch, Box, LoadingOverlay, rem, FileButton, Badge, Button, Anchor,
-  Menu, UnstyledButton, Image, Loader,
+  Menu, UnstyledButton, Image, Loader, Skeleton,
 } from '@mantine/core';
 import { Bell, Camera, Check, CheckShield, ChevronDown, ChevronLeft, GlobeAlt } from '@boxicons/react';
 import { useNavigate } from 'react-router-dom';
@@ -123,21 +123,57 @@ export default function ProfilePage() {
 
   if (!userData) {
     return (
-      <Box
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: 'var(--mantine-color-body)',
-        }}
+      <Container
+        size="xl"
+        py="xl"
+        aria-busy="true"
+        aria-label="Loading your profile"
+        style={{ backgroundColor: 'var(--mantine-color-body)', minHeight: '100vh' }}
       >
-        <Stack align="center" gap="md">
-          <Image src="/icon.png" alt="Aeris Logo" w={96} />
-          <Loader color="orange" size="lg" />
-          <Text size="sm" c="dimmed" fw={500}>Loading your profile…</Text>
-        </Stack>
-      </Box>
+        {/* Page header */}
+        <Box mb="xl">
+          <Group gap="xs" align="center" wrap="nowrap">
+            <Skeleton h={rem(32)} w={rem(32)} radius="sm" />
+            <Stack gap={6}>
+              <Skeleton h={rem(18)} w={rem(110)} radius="xl" />
+              <Skeleton h={rem(11)} w={rem(220)} radius="xl" />
+            </Stack>
+          </Group>
+        </Box>
+
+        <Grid gutter={30}>
+          {/* Sidebar card */}
+          <Grid.Col span={{ base: 12, md: 3 }}>
+            <Paper withBorder radius={15} p={40} style={{ height: '100%' }}>
+              <Stack align="center" gap="xs">
+                <Skeleton h={180} w={180} circle />
+                <Skeleton h={rem(16)} w={rem(140)} radius="xl" mt="md" />
+                <Skeleton h={rem(12)} w={rem(90)} radius="xl" />
+                <Divider w="100%" my="xl" />
+                {[0, 1, 2].map((row) => (
+                  <Skeleton key={row} h={rem(14)} w="100%" radius="xl" />
+                ))}
+              </Stack>
+            </Paper>
+          </Grid.Col>
+
+          {/* Detail cards */}
+          <Grid.Col span={{ base: 12, md: 9 }}>
+            <Stack gap="md">
+              {[0, 1, 2].map((card) => (
+                <Paper key={card} withBorder radius={15} p="xl">
+                  <Group justify="space-between" mb="md" wrap="nowrap">
+                    <Skeleton h={rem(14)} w={rem(140)} radius="xl" />
+                    <Skeleton h={rem(26)} w={rem(44)} radius="xl" />
+                  </Group>
+                  <Skeleton h={rem(12)} w="70%" radius="xl" />
+                  <Skeleton h={rem(12)} w="45%" radius="xl" mt="sm" />
+                </Paper>
+              ))}
+            </Stack>
+          </Grid.Col>
+        </Grid>
+      </Container>
     );
   }
 

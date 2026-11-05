@@ -3,6 +3,7 @@ import {
   Container, Paper, Avatar, Text, Title, Stack, Group, Switch,
   Select, Button, Box, LoadingOverlay, useMantineColorScheme,
   useComputedColorScheme, FileButton, Divider, Badge, Anchor, Image, Loader,
+  Skeleton, rem,
 } from '@mantine/core';
 import { Bell, Camera, CheckShield, ChevronLeft, GlobeAlt, Moon, Sun } from '@boxicons/react';
 import { useNavigate } from 'react-router-dom';
@@ -130,32 +131,59 @@ export default function ProfilePage() {
   if (!user) {
     return (
       <Box
-        style={{
-          minHeight: '100vh',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          backgroundColor: 'var(--mantine-color-body)',
-        }}
+        aria-busy="true"
+        aria-label="Loading your profile"
+        style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-body)' }}
       >
-        <Stack align="center" gap="md">
-          <Image src="/icon.png" alt="Aeris Logo" w={96} />
-          <Loader color="orange" size="lg" />
-          <Text size="sm" c="dimmed" fw={500}>Loading your profile…</Text>
-        </Stack>
+        <Container size="xs" py="xl" px={0}>
+          {/* Page header */}
+          <Stack gap={6} mb={{ base: 'lg', sm: 'xl' }}>
+            <Skeleton h={rem(20)} w={rem(120)} radius="xl" />
+            <Skeleton h={rem(12)} w="70%" radius="xl" />
+          </Stack>
+
+          <Stack gap="xl">
+            {/* Avatar card */}
+            <Paper withBorder radius={15} p="xl" bg="var(--mantine-color-orange-light)">
+              <Stack align="center" gap="sm">
+                <Skeleton h={rem(128)} w={rem(128)} circle />
+                <Skeleton h={rem(16)} w={rem(150)} radius="xl" />
+                <Skeleton h={rem(12)} w={rem(90)} radius="xl" />
+              </Stack>
+            </Paper>
+
+            {/* Preference rows */}
+            <Stack gap="md">
+              {[0, 1, 2].map((row) => (
+                <Paper key={row} withBorder radius="md" p="md">
+                  <Group justify="space-between" wrap="nowrap" gap="md">
+                    <Group gap="sm" wrap="nowrap" style={{ flex: 1 }}>
+                      <Skeleton h={rem(32)} w={rem(32)} radius="sm" />
+                      <Stack gap={6} style={{ flex: 1 }}>
+                        <Skeleton h={rem(12)} w="45%" radius="xl" />
+                        <Skeleton h={rem(10)} w="65%" radius="xl" />
+                      </Stack>
+                    </Group>
+                    <Skeleton h={rem(22)} w={rem(40)} radius="xl" />
+                  </Group>
+                </Paper>
+              ))}
+            </Stack>
+          </Stack>
+        </Container>
       </Box>
     );
   }
 
   return (
     <Box style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-body)' }}>
-      <Container size="xs" py="xl">
+      <Container size="xs" py="xl"  px={0}>
         <LoadingOverlay visible={loading} overlayProps={{ blur: 1 }} />
 
         {/* PageHeader */}
         <Box mb={{ base: 'lg', sm: 'xl' }}>
           <Group gap="xs" align="flex-start" wrap="nowrap">
-            <Box
+            {/* <Box
               component="button"
               onClick={() => navigate(-1)}
               aria-label="Go back"
@@ -170,7 +198,7 @@ export default function ProfilePage() {
                 color="var(--mantine-color-dimmed)"
                 style={{ display: 'block' }}
               />
-            </Box>
+            </Box> */}
             <Stack gap={2} style={{ minWidth: 0, flex: 1 }}>
               <Title
                 order={2}

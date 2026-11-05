@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Container, Title, Text, Group, Stack, Loader, Center, rem, Select, Alert, ActionIcon, Menu, Checkbox, Button, Box, Paper } from '@mantine/core';
+import { Container, Title, Text, Group, Stack, rem, Select, Alert, ActionIcon, Menu, Checkbox, Button, Box, Paper } from '@mantine/core';
 import { DotsVerticalRounded, Filter, Trash, History } from '@boxicons/react';
 import { useNavigate } from 'react-router-dom';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
@@ -7,6 +7,7 @@ import { notifications } from '@mantine/notifications';
 
 import { Incident } from '../../../shared/types/index';
 import { IncidentCard } from '../../components/commons/IncidentCard';
+import { IncidentCardSkeletonList } from '../../components/commons/IncidentCardSkeleton';
 import { DeleteConfirmModal } from '../../components/commons/DeleteConfirmModal';
 import { incidentsAPI } from '../../../shared/services/api';
 
@@ -124,7 +125,7 @@ export default function HistoryPage() {
     };
 
     return (
-        <Container size="sm" py="lg">
+        <Container size="sm" py="lg"  px={0}>
             {/* Page Header */}
             <Stack mb="lg" gap={4}>
                 <Title order={1} fz={rem(38)} fw={700} style={{ letterSpacing: rem(-1) }}>
@@ -214,7 +215,7 @@ export default function HistoryPage() {
             {/* Results List */}
             <Stack gap="md">
                 {loading ? (
-                    <Center py="xl"><Loader variant="dots" color="blue" /></Center>
+                    <IncidentCardSkeletonList />
                 ) : isError ? (
                     <Alert variant="light" color="red" radius="md" title="Error">
                         <Text size="sm" c="dimmed">Failed to load incident history.</Text>

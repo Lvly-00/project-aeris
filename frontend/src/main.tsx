@@ -64,7 +64,7 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <MantineProvider theme={theme} defaultColorScheme="light">
         <BrowserRouter>
-          <App />
+          <App  />
         </BrowserRouter>
       </MantineProvider>
     </QueryClientProvider>

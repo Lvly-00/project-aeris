@@ -14,6 +14,8 @@ import {
   NumberInput,
   Divider,
   Tabs,
+  Skeleton,
+  rem,
 } from '@mantine/core';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
@@ -34,7 +36,7 @@ export default function SettingsPage() {
   const [confThreshold, setConfThreshold] = useState<number | null>(null);
   const [typeThresholds, setTypeThresholds] = useState<Record<string, number>>({});
 
-  const { data: aiConfig } = useQuery({
+  const { data: aiConfig, isLoading: configLoading } = useQuery({
     queryKey: ['ai-config'],
     queryFn: async () => {
       try {
@@ -77,6 +79,45 @@ export default function SettingsPage() {
       setActiveTab(tab);
     }
   }, [searchParams]);
+
+  if (configLoading) {
+    return (
+      <Box p="md" aria-busy="true" aria-label="Loading settings">
+        <Skeleton h={rem(24)} w={rem(200)} radius="xl" mb="lg" />
+
+        {/* Tab strip */}
+        <Group gap="xs" mb="md" wrap="nowrap">
+          <Skeleton h={rem(36)} w={rem(150)} radius="md" />
+          <Skeleton h={rem(36)} w={rem(120)} radius="md" />
+        </Group>
+
+        {/* Threshold card */}
+        <Card withBorder padding="md" radius="md" mb="md">
+          <Skeleton h={rem(14)} w={rem(220)} radius="xl" mb="sm" />
+          <Skeleton h={rem(11)} w="70%" radius="xl" mb="md" />
+          <Group wrap="nowrap" gap="md">
+            <Skeleton h={rem(18)} radius="xl" style={{ flex: 1 }} />
+            <Skeleton h={rem(20)} w={rem(48)} radius="xl" />
+          </Group>
+        </Card>
+
+        {/* Per-type card */}
+        <Card withBorder padding="md" radius="md" mb="md">
+          <Skeleton h={rem(14)} w={rem(200)} radius="xl" mb="sm" />
+          <SimpleGrid cols={{ base: 1, sm: 2 }} spacing="md">
+            {[0, 1, 2].map((row) => (
+              <Group key={row} justify="space-between" wrap="nowrap">
+                <Skeleton h={rem(12)} w={rem(90)} radius="xl" />
+                <Skeleton h={rem(32)} w={rem(100)} radius="md" />
+              </Group>
+            ))}
+          </SimpleGrid>
+        </Card>
+
+        <Skeleton h={rem(36)} w={rem(190)} radius="md" />
+      </Box>
+    );
+  }
 
   return (
     <Box p="md">

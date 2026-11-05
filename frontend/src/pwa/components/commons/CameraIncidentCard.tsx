@@ -1,21 +1,13 @@
 import { Paper, Group, Stack, Text, Box, Badge, rem, useMantineTheme, Tooltip, Progress } from '@mantine/core';
 import { Car, ChevronRight, Cloud, Flame, Video } from '@boxicons/react';
 import type { CameraIncidentRow } from '../../../shared/types';
-import { STATUS_COLORS } from '../../../shared/utils/constants';
+import { STATUS_COLORS, STATUS_BADGE_COLORS } from '../../../shared/utils/constants';
 import { formatRelativeTime } from '../../../shared/utils/helpers';
 
 interface CameraIncidentCardProps {
   row: CameraIncidentRow;
   onClick?: (row: CameraIncidentRow) => void;
 }
-
-const STATUS_BADGE: Record<string, string> = {
-  Detected: 'red',
-  Verified: 'orange',
-  Dispatched: 'blue',
-  Resolved: 'green',
-  Dismissed: 'gray',
-};
 
 const TYPE_ICON: Record<string, any> = {
   Fire: Flame,
@@ -116,7 +108,7 @@ export const CameraIncidentCard = ({ row, onClick }: CameraIncidentCardProps) =>
             <Badge
               size="sm"
               variant="light"
-              color={STATUS_BADGE[incident.status] || 'gray'}
+              color={STATUS_BADGE_COLORS[incident.status] || 'gray'}
               styles={{ label: { fontWeight: 700 } }}
             >
               {incident.status}

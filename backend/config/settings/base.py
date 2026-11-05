@@ -105,7 +105,7 @@ USE_TZ = True
 # ── Static & media ────────────────────────────────────────────────────────────
 STATIC_URL = "static/"
 STATIC_ROOT = BASE_DIR / "staticfiles"
-MEDIA_URL = "media/"
+MEDIA_URL = "/media/"
 MEDIA_ROOT = config("MEDIA_DIR", default=str(BASE_DIR / "media"))
 os.makedirs(MEDIA_ROOT, exist_ok=True)
 
@@ -160,7 +160,7 @@ SIMPLE_JWT = {
     # very long lifetime so users are never signed out for inactivity; override
     # with JWT_REFRESH_DAYS if a hard session limit is ever required.
     "REFRESH_TOKEN_LIFETIME": timedelta(
-        days=config("JWT_REFRESH_DAYS", default=3650, cast=int)
+        days=config("JWT_REFRESH_DAYS", default=30, cast=int)
     ),
     "ROTATE_REFRESH_TOKENS": True,
     "BLACKLIST_AFTER_ROTATION": True,   # leaked refresh tokens expire after one use

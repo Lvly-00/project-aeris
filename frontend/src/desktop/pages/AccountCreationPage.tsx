@@ -7,6 +7,7 @@ import {
 } from '@mantine/core';
 import { DotsVerticalRounded, Eye, Pencil, Plus, Search, Trash } from '@boxicons/react';
 import { PageHeader } from '../components/Layout/PageHeader';
+import { SkeletonTableRows } from '../components/common/SkeletonTableRows';
 import { authAPI } from '../../shared/services/api';
 import { resolveMediaUrl } from '../../shared/utils/mediaUrl';
 import { UserFormModal } from '../components/common/UserFormModal';
@@ -363,7 +364,7 @@ export default function UserManagement() {
                         </Table.Thead>
                         <Table.Tbody>
                             {loadingData ? (
-                                <Table.Tr><Table.Td colSpan={5}><Center py="xl"><Loader color="orange" /></Center></Table.Td></Table.Tr>
+                                <SkeletonTableRows columns={[44, 280, 260, 180, 110]} rows={8} />
                             ) : paginatedUsers.length > 0 ? (
                                 paginatedUsers.map((user) => (
                                     <Table.Tr key={user.id}>

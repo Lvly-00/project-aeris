@@ -46,7 +46,7 @@ export default function DashboardPage() {
   }
 
   return (
-    <Container size="sm" py="md"> {/* Using size="sm" to keep it mobile-looking */}
+    <Container size="sm" py="sm" px={0}> {/* Using size="sm" to keep it mobile-looking */}
       <Stack gap="md">
         <Banner user={user} />
 
@@ -57,28 +57,28 @@ export default function DashboardPage() {
             value={stats?.total_users}
             loading={isLoading}
             description="Manage and monitor all registered users."
-            icon={<Community  width={ 32 } height={ 32 } color="#f15a24" />}
+            icon={<Community width={32} height={32} color="#f15a24" />}
           />
           <StatCard
             label="Total Cameras"
             value={stats?.total_cameras}
             loading={isLoading}
             description="Manage and monitor all registered cameras."
-            icon={<Video  width={ 32 } height={ 32 } color="#f15a24" />}
+            icon={<Video width={32} height={32} color="#f15a24" />}
           />
           <StatCard
             label="Total Tanods"
             value={stats?.total_tanods}
             loading={isLoading}
             description="Manage and monitor all registered tanods."
-            icon={<User  width={ 32 } height={ 32 } color="#f15a24" />}
+            icon={<User width={32} height={32} color="#f15a24" />}
           />
           <StatCard
             label="Total Incidents"
             value={stats?.total_incidents}
             loading={isLoading}
             description="Manage and monitor all reported incidents."
-            icon={<Siren  width={ 32 } height={ 32 } color="#f15a24" />}
+            icon={<Siren width={32} height={32} color="#f15a24" />}
           />
         </SimpleGrid>
 

@@ -8,10 +8,12 @@
  */
 export function resolveMediaUrl(src?: string | null): string | undefined {
   if (!src) return undefined;
+  // Already absolute
   if (/^https?:\/\//i.test(src)) return src;
-  if (src.startsWith('/')) {
-    const base = (import.meta.env.VITE_BACKEND_URL as string | undefined) || 'http://localhost:8000';
-    return `${base.replace(/\/$/, '')}${src}`;
-  }
-  return src;
+  const base = (import.meta.env.VITE_BACKEND_URL as string | undefined) || 'http://localhost:8000';
+  const origin = base.replace(/\/$/, '');
+  // Absolute path: prepend backend origin
+  if (src.startsWith('/')) return `${origin}${src}`;
+  // Relative path like "media/evidence/..." — add a leading slash then prepend
+  return `${origin}/${src}`;
 }

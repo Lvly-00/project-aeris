@@ -120,14 +120,15 @@ class IncidentGroupingTests(IncidentTestBase):
         self.assertEqual(Incident.objects.count(), 2)
         self.assertEqual(Notification.objects.count(), 2)
 
-    def test_repeat_detection_of_other_type_still_groups_by_camera(self):
+    def test_repeat_detection_of_other_type_creates_separate_incident(self):
         self.detect(self.camera, incident_type="Fire")
         res = self.detect(self.camera, incident_type="Vehicle_Accident")
 
-        # Grouping is per camera, not per type: one open incident per camera.
-        self.assertTrue(res.data["grouped"])
-        self.assertEqual(Incident.objects.count(), 1)
-        self.assertEqual(Notification.objects.count(), 1)
+        # Grouping is per incident type, not per camera: a different type
+        # opens its own incident and its own alert.
+        self.assertFalse(res.data["grouped"])
+        self.assertEqual(Incident.objects.count(), 2)
+        self.assertEqual(Notification.objects.count(), 2)
 
     # --- re-arming -------------------------------------------------------
 
@@ -495,15 +496,16 @@ class IncidentGroupingTests(IncidentTestBase):
 
         res = self.client.get(BY_CAMERA_URL)
         row = res.data[0]
-        # The incident's own type leads, then the rest detected on that camera.
-        self.assertEqual(row["incident_types"], ["Fire", "Smoke", "Vehicle_Accident"])
+        # Grouping is per incident type now, so the newest incident carries only
+        # its own type.
+        self.assertEqual(row["incident_types"], ["Vehicle_Accident"])
 
     def test_by_camera_never_exceeds_three_types(self):
         for incident_type in ("Fire", "Smoke", "Vehicle_Accident"):
             self.detect(self.camera, incident_type=incident_type)
 
         res = self.client.get(BY_CAMERA_URL)
-        self.assertEqual(len(res.data[0]["incident_types"]), 3)
+        self.assertEqual(len(res.data[0]["incident_types"]), 1)
 
     def test_by_camera_falls_back_to_incident_type_with_no_detections(self):
         self.detect(source="simulation")
