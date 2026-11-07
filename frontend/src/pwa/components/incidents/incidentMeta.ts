@@ -58,12 +58,12 @@ export const SEVERITY_COLOR: Record<Severity, string> = {
   Critical: 'red',
 };
 
-/** The colour the confidence meter earns, by band. */
-export function confidenceColor(percent: number): string {
-  if (percent >= 85) return 'teal';
-  if (percent >= 70) return 'green';
-  if (percent >= 50) return 'yellow';
-  return 'red';
+/**
+ * Accent colour for an incident type. Mirrors the incident card so the
+ * confidence meter reads the same on the list and on the detail page.
+ */
+export function incidentTypeColor(type: string): string {
+  return type === 'Fire' ? 'red' : 'orange';
 }
 
 /** 1 = detected, 2 = verified, 3 = dispatched, 4 = resolved. */

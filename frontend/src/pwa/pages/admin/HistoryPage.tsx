@@ -128,7 +128,7 @@ export default function HistoryPage() {
         <Container size="sm" py="lg"  px={0}>
             {/* Page Header */}
             <Stack mb="lg" gap={4}>
-                <Title order={1} fz={rem(38)} fw={700} style={{ letterSpacing: rem(-1) }}>
+                <Title order={1} fz={rem(32)} fw={700} style={{ letterSpacing: rem(-1) }}>
                     History
                 </Title>
                 <Text c="dimmed" fz="md" fw={400}>

@@ -5,12 +5,11 @@ import { Paper, Group, Stack, Text, Box, Progress, Badge, Image, rem, useMantine
 import { Incident } from '../../../shared/types/index';
 import { STATUS_COLORS, STATUS_BADGE_COLORS, STATUS_LABELS, SEVERITY_COLORS } from '../../../shared/utils/constants';
 import { formatRelativeTime } from '../../../shared/utils/helpers';
+import { incidentTypeColor } from '../incidents/incidentMeta';
 
 interface IncidentCardProps {
     incident: Incident;
     onClick?: (incident: Incident) => void;
-    /** Highlights the card while it is picked for a bulk action. */
-    selected?: boolean;
 }
 
 const TYPE_LABEL: Record<string, string> = {
@@ -19,14 +18,14 @@ const TYPE_LABEL: Record<string, string> = {
     Vehicle_Accident: 'Vehicular Accident',
 };
 
-export const IncidentCard = ({ incident, onClick, selected = false }: IncidentCardProps) => {
+export const IncidentCard = ({ incident, onClick }: IncidentCardProps) => {
     const theme = useMantineTheme();
     const [hovered, setHovered] = useState(false);
     const [imageFailed, setImageFailed] = useState(false);
 
     const evidenceSrc = resolveMediaUrl(incident.evidence_image);
     const hasEvidence = !!evidenceSrc && !imageFailed;
-    const color = incident.incident_type === 'Fire' ? 'red' : 'orange';
+    const color = incidentTypeColor(incident.incident_type);
     const accentColor = STATUS_COLORS[incident.status] || SEVERITY_COLORS[incident.severity] || '#fa5252';
 
     return (
@@ -40,32 +39,21 @@ export const IncidentCard = ({ incident, onClick, selected = false }: IncidentCa
             style={{
                 cursor: onClick ? 'pointer' : 'default',
                 overflow: 'hidden',
-                backgroundColor: selected
-                    ? 'var(--mantine-color-orange-light)'
-                    : 'var(--mantine-color-body)',
+                backgroundColor: 'var(--mantine-color-body)',
                 /*
                  * Only the top/right/bottom borders react to hover. Setting the
                  * `borderColor` shorthand here would rewrite the left accent on
                  * hover and React never re-applies the unchanged `borderLeft`,
                  * leaving the stripe grey after the pointer leaves.
                  */
-                borderTopColor: selected
-                    ? 'var(--mantine-color-orange-4)'
-                    : hovered && onClick
-                        ? 'var(--mantine-color-gray-4)'
-                        : undefined,
-                borderRightColor: selected
-                    ? 'var(--mantine-color-orange-4)'
-                    : hovered && onClick
-                        ? 'var(--mantine-color-gray-4)'
-                        : undefined,
-                borderBottomColor: selected
-                    ? 'var(--mantine-color-orange-4)'
-                    : hovered && onClick
-                        ? 'var(--mantine-color-gray-4)'
-                        : undefined,
+                borderTopColor:
+                    hovered && onClick ? 'var(--mantine-color-gray-4)' : undefined,
+                borderRightColor:
+                    hovered && onClick ? 'var(--mantine-color-gray-4)' : undefined,
+                borderBottomColor:
+                    hovered && onClick ? 'var(--mantine-color-gray-4)' : undefined,
                 borderLeft: `${rem(4)} solid ${accentColor}`,
-                boxShadow: hovered && onClick && !selected ? 'var(--mantine-shadow-sm)' : 'none',
+                boxShadow: hovered && onClick ? 'var(--mantine-shadow-sm)' : 'none',
                 transition: 'background-color 150ms ease, border-color 150ms ease, box-shadow 150ms ease',
             }}
         >
