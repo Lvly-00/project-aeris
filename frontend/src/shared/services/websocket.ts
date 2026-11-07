@@ -107,10 +107,27 @@ export class WebSocketService {
 
       socket.onclose = (event) => {
         this.stopPing();
-        if (this.running && event.code !== 4001) {
-          console.log('[WS] Disconnected, retrying in 5s...');
-          this.reconnectTimer = setTimeout(() => this.connect(), 5000);
+        /*
+         * The closed socket is unusable, but `connect()` bails out while
+         * `this.ws` is set. Clear it before scheduling so the retry below
+         * actually opens a new connection instead of silently no-op'ing.
+         */
+        this.ws = null;
+        if (!this.running) return;
+
+        /*
+         * 4001 is the consumer rejecting the handshake because the access
+         * token was missing/expired. The API layer refreshes tokens on its
+         * own, so retry at a slower pace instead of giving up permanently.
+         */
+        if (event.code === 4001) {
+          console.log('[WS] Unauthorized, retrying in 15s with a fresh token...');
+          this.scheduleReconnect(15000);
+          return;
         }
+
+        console.log('[WS] Disconnected, retrying in 5s...');
+        this.scheduleReconnect(5000);
       };
 
       socket.onerror = () => {
@@ -158,6 +175,14 @@ export class WebSocketService {
         this.ws.send(JSON.stringify({ action: 'ping' }));
       }
     }, 30_000);
+  }
+
+  private scheduleReconnect(delayMs: number): void {
+    if (this.reconnectTimer) clearTimeout(this.reconnectTimer);
+    this.reconnectTimer = setTimeout(() => {
+      this.reconnectTimer = null;
+      this.connect();
+    }, delayMs);
   }
 
   private stopPing(): void {

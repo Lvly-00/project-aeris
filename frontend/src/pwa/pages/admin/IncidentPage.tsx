@@ -72,6 +72,11 @@ export default function IncidentsPage() {
 
       return sortLatestFirst(unique);
     },
+    // Real-time events refetch this key; these settings cover the gaps when a
+    // WebSocket event is missed, so the list never shows a stale row for long.
+    staleTime: 0,
+    refetchOnMount: 'always',
+    refetchOnWindowFocus: true,
     refetchInterval: 10000,
   });
 

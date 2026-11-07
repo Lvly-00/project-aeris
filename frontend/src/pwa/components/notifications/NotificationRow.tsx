@@ -1,6 +1,5 @@
 import { useState } from 'react';
 import { Box, Group, rem, Stack, Text, UnstyledButton } from '@mantine/core';
-import { LocationPin } from '@boxicons/react';
 
 import type { AppNotification } from '../../../shared/types/index';
 import { formatDate, formatRelativeTime } from '../../../shared/utils/helpers';
@@ -95,6 +94,7 @@ export function NotificationRow({
               lh={1.3}
               c={isUnread ? undefined : 'dimmed'}
               truncate
+              style={{ minWidth: 0 }}
             >
               {title}
             </Text>
@@ -108,8 +108,6 @@ export function NotificationRow({
               {formatRelativeTime(notification.created_at)}
             </Text>
           </Group>
-
-
 
           {showsMessage && (
             <Text fz={rem(12.5)} c="dimmed" lh={1.45} mt={rem(1)} lineClamp={2}>

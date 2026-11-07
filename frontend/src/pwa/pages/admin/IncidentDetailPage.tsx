@@ -119,10 +119,13 @@ export default function IncidentDetailPage() {
       queryClient.setQueryData(['incident', incidentId], res.data);
 
       /*
-       * Closed incidents must appear in History right away. Invalidate
-       * directly here — don't rely on the WebSocket broadcast, which can
-       * be missed if the socket reconnects.
+       * Update the lists immediately rather than waiting for the WebSocket
+       * broadcast (which can be missed while it reconnects) or the page's
+       * polling interval. Dismissed/resolved rows leave the active list and
+       * move to History right away.
        */
+      queryClient.invalidateQueries({ queryKey: ['incidents'] });
+      queryClient.invalidateQueries({ queryKey: ['dashboard-stats'] });
       if (res.data.status === 'Resolved' || res.data.status === 'Dismissed') {
         queryClient.invalidateQueries({ queryKey: ['incident-history'] });
       }
@@ -148,11 +151,12 @@ export default function IncidentDetailPage() {
   });
 
   const goBack = () => {
-    if (window.history.length > 1) {
-      navigate(-1);
-    } else {
-      navigate('/pwa/admin/incidents');
-    }
+    /*
+     * The back affordance has one fixed destination: the active incidents
+     * list. Using browser history here would return to a previous detail page
+     * when the user hopped between alerts, which is not a place they came from.
+     */
+    navigate('/pwa/admin/incidents', { replace: true });
   };
 
   if (isLoading) return <IncidentDetailSkeleton />;
@@ -180,7 +184,7 @@ export default function IncidentDetailPage() {
             variant="subtle"
             size="md"
             radius="md"
-            onClick={() => navigate('/pwa/admin/incidents')}
+            onClick={() => navigate('/pwa/admin/incidents', { replace: true })}
           >
             Back to incidents
           </Button>

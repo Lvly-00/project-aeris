@@ -5,7 +5,6 @@ import {
   Divider,
   Group,
   rem,
-  ScrollArea,
   Skeleton,
   Stack,
   Text,
@@ -72,7 +71,20 @@ export function NotificationList({
   onOpen: (notification: AppNotification) => void;
 }) {
   return (
-    <ScrollArea.Autosize mah={420}>
+    /*
+     * A plain scrolling box rather than ScrollArea: ScrollArea lays its content
+     * out as a table sized to the widest line, which pushed the rows past a
+     * phone's width and let the list slide sideways. Capped by the viewport too,
+     * so a short phone still fits without the whole modal scrolling.
+     */
+    <Box
+      style={{
+        maxHeight: 'min(420px, calc(100dvh - 13rem))',
+        overflowY: 'auto',
+        overflowX: 'hidden',
+        overscrollBehavior: 'contain',
+      }}
+    >
       {loading ? (
         <NotificationListSkeleton />
       ) : items.length === 0 ? (
@@ -98,6 +110,6 @@ export function NotificationList({
           ))}
         </Stack>
       )}
-    </ScrollArea.Autosize>
+    </Box>
   );
 }

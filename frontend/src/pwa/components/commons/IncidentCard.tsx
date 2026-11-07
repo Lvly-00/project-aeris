@@ -1,6 +1,7 @@
 import { useState } from 'react';
-import { Paper, Group, Stack, Text, Box, Progress, Badge, rem, useMantineTheme } from '@mantine/core';
-import { Car, ChevronRight, Cloud, Flame } from '@boxicons/react';
+import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
+import { ChevronRight } from '@boxicons/react';
+import { Paper, Group, Stack, Text, Box, Progress, Badge, Image, rem, useMantineTheme } from '@mantine/core';
 import { Incident } from '../../../shared/types/index';
 import { STATUS_COLORS, STATUS_BADGE_COLORS, STATUS_LABELS, SEVERITY_COLORS } from '../../../shared/utils/constants';
 import { formatRelativeTime } from '../../../shared/utils/helpers';
@@ -18,17 +19,13 @@ const TYPE_LABEL: Record<string, string> = {
     Vehicle_Accident: 'Vehicular Accident',
 };
 
-const TYPE_ICON: Record<string, any> = {
-    Fire: Flame,
-    Smoke: Cloud,
-    Vehicle_Accident: Car,
-};
-
 export const IncidentCard = ({ incident, onClick, selected = false }: IncidentCardProps) => {
     const theme = useMantineTheme();
     const [hovered, setHovered] = useState(false);
+    const [imageFailed, setImageFailed] = useState(false);
 
-    const Icon = TYPE_ICON[incident.incident_type] || Car;
+    const evidenceSrc = resolveMediaUrl(incident.evidence_image);
+    const hasEvidence = !!evidenceSrc && !imageFailed;
     const color = incident.incident_type === 'Fire' ? 'red' : 'orange';
     const accentColor = STATUS_COLORS[incident.status] || SEVERITY_COLORS[incident.severity] || '#fa5252';
 
@@ -46,7 +43,23 @@ export const IncidentCard = ({ incident, onClick, selected = false }: IncidentCa
                 backgroundColor: selected
                     ? 'var(--mantine-color-orange-light)'
                     : 'var(--mantine-color-body)',
-                borderColor: selected
+                /*
+                 * Only the top/right/bottom borders react to hover. Setting the
+                 * `borderColor` shorthand here would rewrite the left accent on
+                 * hover and React never re-applies the unchanged `borderLeft`,
+                 * leaving the stripe grey after the pointer leaves.
+                 */
+                borderTopColor: selected
+                    ? 'var(--mantine-color-orange-4)'
+                    : hovered && onClick
+                        ? 'var(--mantine-color-gray-4)'
+                        : undefined,
+                borderRightColor: selected
+                    ? 'var(--mantine-color-orange-4)'
+                    : hovered && onClick
+                        ? 'var(--mantine-color-gray-4)'
+                        : undefined,
+                borderBottomColor: selected
                     ? 'var(--mantine-color-orange-4)'
                     : hovered && onClick
                         ? 'var(--mantine-color-gray-4)'
@@ -57,22 +70,37 @@ export const IncidentCard = ({ incident, onClick, selected = false }: IncidentCa
             }}
         >
             <Group align="flex-start" wrap="nowrap" gap="md">
-                {/* Icon Container */}
-                <Box
-                    style={{
-                        borderRadius: theme.radius.md,
-                        backgroundColor: `var(--mantine-color-${color}-light)`,
-                        color: `var(--mantine-color-${color}-6)`,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        width: rem(64),
-                        height: rem(88),
-                        flexShrink: 0,
-                    }}
-                >
-                    <Icon size={34} fill="currentColor" />
-                </Box>
+                {/* Evidence Image */}
+                {hasEvidence ? (
+                    <Image
+                        src={evidenceSrc}
+                        alt="Incident snapshot"
+                        w={64}
+                        h={88}
+                        fit="cover"
+                        radius="md"
+                        style={{ flexShrink: 0 }}
+                        onError={() => setImageFailed(true)}
+                    />
+                ) : (
+                    <Box
+                        style={{
+                            borderRadius: theme.radius.md,
+                            backgroundColor: `var(--mantine-color-${color}-light)`,
+                            color: `var(--mantine-color-${color}-6)`,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            width: rem(64),
+                            height: rem(88),
+                            flexShrink: 0,
+                        }}
+                    >
+                        <Text c="dimmed" fz={rem(12)} fw={500}>
+                          {incident.incident_type?.replace(/_/g, ' ')}
+                        </Text>
+                    </Box>
+                )}
 
                 {/* Content Section */}
                 <Stack gap={rem(2)} style={{ flex: 1, minWidth: 0 }}>
@@ -136,4 +164,4 @@ export const IncidentCard = ({ incident, onClick, selected = false }: IncidentCa
             </Group>
         </Paper>
     );
-};
+};

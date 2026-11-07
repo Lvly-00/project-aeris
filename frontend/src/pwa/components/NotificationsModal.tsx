@@ -148,9 +148,9 @@ export function NotificationsModal({
       radius="md"
       size="lg"
       padding="md"
-      /* Keeps the tray inside a narrow window instead of scrolling sideways */
+      /* A dialog on every screen, but never wider than the phone it is on */
       styles={{
-        content: { maxWidth: 'calc(100vw - 2rem)' },
+        content: { maxWidth: 'min(620px, calc(100vw - 2rem))' },
         body: { overflowX: 'hidden' },
       }}
     >

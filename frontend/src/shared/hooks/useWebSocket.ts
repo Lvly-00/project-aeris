@@ -18,7 +18,19 @@ export function useWebSocket(isAuthenticated: boolean) {
     serviceRef.current = service;
     service.start();
 
+    /*
+     * Mobile browsers freeze timers and can drop the socket while the PWA is
+     * backgrounded. Re-open it as soon as the app is visible again so the
+     * Incidents page receives new events immediately instead of waiting for
+     * the polling fallback.
+     */
+    const handleVisibility = () => {
+      if (document.visibilityState === 'visible') service.connect();
+    };
+    document.addEventListener('visibilitychange', handleVisibility);
+
     return () => {
+      document.removeEventListener('visibilitychange', handleVisibility);
       service.disconnect();
       serviceRef.current = null;
     };

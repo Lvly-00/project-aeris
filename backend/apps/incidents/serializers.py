@@ -90,6 +90,9 @@ class IncidentListSerializer(serializers.ModelSerializer):
         fields = [
             "id", "incident_type", "severity", "status", "camera_name",
             "confidence_score", "description", "detected_at", "duration",
+            # The incidents list renders the captured frame as a thumbnail,
+            # so the list payload has to carry the image URL too.
+            "evidence_image",
         ]
 
 

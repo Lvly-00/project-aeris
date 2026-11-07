@@ -142,7 +142,18 @@ export function AdminLayout() {
                 onUnreadChange={setUnreadCount}
                 onNavigate={(n) => {
                     if (n.incident) {
-                        navigate(`/pwa/admin/incidents/${n.incident}`);
+                        /*
+                         * Opening a second incident from the tray while one is
+                         * already open must not push a new detail page on top
+                         * of the first — replace it so one back press returns
+                         * to the incidents list.
+                         */
+                        const onIncidentDetail = location.pathname.startsWith(
+                            '/pwa/admin/incidents/'
+                        );
+                        navigate(`/pwa/admin/incidents/${n.incident}`, {
+                            replace: onIncidentDetail,
+                        });
                     }
                 }}
             />
