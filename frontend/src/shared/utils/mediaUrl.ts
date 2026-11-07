@@ -11,7 +11,8 @@ export function resolveMediaUrl(src?: string | null): string | undefined {
   // Already absolute
   if (/^https?:\/\//i.test(src)) return src;
   const base = (import.meta.env.VITE_BACKEND_URL as string | undefined) || 'http://localhost:8000';
-  const origin = base.replace(/\/$/, '');
+  // Media is served from the server root, so drop any API path (".../api").
+  const origin = base.replace(/\/+$/, '').replace(/\/api$/, '');
   // Absolute path: prepend backend origin
   if (src.startsWith('/')) return `${origin}${src}`;
   // Relative path like "media/evidence/..." — add a leading slash then prepend

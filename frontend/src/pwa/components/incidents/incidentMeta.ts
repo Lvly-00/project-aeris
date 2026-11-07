@@ -58,12 +58,12 @@ export const SEVERITY_COLOR: Record<Severity, string> = {
   Critical: 'red',
 };
 
-/** How a confidence percentage reads to an operator, and the colour it earns. */
-export function confidenceBand(percent: number): { label: string; color: string } {
-  if (percent >= 85) return { label: 'Very high confidence', color: 'teal' };
-  if (percent >= 70) return { label: 'High confidence', color: 'green' };
-  if (percent >= 50) return { label: 'Moderate confidence', color: 'yellow' };
-  return { label: 'Low confidence', color: 'red' };
+/** The colour the confidence meter earns, by band. */
+export function confidenceColor(percent: number): string {
+  if (percent >= 85) return 'teal';
+  if (percent >= 70) return 'green';
+  if (percent >= 50) return 'yellow';
+  return 'red';
 }
 
 /** 1 = detected, 2 = verified, 3 = dispatched, 4 = resolved. */

@@ -233,10 +233,15 @@ def create_incident_notification(incident):
 
 
 def incident_location(incident):
-    """Human readable location for an incident."""
-    if incident.camera and incident.camera.location_name:
-        return incident.camera.location_name
-    return "Unknown location"
+    """Human readable place for an incident: the camera's location, else its name.
+
+    Location is optional on a camera, so an unlabelled one is identified by its
+    name rather than telling responders the incident happened nowhere.
+    """
+    camera = incident.camera
+    if camera is None:
+        return "Unknown location"
+    return camera.location_name or camera.name
 
 
 def incident_label(incident):

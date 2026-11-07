@@ -140,6 +140,7 @@ export interface AppNotification {
   incident: number | null;
   incident_type: string | null;
   location: string | null;
+  evidence_image: string | null;
   title: string;
   message: string;
   notification_type: NotificationType;

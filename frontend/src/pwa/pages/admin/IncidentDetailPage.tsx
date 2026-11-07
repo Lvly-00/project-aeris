@@ -33,7 +33,7 @@ import {
   SEVERITY_COLOR,
   STATUS_ACTIONS,
   buildTimelineSteps,
-  confidenceBand,
+  confidenceColor,
   statusStepIndex,
 } from '../../components/incidents/incidentMeta';
 import type { Camera, Incident, IncidentStatus } from '../../../shared/types';
@@ -200,7 +200,7 @@ export default function IncidentDetailPage() {
   const isDismissed = status === 'Dismissed';
 
   const confidencePct = Math.round(incident.confidence_score * 100);
-  const band = confidenceBand(confidencePct);
+  const meterColor = confidenceColor(confidencePct);
 
   const steps = buildTimelineSteps(incident);
   const actions = STATUS_ACTIONS[status] ?? [];
@@ -257,8 +257,7 @@ export default function IncidentDetailPage() {
         locationName={camera?.location_name || null}
         detectedAt={incident.detected_at}
         confidencePct={confidencePct}
-        confidenceLabel={band.label}
-        confidenceColor={band.color}
+        confidenceColor={meterColor}
       />
 
       <IncidentProgress

@@ -8,7 +8,6 @@ interface IncidentDetailSheetProps {
   locationName: string | null;
   detectedAt: string;
   confidencePct: number;
-  confidenceLabel: string;
   confidenceColor: string;
 }
 
@@ -52,7 +51,6 @@ export const IncidentDetailSheet = ({
   locationName,
   detectedAt,
   confidencePct,
-  confidenceLabel,
   confidenceColor,
 }: IncidentDetailSheetProps) => (
   <Card withBorder radius="lg" p={0} mb="md">
@@ -69,11 +67,7 @@ export const IncidentDetailSheet = ({
     />
     <Divider />
 
-    <Row
-      label="Confidence"
-      value={`${confidencePct}%`}
-      secondary={confidenceLabel}
-    >
+    <Row label="Confidence" value={`${confidencePct}%`}>
       <Box
         mt={rem(8)}
         h={6}

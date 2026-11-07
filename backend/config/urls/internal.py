@@ -281,7 +281,10 @@ class InternalIncidentCreateView(APIView):
                 ).data
                 return Response({**data, "grouped": True}, status=200)
 
-            # New incident
+            # New incident. The message names the place, and an unlabelled
+            # camera is named by itself so the alert never reads as if it came
+            # from nowhere.
+            place = (camera.location_name or camera.name) if camera else ""
             incident = Incident.objects.create(
                 incident_type=type_obj,
                 severity="High" if confidence >= 0.8 else "Medium",
@@ -291,7 +294,7 @@ class InternalIncidentCreateView(APIView):
                 description=(
                     f"AI detected {type_obj.name} with "
                     f"{confidence:.0%} confidence"
-                    + (f" at {camera.location_name}" if camera and camera.location_name else "")
+                    + (f" at {place}" if place else "")
                 ),
                 recorded_by=None,
                 source=Incident.Source.AI,
