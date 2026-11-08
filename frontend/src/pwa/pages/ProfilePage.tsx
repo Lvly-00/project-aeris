@@ -40,7 +40,11 @@ export default function ProfilePage() {
   const fetchProfile = () => {
     authAPI
       .getProfile()
-      .then((res) => setUser(res.data))
+      .then((res) => {
+        setUser(res.data);
+        /* Keep the shell's tab avatar in step with the saved profile. */
+        setAuthUser(res.data);
+      })
       .catch((err) => console.error(err));
   };
 
@@ -186,7 +190,10 @@ export default function ProfilePage() {
         opened={editOpened}
         onClose={() => setEditOpened(false)}
         user={{ first_name: user.first_name, last_name: user.last_name }}
-        onUpdated={(updated) => setUser((prev) => prev ? { ...prev, ...updated } : prev)}
+        onUpdated={(updated) => {
+          setUser((prev) => (prev ? { ...prev, ...updated } : prev));
+          setAuthUser((prev) => (prev ? { ...prev, ...updated } : prev));
+        }}
       />
 
       <ChangePasswordModal

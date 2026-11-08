@@ -1,49 +1,53 @@
 import { useState, useEffect } from 'react';
 import {
     AppShell, Group, ActionIcon, Text, Stack, UnstyledButton,
-    Container, rem, Image, Avatar, Indicator, useMantineTheme
+    Container, rem, Image, Avatar, Indicator
 } from '@mantine/core';
-import { Bell, Clipboard, Home, ShieldAlt, User } from '@boxicons/react';
+import { Bell, Inbox, User } from '@boxicons/react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
-import { authAPI, notificationsAPI } from '../../../shared/services/api';
+import { dispatchMessagesAPI, notificationsAPI } from '../../../shared/services/api';
+import { useAuth } from '../../../shared/hooks/useAuth';
 import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 import { onWebSocketMessage } from '../../../shared/services/websocket';
+import type { AppNotification, DispatchMessage } from '../../../shared/types';
 import { NotificationsModal } from '../NotificationsModal';
 
 const navData = [
-    { icon: ShieldAlt, label: 'Messages', path: '/pwa/tanod/messages' },
+    { icon: Inbox, label: 'Messages', path: '/pwa/tanod/messages' },
     { icon: User, label: 'Profile', path: '/pwa/tanod/profile', isAvatar: true },
 ];
 
 export function TanodLayout() {
     const navigate = useNavigate();
     const location = useLocation();
-    const theme = useMantineTheme();
+    /*
+     * The tab avatar reads from the auth context, which the profile page
+     * updates after a name or photo change, so the tab reflects edits as
+     * soon as they are saved instead of waiting for a reload.
+     */
+    const { user } = useAuth();
 
-    const [user, setUser] = useState<any>(null);
     const [unreadCount, setUnreadCount] = useState(0);
     const [notifOpen, setNotifOpen] = useState(false);
 
-    // Use theme colors instead of hardcoded hex
     const activeColor = 'var(--mantine-color-orange-filled)';
-    const inactiveColor = 'var(--mantine-color-dimmed)';
 
     const isProfilePage = location.pathname === '/pwa/profile' || location.pathname.startsWith('/pwa/profile/');
 
     useEffect(() => {
-        const fetchShellData = async () => {
-            try {
-                const [profileRes, unreadRes] = await Promise.all([
-                    authAPI.getProfile(),
-                    notificationsAPI.unreadCount(),
-                ]);
-                setUser(profileRes.data);
-                setUnreadCount(unreadRes.data?.unread_count ?? 0);
-            } catch (err) {
+        let cancelled = false;
+
+        notificationsAPI.unreadCount()
+            .then((res) => {
+                if (!cancelled) setUnreadCount(res.data?.unread_count ?? 0);
+            })
+            .catch((err) => {
                 console.error('PWA shell data fetch failed:', err);
-            }
+            });
+
+        return () => {
+            cancelled = true;
         };
-        fetchShellData();
     }, []);
 
     /*
@@ -57,6 +61,35 @@ export function TanodLayout() {
             }
         });
     }, []);
+
+    /*
+     * A tanod's notification points at the incident, but their inbox is the
+     * dispatch messages, so the notification is resolved to the dispatch sent
+     * for that incident and its detail page is opened. Falling back to the
+     * message list keeps the tap useful when no dispatch can be found.
+     */
+    const openNotification = async (n: AppNotification) => {
+        const incidentId = n.incident;
+        if (!incidentId) {
+            navigate('/pwa/tanod/messages');
+            return;
+        }
+
+        try {
+            const res = await dispatchMessagesAPI.list({ incident: incidentId });
+            const rows: DispatchMessage[] = res.data?.results || res.data || [];
+            const message = rows.find((row) => row.incident === incidentId);
+
+            if (message) {
+                navigate(`/pwa/tanod/messages/${message.id}`);
+                return;
+            }
+        } catch (error) {
+            console.error('[TANOD] Failed to open the dispatch for a notification:', error);
+        }
+
+        navigate('/pwa/tanod/messages');
+    };
 
     return (
         <AppShell
@@ -80,6 +113,7 @@ export function TanodLayout() {
                                     color="gray"
                                     size="lg"
                                     onClick={() => setNotifOpen(true)}
+                                    aria-label="Open notifications"
                                 >
                                     <Bell  width={28} height={28} strokeWidth={1.5} />
                                 </ActionIcon>
@@ -107,6 +141,7 @@ export function TanodLayout() {
                             <UnstyledButton
                                 key={item.label}
                                 onClick={() => navigate(item.path)}
+                                aria-current={isActive ? 'page' : undefined}
                                 style={{ flex: 1, height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center' }}
                             >
                                 <Stack gap={4} align="center" justify="center">
@@ -138,11 +173,7 @@ export function TanodLayout() {
                 opened={notifOpen}
                 onClose={() => setNotifOpen(false)}
                 onUnreadChange={setUnreadCount}
-                onNavigate={(n) => {
-                    if (n.incident) {
-                        navigate('/pwa/tanod/messages');
-                    }
-                }}
+                onNavigate={openNotification}
             />
         </AppShell>
     );

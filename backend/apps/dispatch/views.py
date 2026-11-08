@@ -3,8 +3,9 @@ from django.utils import timezone
 from django.db.models import Q
 from asgiref.sync import async_to_sync
 from channels.layers import get_channel_layer
-from rest_framework import viewsets
+from rest_framework import mixins, viewsets
 from rest_framework.decorators import action
+from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
@@ -41,9 +42,11 @@ class IncidentTimelineViewSet(viewsets.ReadOnlyModelViewSet):
         return qs
 
 
-class DispatchMessageViewSet(viewsets.ReadOnlyModelViewSet):
+class DispatchMessageViewSet(mixins.DestroyModelMixin, viewsets.ReadOnlyModelViewSet):
     serializer_class = DispatchMessageSerializer
     permission_classes = [IsAuthenticated]
+    # Lets a client open the dispatch sent for one incident (notification tap).
+    filterset_fields = ["incident"]
 
     def get_queryset(self):
         qs = DispatchMessage.objects.select_related(
@@ -56,6 +59,13 @@ class DispatchMessageViewSet(viewsets.ReadOnlyModelViewSet):
         if user.is_tanod():
             qs = qs.filter(Q(recipient__isnull=True) | Q(recipient=user))
         return qs
+
+    def perform_destroy(self, instance):
+        """Tanods may only clear messages addressed to them, never broadcasts."""
+        user = self.request.user
+        if user.is_tanod() and instance.recipient_id != user.id:
+            raise PermissionDenied("You can only delete messages sent to you.")
+        instance.delete()
 
     @action(detail=True, methods=["post"], url_path="mark-read")
     def mark_read(self, request, pk=None) -> Response:

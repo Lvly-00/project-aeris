@@ -291,6 +291,7 @@ export const dispatchMessagesAPI = {
   list: (params?: any) => api.get('/dispatch/messages/', { params }),
   get: (id: number) => api.get(`/dispatch/messages/${id}/`),
   markRead: (id: number) => api.post(`/dispatch/messages/${id}/mark-read/`),
+  delete: (id: number) => api.delete(`/dispatch/messages/${id}/`),
 };
 
 export const auditAPI = {

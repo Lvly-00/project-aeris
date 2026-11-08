@@ -21,8 +21,9 @@ interface IncidentEvidenceProps {
   src: string | null;
   incidentId: number;
   typeLabel: string;
-  severity: Severity;
-  severityColor: string;
+  /** Omitted where the surface does not show severity (tanod messages). */
+  severity?: Severity;
+  severityColor?: string;
 }
 
 /**
@@ -76,17 +77,19 @@ export const IncidentEvidence = ({
                 {typeLabel}
               </Text>
 
-              <Group gap={rem(8)} mt={rem(8)} wrap="nowrap">
-                <Badge
-                  size="sm"
-                  radius="sm"
-                  tt="none"
-                  color={severityColor}
-                  styles={{ label: { fontWeight: 700 } }}
-                >
-                  {severity} severity
-                </Badge>
-              </Group>
+              {severity && severityColor && (
+                <Group gap={rem(8)} mt={rem(8)} wrap="nowrap">
+                  {/* <Badge
+                    size="sm"
+                    radius="sm"
+                    tt="none"
+                    color={severityColor}
+                    styles={{ label: { fontWeight: 700 } }}
+                  >
+                    {severity} severity
+                  </Badge> */}
+                </Group>
+              )}
             </Box>
 
             <ActionIcon

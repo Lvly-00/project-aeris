@@ -337,7 +337,6 @@ export default function IncidentsPage() {
               >
                 <IncidentCard
                   incident={incident}
-                  selected={selectMode && selectedIds.includes(incident.id)}
                   onClick={(item) =>
                     selectMode
                       ? toggleSelect(item.id)
