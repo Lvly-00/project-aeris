@@ -3,12 +3,14 @@ Production settings — Docker / server deployment.
 DEBUG is hardcoded False and cannot be overridden by environment variables.
 All security headers are enforced unconditionally once HTTPS is confirmed.
 """
+import logging
 from urllib.parse import urlparse
 
 from decouple import Csv, config
-from django.core.exceptions import ImproperlyConfigured
 
 from .base import *
+
+logger = logging.getLogger(__name__)
 
 # ── Debug — hardcoded, never toggleable via env ───────────────────────────────
 DEBUG = False
@@ -120,25 +122,40 @@ MEDIA_ROOT = config("MEDIA_DIR", default=str(BASE_DIR / "media"))
 #
 # Camera snapshots are written straight to MEDIA_ROOT by apps/cameras, so those
 # files stay on disk either way — Cloudinary only takes Django field uploads.
-CLOUDINARY_URL = config("CLOUDINARY_URL", default="")
+def _clean_env_url(raw: str) -> str:
+    """Trim whitespace and accidental wrapping quotes from an env value."""
+    value = (raw or "").strip()
+    if len(value) >= 2 and value[0] == value[-1] and value[0] in "\"'":
+        value = value[1:-1].strip()
+    return value
+
+
+CLOUDINARY_URL = _clean_env_url(config("CLOUDINARY_URL", default=""))
 
 if CLOUDINARY_URL:
     _cloudinary = urlparse(CLOUDINARY_URL)
     if not (_cloudinary.username and _cloudinary.password and _cloudinary.hostname):
-        raise ImproperlyConfigured(
-            "CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name>"
+        # Cloudinary is optional, but a malformed value used to raise here.
+        # Render runs `manage.py migrate` before the server starts, so that one
+        # bad env var crash-looped the entire deployment. Warn loudly and keep
+        # the local-disk storage instead of taking the API down.
+        logger.warning(
+            "Ignoring malformed CLOUDINARY_URL; expected "
+            "cloudinary://<api_key>:<api_secret>@<cloud_name>. "
+            "Media uploads will fall back to MEDIA_ROOT (%s).",
+            MEDIA_ROOT,
         )
-
-    # django-cloudinary-storage reads this dict, not CLOUDINARY_URL itself.
-    CLOUDINARY_STORAGE = {
-        "CLOUD_NAME": _cloudinary.hostname,
-        "API_KEY": _cloudinary.username,
-        "API_SECRET": _cloudinary.password,
-        "SECURE": True,
-    }
-    STORAGES = {
-        "default": {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"},
-        "staticfiles": {
-            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
-        },
-    }
+    else:
+        # django-cloudinary-storage reads this dict, not CLOUDINARY_URL itself.
+        CLOUDINARY_STORAGE = {
+            "CLOUD_NAME": _cloudinary.hostname,
+            "API_KEY": _cloudinary.username,
+            "API_SECRET": _cloudinary.password,
+            "SECURE": True,
+        }
+        STORAGES = {
+            "default": {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"},
+            "staticfiles": {
+                "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+            },
+        }
