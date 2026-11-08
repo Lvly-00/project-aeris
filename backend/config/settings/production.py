@@ -67,11 +67,11 @@ CSRF_TRUSTED_ORIGINS = config(
 # CORS_ALLOW_ALL_ORIGINS is intentionally absent — never allow wildcard
 
 # ── HTTPS / security headers ─────────────────────────────────────────────────
-# Enable these once TLS is confirmed working end-to-end.
-# SECURE_SSL_REDIRECT pushes all HTTP to HTTPS at the Django layer;
-# if nginx already handles the redirect, set SECURE_SSL_REDIRECT=False in .env.
+# TLS is expected in production: nginx terminates it and forwards
+# X-Forwarded-Proto. Set SECURE_SSL_REDIRECT=False in .env only when another
+# layer already redirects, never to make plain HTTP work.
 SECURE_PROXY_SSL_HEADER = ("HTTP_X_FORWARDED_PROTO", "https")
-SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=False, cast=bool)
+SECURE_SSL_REDIRECT = config("SECURE_SSL_REDIRECT", default=True, cast=bool)
 SECURE_HSTS_SECONDS = config("SECURE_HSTS_SECONDS", default=31536000, cast=int)
 SECURE_HSTS_INCLUDE_SUBDOMAINS = True
 SECURE_HSTS_PRELOAD = True
@@ -96,6 +96,13 @@ CHANNEL_LAYERS = {
         },
     },
 }
+
+# ── Upload limits ────────────────────────────────────────────────────────────
+# nginx already caps request bodies at 50 MB; these keep a single oversized
+# field or file from being buffered into memory. Evidence frames are far
+# smaller, so 10 MB of file memory is generous.
+DATA_UPLOAD_MAX_MEMORY_SIZE = 50 * 1024 * 1024
+FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # ── Static / media ────────────────────────────────────────────────────────────
 # Media is served via nginx in production; Django doesn't need to serve it.

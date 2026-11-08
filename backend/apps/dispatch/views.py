@@ -9,7 +9,6 @@ from rest_framework.exceptions import PermissionDenied
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
 
-from apps.accounts.models import User
 from .models import DispatchMessage, IncidentTimeline
 from .serializers import (
     DispatchMessageSerializer,

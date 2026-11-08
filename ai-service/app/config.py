@@ -8,7 +8,9 @@ from decouple import config
 # AI Service
 AI_SERVICE_HOST: str = config('AI_SERVICE_HOST', default='0.0.0.0')
 AI_SERVICE_PORT: int = int(config('AI_SERVICE_PORT', default='8005'))
-AI_SERVICE_API_KEY: str = config('AI_SERVICE_API_KEY', default='ai-service-key')
+# No usable default: an unset key makes every guarded endpoint reject
+# requests (see app/core/security.py) instead of shipping a known secret.
+AI_SERVICE_API_KEY: str = config('AI_SERVICE_API_KEY', default='')
 
 # Model
 YOLO_MODEL_PATH: str = config('YOLO_MODEL_PATH', default='yolo11n.pt')

@@ -1,5 +1,6 @@
 import json
 import logging
+from django.conf import settings
 from django.db import transaction
 from django.db.models import Count, F, Min, Q
 from django.utils import timezone
@@ -8,9 +9,10 @@ from channels.layers import get_channel_layer
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated
+from rest_framework.permissions import SAFE_METHODS, IsAuthenticated
 
 from apps.accounts.models import User
+from apps.accounts.permissions import CanVerifyIncident
 from apps.audit.models import AuditLog
 from apps.audit.services import write_audit
 from apps.cameras.models import Camera
@@ -310,6 +312,17 @@ class IncidentViewSet(viewsets.ModelViewSet):
     search_fields = ["incident_type__name", "description", "status__name"]
     filterset_class = IncidentFilter
 
+    def get_permissions(self):
+        """
+        Every signed-in role may read incidents (tanods need their dispatch
+        context), but dispatching, verifying, dismissing and deleting are
+        operator actions. Without this split a tanod token could drive the
+        whole incident state machine.
+        """
+        if self.request.method in SAFE_METHODS:
+            return [IsAuthenticated()]
+        return [CanVerifyIncident()]
+
     def get_serializer_class(self):
         if self.action == "create":
             return IncidentCreateSerializer
@@ -428,10 +441,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 import os, io
                 import requests as _req
                 from django.core.files.uploadedfile import InMemoryUploadedFile
-                try:
-                    from config.urls.main import AI_SERVICE_URL as _ai_url
-                except ImportError:
-                    _ai_url = os.environ.get("AI_SERVICE_URL", "http://localhost:8005")
+                from config.views.ai_proxy import AI_SERVICE_URL as _ai_url
                 _ai_key = os.environ.get("AI_SERVICE_API_KEY", "") or getattr(settings, "INTERNAL_API_KEY", "")
                 _resp = _req.get(f"{_ai_url}/cameras/{camera_id}/frame",
                     headers={"X-API-Key": _ai_key}, timeout=3)

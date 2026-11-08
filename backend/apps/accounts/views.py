@@ -20,6 +20,7 @@ from apps.audit.services import write_audit
 from apps.incidents.views import broadcast_stats_changed
 
 from .models import PasswordResetCode, EmailChangeCode, TwoFactorCode, TrustedDevice
+from .permissions import CanManageUsers
 from .email import send_email
 from .serializers import (
     UserSerializer,
@@ -29,7 +30,6 @@ from .serializers import (
     PasswordResetVerifySerializer,
     PasswordResetConfirmSerializer,
     ChangePasswordSerializer,
-    EmailChangeRequestSerializer,
     EmailChangeVerifySerializer,
     EmailChangeConfirmSerializer,
 )
@@ -123,13 +123,15 @@ def _audit_action(
 
 class RegisterView(generics.CreateAPIView):
     """
-    Endpoint for creating new users. 
-    Typically used by Admins in a management dashboard.
+    Account creation endpoint.
+
+    This is an administrative action: an unauthenticated caller must never be
+    able to mint an account, so it requires a signed-in CCTV Chief. The
+    desktop Account Management screen is the only caller.
     """
     queryset = User.objects.all()
     serializer_class = RegisterSerializer
-    # In a production admin panel, you might change this to IsAdminUser
-    permission_classes = [permissions.AllowAny] 
+    permission_classes = [permissions.IsAuthenticated, CanManageUsers]
 
     def create(self, request, *args, **kwargs) -> Response:
         serializer = self.get_serializer(data=request.data)
@@ -218,7 +220,6 @@ class UserViewSet(viewsets.ModelViewSet):
     PUBLIC_URL_SEGMENTS = frozenset({
         "login", "logout", "password-reset",
         "password-reset-verify", "password-reset-confirm",
-        "dispatchers",
     })
 
     # Paths that must bypass JWT authentication and IsAuthenticated checks.
@@ -227,7 +228,6 @@ class UserViewSet(viewsets.ModelViewSet):
     _PUBLIC_PATH_MARKERS = (
         "/login",
         "/password-reset",
-        "/dispatchers",
     )
 
     def _is_public_action(self) -> bool:
@@ -240,6 +240,10 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_permissions(self):
         if self._is_public_action():
             return [permissions.AllowAny()]
+        # Creating accounts is a Chief-only action. Updates and deletes check
+        # the role inside their handlers; creation had no check at all.
+        if self.action == "create":
+            return [CanManageUsers()]
         return super().get_permissions()
 
     def get_authenticators(self):
@@ -829,15 +833,6 @@ class UserViewSet(viewsets.ModelViewSet):
             "access": str(refresh.access_token),
             "user": UserSerializer(user, context={"request": request}).data,
         })
-
-    @action(detail=False, methods=["GET"], url_path="dispatchers")
-    def dispatchers(self, request):
-        users = User.objects.filter(
-            role__name__in=["Barangay Tanod", "CCTV Chief", "CCTV Operator"],
-            is_active=True,
-        )
-        serializer = self.get_serializer(users, many=True)
-        return Response(serializer.data)
 
     @action(detail=False, methods=["POST"], url_path="verify-password")
     def verify_password(self, request):

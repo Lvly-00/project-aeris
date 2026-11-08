@@ -1,51 +1,55 @@
-FROM python:3.11-slim
+# syntax=docker/dockerfile:1
 
-WORKDIR /app
+# ── Builder — resolves and installs Python dependencies into a venv ──────────
+FROM python:3.11-slim AS builder
 
-ENV PYTHONDONTWRITEBYTECODE=1
-ENV PYTHONUNBUFFERED=1
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Pin production settings so manage.py (migrate/seed) and Daphne both target the
-# deployed database. Without this, manage.py falls back to config.settings.
-# development (SQLite) even inside the container. A platform-provided
-# DJANGO_SETTINGS_MODULE still overrides this default at runtime.
-ENV DJANGO_SETTINGS_MODULE=config.settings.production
-ENV DJANGO_ENV=production
-
-# ── System dependencies ──────────────────────────────────────────────────────
-# PostgreSQL client libraries for Neon PostgreSQL
-RUN apt-get update && apt-get install -y \
+# Build-only toolchain. psycopg[binary] ships wheels, but a source fallback
+# needs libpq headers and a compiler; none of this reaches the runtime image.
+RUN apt-get update && apt-get install -y --no-install-recommends \
     libpq-dev \
     gcc \
     pkg-config \
     && rm -rf /var/lib/apt/lists/*
 
-# ── Python dependencies ──────────────────────────────────────────────────────
+RUN python -m venv /opt/venv
+ENV PATH="/opt/venv/bin:$PATH"
+
 COPY requirements/production.txt requirements/production.txt
+RUN pip install -r requirements/production.txt
 
-RUN pip install --no-cache-dir -r requirements/production.txt
 
-# ── Application ──────────────────────────────────────────────────────────────
+# ── Runtime — application and venv only ──────────────────────────────────────
+FROM python:3.11-slim AS runtime
+
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    DJANGO_SETTINGS_MODULE=config.settings.production \
+    DJANGO_ENV=production \
+    PATH="/opt/venv/bin:$PATH"
+
+WORKDIR /app
+
+COPY --from=builder /opt/venv /opt/venv
 COPY . .
 
-# Create required media directories
-RUN mkdir -p media/snapshots media/evidence
-
-# ── Non-root user ─────────────────────────────────────────────────────────────
-RUN addgroup --system appgroup \
+# Static must exist here because nginx serves it from the shared volume;
+# media gets the same treatment for evidence frames.
+RUN mkdir -p media/snapshots media/evidence staticfiles \
+    && addgroup --system appgroup \
     && adduser --system --ingroup appgroup appuser \
     && chown -R appuser:appgroup /app
 
 USER appuser
 
-# Render supplies $PORT
+# Render (and most PaaS hosts) supply $PORT; compose maps 8000 directly.
 EXPOSE 8000
 
-# ── Production server ─────────────────────────────────────────────────────────
-# Every start/redeploy: apply migrations, then idempotently ensure the baseline
-# data (lookup tables, default/extra admins, AI config) exists. Both seed
-# commands use get_or_create, so existing data is preserved and the result is
-# identical on every deploy — never use `flush` here, it deletes live data.
-# Finally start Daphne (ASGI) so HTTP and WebSockets (/ws/incidents/) both work;
-# Gunicorn (WSGI) cannot serve Channels.
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_lookups && python manage.py seed_default_admin && daphne -b 0.0.0.0 -p $PORT config.asgi:application"]
+# Apply migrations, then idempotently ensure baseline data exists, then start
+# Daphne (ASGI) so both HTTP and /ws/ work. Gunicorn is WSGI-only and cannot
+# serve Channels, so it must never be the production entry point.
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_lookups && python manage.py seed_default_admin && daphne -b 0.0.0.0 -p ${PORT:-8000} config.asgi:application"]

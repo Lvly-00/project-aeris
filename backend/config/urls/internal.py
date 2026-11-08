@@ -12,18 +12,16 @@ Two layers of protection:
 
 Do NOT add user-facing endpoints here.
 """
-import json
+import hmac
 import logging
 from django.conf import settings
 from django.db import transaction
 from django.db.models import F
-from django.utils import timezone
 from django.urls import path
 from rest_framework.views import APIView
 from rest_framework.response import Response
 from rest_framework.permissions import BasePermission
 from rest_framework.throttling import ScopedRateThrottle
-from rest_framework.exceptions import PermissionDenied
 
 logger = logging.getLogger(__name__)
 
@@ -44,10 +42,10 @@ def _fetch_frame_as_evidence(camera_id: int):
     import requests as _req
     from django.core.files.uploadedfile import InMemoryUploadedFile
 
-    # AI_SERVICE_URL is defined in config/urls/main.py — import it here to
-    # avoid duplicating the default value.
+    # AI_SERVICE_URL lives with the proxy — import it here to avoid
+    # duplicating the default value.
     try:
-        from config.urls.main import AI_SERVICE_URL, _PROXY_FORWARD_HEADERS
+        from config.views.ai_proxy import AI_SERVICE_URL
         ai_url = AI_SERVICE_URL
     except ImportError:
         ai_url = os.environ.get("AI_SERVICE_URL", "http://localhost:8005")
@@ -108,7 +106,9 @@ class InternalAPIKeyPermission(BasePermission):
             return False
 
         provided = request.headers.get("X-Internal-Key", "")
-        if provided != expected:
+        # Constant-time comparison: a plain != leaks the shared secret one
+        # byte at a time to anyone who can time the response.
+        if not hmac.compare_digest(provided, expected):
             logger.warning(
                 "Internal endpoint rejected bad X-Internal-Key from %s",
                 request.META.get("REMOTE_ADDR", "unknown"),

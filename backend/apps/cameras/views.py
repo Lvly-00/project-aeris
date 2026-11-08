@@ -4,17 +4,17 @@ import mimetypes
 import logging
 from pathlib import Path
 from typing import List
-from wsgiref.util import FileWrapper
 from datetime import datetime
 from django.conf import settings
 from django.http import FileResponse, HttpResponse, StreamingHttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import IsAuthenticated, AllowAny
+from rest_framework.permissions import AllowAny
 from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.tokens import AccessToken
 from apps.lookups.models import CameraStatus
+from apps.accounts.permissions import IsAdminOrReadOnly
 from apps.audit.models import AuditLog
 from apps.audit.services import write_audit
 from apps.incidents.views import broadcast_camera_changed, broadcast_stats_changed
@@ -71,7 +71,9 @@ logger = logging.getLogger(__name__)
 class CameraViewSet(viewsets.ModelViewSet):
     queryset = Camera.objects.select_related("status").all()
     serializer_class = CameraSerializer
-    permission_classes = [IsAuthenticated]
+    # Every signed-in role may view cameras; only the CCTV Chief may add,
+    # edit, snapshot or delete them.
+    permission_classes = [IsAdminOrReadOnly]
     search_fields = ["name", "location_name", "stream_url"]
     ordering_fields = ["name", "status", "last_seen", "created_at"]
 

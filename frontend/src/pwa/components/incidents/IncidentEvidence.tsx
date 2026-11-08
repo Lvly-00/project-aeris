@@ -79,7 +79,7 @@ export const IncidentEvidence = ({
 
               {severity && severityColor && (
                 <Group gap={rem(8)} mt={rem(8)} wrap="nowrap">
-                  {/* <Badge
+                  <Badge
                     size="sm"
                     radius="sm"
                     tt="none"
@@ -87,7 +87,7 @@ export const IncidentEvidence = ({
                     styles={{ label: { fontWeight: 700 } }}
                   >
                     {severity} severity
-                  </Badge> */}
+                  </Badge>
                 </Group>
               )}
             </Box>

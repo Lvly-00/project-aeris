@@ -14,7 +14,12 @@ from rest_framework_simplejwt.views import (
     TokenVerifyView,
 )
 
+from apps.health.views import HealthView
+
 urlpatterns = [
+    # ── Health probe (compose, nginx, deploy script) ──────────────────────────
+    path("health/", HealthView.as_view(), name="health"),
+
     # ── OpenAPI schema & docs ─────────────────────────────────────────────────
     path("schema/", SpectacularAPIView.as_view(), name="schema"),
     path("docs/", SpectacularSwaggerView.as_view(url_name="schema"), name="swagger-ui"),

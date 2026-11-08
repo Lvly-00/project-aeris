@@ -1,9 +1,8 @@
 import logging
-from rest_framework import viewsets, status
+from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from apps.accounts.permissions import IsAdmin
 from apps.audit.models import AuditLog
 from apps.audit.services import write_audit
 from .models import AIConfiguration

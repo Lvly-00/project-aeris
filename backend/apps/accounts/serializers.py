@@ -1,6 +1,6 @@
 import logging
 from django.core import exceptions
-from django.contrib.auth import get_user_model, authenticate, password_validation
+from django.contrib.auth import get_user_model, password_validation
 from rest_framework import serializers
 
 from apps.lookups.models import Role

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 class IncidentGenerator:
     def __init__(self):
         self.api_base_url = config('BACKEND_API_URL', default='http://backend:8000/api')
-        self.api_key = config('AI_SERVICE_API_KEY', default='ai-service-key')
+        self.api_key = config('AI_SERVICE_API_KEY', default='')
         self.timeout = int(config('API_TIMEOUT', default='10'))
         self.session = requests.Session()
         self.session.headers.update({

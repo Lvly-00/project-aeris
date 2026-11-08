@@ -5,7 +5,7 @@ Never import this directly; use development / production / desktop instead.
 import os
 from pathlib import Path
 from datetime import timedelta
-from decouple import config, Csv
+from decouple import config
 
 # BASE_DIR is backend/ (two levels up from config/settings/)
 BASE_DIR = Path(__file__).resolve().parent.parent.parent

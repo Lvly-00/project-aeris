@@ -47,7 +47,6 @@ api.interceptors.request.use(
     const isPublicEndpoint =
       url.includes('/accounts/login/') ||
       url.includes('/accounts/password-reset/') ||
-      url.includes('/accounts/register/') ||
       url.includes('/auth/token/');
 
     if (!isPublicEndpoint) {
