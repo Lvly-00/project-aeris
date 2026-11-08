@@ -11,6 +11,11 @@ publish:
   repo: project-aeris
   releaseType: release
 
+# The bundled AI sidecar (~1.3 GB of torch/opencv/numpy) exceeds 7-Zip's
+# memory budget at the default "maximum" (-mx=9) compression level.
+# "normal" (-mx=7) compresses almost as well for a fraction of the RAM.
+compression: normal
+
 directories:
   output: release
   buildResources: build

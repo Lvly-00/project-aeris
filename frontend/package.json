@@ -2,6 +2,8 @@
   "name": "aeris-cctv",
   "private": true,
   "version": "1.0.0",
+  "description": "AERIS — AI-Powered Incident Detection System",
+  "author": "AERIS Team",
   "type": "module",
   "main": "electron/main.cjs",
   "scripts": {

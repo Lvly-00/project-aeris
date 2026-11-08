@@ -188,6 +188,21 @@ try {
     }
 
     Write-Host "[5/5] Packaging installer..." -ForegroundColor Yellow
+    # electron-builder ships a 32-bit 7za.exe. Compressing the ~1.3 GB AI
+    # sidecar with it can die on Windows with "Insufficient system resources
+    # exist to complete the requested service" (error 1450) because a 32-bit
+    # process cannot address enough memory for -mx=9 across all cores. Prefer
+    # a system-wide 64-bit 7-Zip when one is installed.
+    if (-not $env:ELECTRON_BUILDER_7ZIP_PATH) {
+        $sevenZip = Join-Path $env:ProgramFiles "7-Zip\7z.exe"
+        if (Test-Path -LiteralPath $sevenZip) {
+            $env:ELECTRON_BUILDER_7ZIP_PATH = $sevenZip
+            Write-Host "  Using 64-bit 7-Zip: $sevenZip" -ForegroundColor Green
+        } else {
+            Write-Host "  64-bit 7-Zip not found; using electron-builder's 32-bit 7za" -ForegroundColor DarkYellow
+            Write-Host "  If packaging fails with 'Insufficient system resources', install 7-Zip or set ELECTRON_BUILDER_COMPRESSION_LEVEL=1" -ForegroundColor DarkYellow
+        }
+    }
     npx electron-builder --config electron-builder.yml
     if ($LASTEXITCODE -ne 0) { throw "Desktop build failed" }
 
