@@ -87,9 +87,12 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Must match ai-service/Dockerfile. requirements.production.txt pins
+      # numpy 2.5.x, which requires Python >= 3.12 — a 3.11 interpreter fails
+      # the install below before the import check ever runs.
       - uses: actions/setup-python@v5
         with:
-          python-version: "3.11"
+          python-version: "3.12"
           cache: pip
           cache-dependency-path: ai-service/requirements.production.txt
 

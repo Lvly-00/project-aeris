@@ -24,6 +24,9 @@ drf-spectacular==0.30.0
 gunicorn==23.0.0
 python-decouple==3.8
 requests==2.34.2
+# Cloudinary media storage (optional — enabled by setting CLOUDINARY_URL)
+cloudinary==1.47.0
+django-cloudinary-storage==0.3.0
 psutil==7.2.2
 dj-database-url
 # Database URL support (optional production convenience)

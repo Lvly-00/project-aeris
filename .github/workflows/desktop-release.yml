@@ -1,0 +1,87 @@
+name: Desktop release
+
+# The desktop shell is versioned independently of the server. Most product
+# changes ship with a normal deploy; this only rebuilds the Electron installer.
+#
+# Cut a release with:
+#   git tag desktop-v1.2.0 && git push origin desktop-v1.2.0
+# The tag sets package.json's version, electron-builder uploads the installer
+# plus latest.yml to GitHub Releases, and installed apps pick it up from the
+# Updates tab. GH_TOKEN is used here only — it is never bundled into the app.
+
+on:
+  push:
+    tags:
+      - 'desktop-v*'
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to publish, e.g. 1.2.0'
+        required: true
+        type: string
+
+permissions:
+  contents: write
+
+concurrency:
+  group: desktop-release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: windows-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Resolve version from tag
+        shell: pwsh
+        run: |
+          $version = if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            '${{ inputs.version }}'
+          } else {
+            '${{ github.ref_name }}' -replace '^desktop-v', ''
+          }
+
+          if ($version -notmatch '^\d+\.\d+\.\d+$') {
+            throw "Release version must look like 1.2.3 (got '$version'). Tag as desktop-v1.2.3."
+          }
+
+          # Keep package.json as the single source of truth for app.getVersion().
+          npm version $version --no-git-tag-version --allow-same-version
+          Add-Content -Path $env:GITHUB_ENV -Value "AERIS_VERSION=$version"
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build and publish installers
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Unsigned builds: skip identity discovery so the build doesn't fail
+          # looking for a certificate. Users will see a SmartScreen prompt.
+          CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # Baked into the installer so every installation points at the real
+          # deployment instead of localhost.
+          AERIS_SERVER_URL: https://aeris.barangay.local
+          AERIS_BACKEND_URL: https://aeris.barangay.local
+        run: npm run build:desktop -- --publish always
+
+      - name: Upload build artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: aeris-desktop-${{ env.AERIS_VERSION }}
+          path: |
+            frontend/release/*.exe
+            frontend/release/*.yml
+            frontend/release/*.blockmap
+          if-no-files-found: warn
+          retention-days: 14

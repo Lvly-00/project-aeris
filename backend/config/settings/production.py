@@ -3,8 +3,12 @@ Production settings — Docker / server deployment.
 DEBUG is hardcoded False and cannot be overridden by environment variables.
 All security headers are enforced unconditionally once HTTPS is confirmed.
 """
-from .base import *  # noqa: F401, F403
-from decouple import config, Csv
+from urllib.parse import urlparse
+
+from decouple import Csv, config
+from django.core.exceptions import ImproperlyConfigured
+
+from .base import *
 
 # ── Debug — hardcoded, never toggleable via env ───────────────────────────────
 DEBUG = False
@@ -41,7 +45,7 @@ else:
     DATABASES = {
         "default": {
             "ENGINE": "django.db.backends.sqlite3",
-            "NAME": BASE_DIR / "db.sqlite3",  # noqa: F405
+            "NAME": BASE_DIR / "db.sqlite3",
         }
     }
 
@@ -106,4 +110,35 @@ FILE_UPLOAD_MAX_MEMORY_SIZE = 10 * 1024 * 1024
 
 # ── Static / media ────────────────────────────────────────────────────────────
 # Media is served via nginx in production; Django doesn't need to serve it.
-MEDIA_ROOT = config("MEDIA_DIR", default=str(BASE_DIR / "media"))  # noqa: F405
+MEDIA_ROOT = config("MEDIA_DIR", default=str(BASE_DIR / "media"))
+
+# ── Cloudinary media storage (optional) ───────────────────────────────────────
+# Set CLOUDINARY_URL=cloudinary://<api_key>:<api_secret>@<cloud_name> to send
+# ImageField uploads (profile pictures, incident evidence, detection snapshots)
+# to Cloudinary instead of the local disk. Leave it unset and everything keeps
+# using MEDIA_ROOT behind nginx.
+#
+# Camera snapshots are written straight to MEDIA_ROOT by apps/cameras, so those
+# files stay on disk either way — Cloudinary only takes Django field uploads.
+CLOUDINARY_URL = config("CLOUDINARY_URL", default="")
+
+if CLOUDINARY_URL:
+    _cloudinary = urlparse(CLOUDINARY_URL)
+    if not (_cloudinary.username and _cloudinary.password and _cloudinary.hostname):
+        raise ImproperlyConfigured(
+            "CLOUDINARY_URL must look like cloudinary://<api_key>:<api_secret>@<cloud_name>"
+        )
+
+    # django-cloudinary-storage reads this dict, not CLOUDINARY_URL itself.
+    CLOUDINARY_STORAGE = {
+        "CLOUD_NAME": _cloudinary.hostname,
+        "API_KEY": _cloudinary.username,
+        "API_SECRET": _cloudinary.password,
+        "SECURE": True,
+    }
+    STORAGES = {
+        "default": {"BACKEND": "cloudinary_storage.storage.MediaCloudinaryStorage"},
+        "staticfiles": {
+            "BACKEND": "django.contrib.staticfiles.storage.StaticFilesStorage"
+        },
+    }

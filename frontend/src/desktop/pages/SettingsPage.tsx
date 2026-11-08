@@ -24,8 +24,9 @@ import {
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import { AddressBook, Brain, Plus, Save, Trash, User } from '@boxicons/react';
+import { AddressBook, Brain, InfoCircle, Plus, Save, Trash, User } from '@boxicons/react';
 import { aiAPI, contactsAPI } from '../../shared/services/api';
+import UpdatesPanel from '../components/UpdatesPanel';
 
 const INCIDENT_TYPES = [
   'Fire', 'Smoke', 'Vehicle_Accident',
@@ -222,6 +223,9 @@ export default function SettingsPage() {
           <Tabs.Tab value="contacts" leftSection={<AddressBook  width={ 14 } height={ 14 } />}>
             Contacts
           </Tabs.Tab>
+          <Tabs.Tab value="about" leftSection={<InfoCircle  width={ 14 } height={ 14 } />}>
+            Updates
+          </Tabs.Tab>
         </Tabs.List>
 
         <Tabs.Panel value="ai">
@@ -405,6 +409,10 @@ export default function SettingsPage() {
               </Stack>
             )}
           </Card>
+        </Tabs.Panel>
+
+        <Tabs.Panel value="about">
+          <UpdatesPanel />
         </Tabs.Panel>
       </Tabs>
 

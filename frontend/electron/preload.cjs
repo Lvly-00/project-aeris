@@ -42,4 +42,20 @@ contextBridge.exposeInMainWorld('electronAPI', {
       body,
     });
   },
+
+  // Installed app version, read from package.json by the main process.
+  getVersion: () => ipcRenderer.invoke('app-version'),
+
+  // Auto-update against GitHub Releases. The renderer never touches the feed
+  // or a token; it only asks the main process to check/download/install.
+  checkForUpdates: () => ipcRenderer.invoke('update:check'),
+  downloadUpdate: () => ipcRenderer.invoke('update:download'),
+  installUpdate: () => ipcRenderer.send('update:install'),
+
+  // Subscribe to updater progress. Returns an unsubscribe function.
+  onUpdateStatus: (callback) => {
+    const handler = (_event, payload) => callback(payload);
+    ipcRenderer.on('update-status', handler);
+    return () => ipcRenderer.removeListener('update-status', handler);
+  },
 });

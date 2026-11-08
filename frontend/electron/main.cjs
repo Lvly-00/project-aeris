@@ -29,6 +29,7 @@ const path = require('path');
 const fs = require('fs');
 const net = require('net');
 const { spawn, spawnSync } = require('child_process');
+const { autoUpdater } = require('electron-updater');
 
 const isDev = !app.isPackaged;
 
@@ -338,6 +339,98 @@ ipcMain.on('get-ai-url', (event) => {
   event.returnValue = isDev ? 'http://localhost:8005/ai' : resolveServerUrl() + '/ai';
 });
 
+// ── Auto-update ──────────────────────────────────────────────────────────────
+// The app is a thin client: the UI it loads lives on the server, so most
+// changes ship with a deploy. Only the Electron shell needs a new installer,
+// which is what this checks for. Updates come from GitHub Releases (public
+// repo), so the installed app holds no credentials — the token is only used by
+// the release workflow when it uploads the build.
+const UPDATE_CHANNEL_EVENTS = {
+  checking: { status: 'checking' },
+};
+
+function sendUpdateStatus(payload) {
+  writeLog(`update: ${payload.status}${payload.version ? ' ' + payload.version : ''}`);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send('update-status', payload);
+  }
+}
+
+function setupAutoUpdater() {
+  if (isDev) return;
+
+  // Check on demand (the Update button), download on request, and let a
+  // downloaded update apply on the next normal quit if the user ignores it.
+  autoUpdater.autoDownload = false;
+  autoUpdater.autoInstallOnAppQuit = true;
+  autoUpdater.logger = {
+    info: (m) => writeLog(`updater: ${m}`),
+    warn: (m) => writeLog(`updater: ${m}`),
+    error: (m) => writeLog(`updater error: ${m}`),
+    debug: () => {},
+  };
+
+  autoUpdater.on('checking-for-update', () => {
+    sendUpdateStatus(UPDATE_CHANNEL_EVENTS.checking);
+  });
+  autoUpdater.on('update-available', (info) => {
+    sendUpdateStatus({ status: 'available', version: info.version });
+  });
+  autoUpdater.on('update-not-available', (info) => {
+    sendUpdateStatus({ status: 'current', version: info.version });
+  });
+  autoUpdater.on('download-progress', (p) => {
+    sendUpdateStatus({
+      status: 'downloading',
+      percent: Math.round(p.percent || 0),
+      transferred: p.transferred,
+      total: p.total,
+      bytesPerSecond: p.bytesPerSecond,
+    });
+  });
+  autoUpdater.on('update-downloaded', (info) => {
+    sendUpdateStatus({ status: 'downloaded', version: info.version });
+  });
+  autoUpdater.on('error', (err) => {
+    sendUpdateStatus({ status: 'error', message: err?.message || String(err) });
+  });
+}
+
+ipcMain.handle('app-version', () => app.getVersion());
+
+ipcMain.handle('update:check', async () => {
+  if (isDev || !app.isPackaged) {
+    return {
+      ok: false,
+      reason: 'dev',
+      message: 'Update checks are only available in the installed app.',
+    };
+  }
+  try {
+    await autoUpdater.checkForUpdates();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err?.message || String(err) };
+  }
+});
+
+ipcMain.handle('update:download', async () => {
+  try {
+    await autoUpdater.downloadUpdate();
+    return { ok: true };
+  } catch (err) {
+    return { ok: false, reason: 'error', message: err?.message || String(err) };
+  }
+});
+
+ipcMain.on('update:install', () => {
+  // Stop the bundled AI sidecar first; quitAndInstall would otherwise leave it
+  // holding the bundle port while the new version starts.
+  app.isQuitting = true;
+  stopAiService();
+  autoUpdater.quitAndInstall(false, true);
+});
+
 app.whenReady().then(async () => {
   writeLog('App starting (bundled client)...');
 
@@ -371,6 +464,8 @@ app.whenReady().then(async () => {
   }
 
   ensureAiServiceBundled();
+
+  setupAutoUpdater();
 
   createWindow();
   createTray();

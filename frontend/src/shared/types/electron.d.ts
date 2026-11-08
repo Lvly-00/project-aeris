@@ -1,5 +1,17 @@
 export {};
 
+type UpdateStatus =
+  | { status: 'checking' }
+  | { status: 'available' | 'current' | 'downloaded'; version?: string }
+  | {
+      status: 'downloading';
+      percent: number;
+      transferred?: number;
+      total?: number;
+      bytesPerSecond?: number;
+    }
+  | { status: 'error'; message?: string };
+
 declare global {
   interface Window {
     electronAPI?: {
@@ -23,6 +35,20 @@ declare global {
         title: string,
         body: string
       ) => void;
+
+      getVersion: () => Promise<string>;
+      checkForUpdates: () => Promise<{
+        ok: boolean;
+        reason?: string;
+        message?: string;
+      }>;
+      downloadUpdate: () => Promise<{
+        ok: boolean;
+        reason?: string;
+        message?: string;
+      }>;
+      installUpdate: () => void;
+      onUpdateStatus: (callback: (status: UpdateStatus) => void) => () => void;
     };
   }
 }

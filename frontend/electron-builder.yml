@@ -2,6 +2,15 @@ appId: com.aeris.cctv
 productName: Aeris
 copyright: Copyright © 2026
 
+# Auto-update feed. Releases in this public repo are readable without
+# credentials, so the installed app polls them directly and holds no token.
+# Publishing (CI only) is authenticated with GH_TOKEN at build time.
+publish:
+  provider: github
+  owner: Lvly-00
+  repo: project-aeris
+  releaseType: release
+
 directories:
   output: release
   buildResources: build
