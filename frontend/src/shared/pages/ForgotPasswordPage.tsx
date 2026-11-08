@@ -247,6 +247,7 @@ export default function ForgotPasswordPage() {
                 onAction={() => navigate(`/verification-code?app=${app}`, { state: { email: sentEmail } })}
                 actionLabel="Continue"
                 buttonColor={ORANGE}
+                variant={isPwa ? 'compact' : 'classic'}
                 title="Check your email"
                 message={AUTH_MESSAGES.RESET_SENT}
                 icon={<MailOpen size="lg" color="#00C853" strokeWidth={1} />}

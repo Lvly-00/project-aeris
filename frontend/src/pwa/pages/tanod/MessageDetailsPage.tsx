@@ -1,4 +1,4 @@
-import React, { useEffect } from 'react';
+import { useEffect } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import {
@@ -18,51 +18,12 @@ import {
     useMantineTheme,
     useMantineColorScheme,
 } from '@mantine/core';
-import type { BoxIconProps } from '@boxicons/react';
 import { AlignLeft, Camera, Car, ChevronLeft, Clock, Cloud, Flame, Hashtag, LocationPin, Pulse, ShieldAlt, Timer } from '@boxicons/react';
+import { DetailRow } from '../../components/tanod/DetailRow';
 import { dispatchMessagesAPI } from '../../../shared/services/api';
 import { formatDate, formatConfidence } from '../../../shared/utils/helpers';
 import { SEVERITY_COLORS, STATUS_COLORS } from '../../../shared/utils/constants';
 import type { DispatchMessage, IncidentType } from '../../../shared/types';
-
-interface DetailRowProps {
-    icon: React.ComponentType<BoxIconProps>;
-    label: string;
-    value: string;
-    iconColor?: string;
-}
-
-// Sub-component for the detail items at the bottom
-const DetailRow = ({ icon: Icon, label, value, iconColor }: DetailRowProps) => {
-    const theme = useMantineTheme();
-    return (
-        <Group wrap="nowrap" align="center" py="md">
-            <Box
-                style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                    width: rem(40),
-                }}
-            >
-                <Icon
-                    width={32}
-                    height={32}
-                    color={iconColor || theme.colors.orange[6]}
-                    strokeWidth={1.5}
-                />
-            </Box>
-            <Stack gap={0}>
-                <Text fw={700} size="md">
-                    {label}
-                </Text>
-                <Text c="dimmed" size="md">
-                    {value}
-                </Text>
-            </Stack>
-        </Group>
-    );
-};
 
 function getIncidentIcon(type: IncidentType) {
     switch (type) {

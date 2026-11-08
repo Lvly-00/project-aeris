@@ -480,7 +480,7 @@ export default function ProfilePage() {
         onSendCode={async () => { await authAPI.send2FACode(); }}
         onVerify={async (code) => { await authAPI.verify2FACode(code); }}
         onVerified={fetchProfile}
-        title="Two-Factor Authentication"
+        title="Confirm it's you"
         subtitle={twoFAIntent === 'disable' ? '2FA has been disabled.' : '2FA has been enabled. You will need to verify your identity on future logins.'}
         verifyLabel={twoFAIntent === 'disable' ? 'Disable 2FA' : 'Enable 2FA'}
       />

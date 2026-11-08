@@ -275,9 +275,11 @@ export default function LoginPage() {
           }
           navigate('/desktop/cameras', { replace: true });
         }}
-        title="Two-Factor Authentication"
-        subtitle="Your identity has been verified. You may now continue."
-        verifyLabel="Continue to Dashboard"
+        title="Verify it's you"
+        subtitle="You're verified. Continuing to your dashboard."
+        verifyLabel="Continue to dashboard"
+        codeSentOnOpen
+        resendable={false}
       />
     </Box>
   );

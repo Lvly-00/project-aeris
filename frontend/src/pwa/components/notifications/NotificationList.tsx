@@ -72,14 +72,8 @@ export function NotificationList({
 }) {
   return (
    
-    <Box
-      style={{
-        maxHeight: 'min(420px, calc(100dvh - 13rem))',
-        overflowY: 'auto',
-        overflowX: 'hidden',
-        overscrollBehavior: 'contain',
-      }}
-    >
+    /* The modal body owns the scrolling, so the list grows with its content. */
+    <Box style={{ overflowX: 'hidden' }}>
       {loading ? (
         <NotificationListSkeleton />
       ) : items.length === 0 ? (

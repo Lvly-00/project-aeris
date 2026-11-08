@@ -94,9 +94,9 @@ export default function PersonalInformationSection({
         value={revealEmail ? user.email : maskEmail(user.email)}
       >
         <Button
-          ariaLabel={revealEmail ? 'Hide email' : 'Show email'}
-          variant='white'
-          pressed={revealEmail}
+          aria-label={revealEmail ? 'Hide email' : 'Show email'}
+          variant='transparent'
+          aria-pressed={revealEmail}
           onClick={() => setRevealEmail((revealed) => !revealed)}
         >
           {revealEmail ? 'Hide' : 'Show'}

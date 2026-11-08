@@ -15,6 +15,7 @@ import PersonalInformationSection from '../components/profile/PersonalInformatio
 import PreferencesSection from '../components/profile/PreferencesSection';
 import LegalSection from '../components/profile/LegalSection';
 import ProfileSkeleton from '../components/profile/ProfileSkeleton';
+import { LogoutConfirmModal } from '../components/profile/LogoutConfirmModal';
 import { useProfileAccent } from '../components/profile/profileTheme';
 
 export default function ProfilePage() {
@@ -32,6 +33,7 @@ export default function ProfilePage() {
   const [twoFAIntent, setTwoFAIntent] = useState<'enable' | 'disable'>('enable');
   const [notifConsentOpened, setNotifConsentOpened] = useState(false);
   const [notifConfirming, setNotifConfirming] = useState(false);
+  const [logoutOpened, setLogoutOpened] = useState(false);
   const [termsOpened, setTermsOpened] = useState(false);
   const [privacyOpened, setPrivacyOpened] = useState(false);
 
@@ -173,7 +175,7 @@ export default function ProfilePage() {
             size="md"
             radius="md"
             mt="xs"
-            onClick={logout}
+            onClick={() => setLogoutOpened(true)}
           >
             <span style={{ fontWeight: 600, color: accent }}>Log out</span>
           </Button>
@@ -213,9 +215,15 @@ export default function ProfilePage() {
         onSendCode={async () => { await authAPI.send2FACode(); }}
         onVerify={async (code) => { await authAPI.verify2FACode(code); }}
         onVerified={fetchProfile}
-        title="Two-Factor Authentication"
+        title="Confirm it's you"
         subtitle={twoFAIntent === 'disable' ? '2FA has been disabled.' : '2FA has been enabled. You will need to verify your identity on future logins.'}
         verifyLabel={twoFAIntent === 'disable' ? 'Disable 2FA' : 'Enable 2FA'}
+      />
+
+      <LogoutConfirmModal
+        opened={logoutOpened}
+        onClose={() => setLogoutOpened(false)}
+        onConfirm={logout}
       />
 
       <TermsAndConditionsModal opened={termsOpened} onClose={() => setTermsOpened(false)} />

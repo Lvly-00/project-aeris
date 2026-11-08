@@ -6,7 +6,6 @@ import {
   Center,
   Group,
   Image,
-  Modal,
   Stack,
   Text,
   rem,
@@ -15,6 +14,7 @@ import {
 import { Maximize, Video } from '@boxicons/react';
 
 import type { Severity } from '../../../shared/types';
+import { EvidenceLightbox } from './EvidenceLightbox';
 
 interface IncidentEvidenceProps {
   /** Resolved media URL, or null when the detector stored no frame. */
@@ -117,22 +117,12 @@ export const IncidentEvidence = ({
       </Box>
 
       {src && (
-        <Modal
+        <EvidenceLightbox
           opened={open}
           onClose={() => setOpen(false)}
-          title={<Text fw={700}>Incident evidence</Text>}
-          size="xl"
-          centered
-          radius="lg"
-          padding="md"
-        >
-          <Image
-            src={src}
-            alt={`Evidence captured for incident ${incidentId}`}
-            w="100%"
-            radius="md"
-          />
-        </Modal>
+          src={src}
+          incidentId={incidentId}
+        />
       )}
     </>
   );

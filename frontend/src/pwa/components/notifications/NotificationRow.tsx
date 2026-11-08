@@ -71,7 +71,7 @@ export function NotificationRow({
                 height: 44,
                 objectFit: 'cover',
                 borderRadius: rem(8),
-                backgroundColor: 'var(--mantine-color-gray-2)',
+                backgroundColor: 'var(--mantine-color-default)',
               }}
             />
           ) : (

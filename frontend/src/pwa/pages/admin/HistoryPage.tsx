@@ -292,7 +292,11 @@ export default function HistoryPage() {
                 items={selectedNames}
                 noun="Incident"
                 listTitle="Incidents to be deleted"
-                confirmLabel={`Delete (${selectedIds.length})`}
+                confirmLabel={
+                    selectedIds.length > 1
+                        ? `Delete (${selectedIds.length})`
+                        : undefined
+                }
             />
         </Container>
     );

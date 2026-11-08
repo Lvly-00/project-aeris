@@ -19,7 +19,7 @@ export function NotificationToolbar({
   onMarkAllRead: () => void;
 }) {
   return (
-    <Group justify="space-between" align="center" gap="sm" mb="md" wrap="wrap">
+    <Group justify="space-between" align="center" gap="sm" wrap="wrap">
       <Group gap={rem(7)} align="center" wrap="nowrap" style={{ minWidth: 0 }}>
         <Box
           w={7}

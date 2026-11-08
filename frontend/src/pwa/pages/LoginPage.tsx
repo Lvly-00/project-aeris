@@ -394,9 +394,11 @@ export default function LoginPage() {
                     await verify2FALogin(twoFAEmail, code, rememberMe);
                 }}
                 onVerified={() => navigate('/pwa', { replace: true })}
-                title="Two-Factor Authentication"
-                subtitle="Your identity has been verified. You may now continue."
-                verifyLabel="Continue to Dashboard"
+                title="Verify it's you"
+                subtitle="You're verified. Opening your dashboard."
+                verifyLabel="Continue to dashboard"
+                codeSentOnOpen
+                resendable={false}
             />
         </Box>
     );

@@ -1,12 +1,11 @@
-import { useState, useEffect } from 'react';
-import {
-  Modal, Stack, TextInput, Button, Group, Text, Box, Title, ActionIcon, Divider
-} from '@mantine/core';
-import { Lock, User, X } from '@boxicons/react';
+import { useEffect, useState } from 'react';
+import { User } from '@boxicons/react';
 
 import { authAPI } from '../../services/api';
-
-const ORANGE = '#FF6B00';
+import { AppModal } from '../modals/AppModal';
+import { ModalHeader } from '../modals/ModalHeader';
+import { ModalFooter } from '../modals/ModalFooter';
+import { EditNameFields } from './editName/EditNameFields';
 
 interface EditNameModalProps {
   opened: boolean;
@@ -15,6 +14,7 @@ interface EditNameModalProps {
   onUpdated?: (updatedUser: any) => void;
 }
 
+/** Reads and saves the user's name; the fields live in ./editName. */
 export default function EditNameModal({
   opened,
   onClose,
@@ -69,8 +69,16 @@ export default function EditNameModal({
       const data = err.response?.data;
       if (data) {
         const fieldErrors: Record<string, string> = {};
-        if (data.first_name) fieldErrors.first_name = Array.isArray(data.first_name) ? data.first_name[0] : data.first_name;
-        if (data.last_name) fieldErrors.last_name = Array.isArray(data.last_name) ? data.last_name[0] : data.last_name;
+        if (data.first_name) {
+          fieldErrors.first_name = Array.isArray(data.first_name)
+            ? data.first_name[0]
+            : data.first_name;
+        }
+        if (data.last_name) {
+          fieldErrors.last_name = Array.isArray(data.last_name)
+            ? data.last_name[0]
+            : data.last_name;
+        }
         if (Object.keys(fieldErrors).length === 0) {
           fieldErrors.first_name = 'Unable to update your profile. Please try again.';
         }
@@ -84,98 +92,36 @@ export default function EditNameModal({
   };
 
   return (
-    <Modal
+    <AppModal
       opened={opened}
       onClose={handleClose}
-      withCloseButton={false} // Custom close button in header
-      centered
-      radius="lg"
       size="md"
-      padding="xl"
+      label="Edit name"
+      header={
+        <ModalHeader
+          title="Edit name"
+          description="Update the name shown on your account."
+          icon={<User width={20} height={20} />}
+          onClose={handleClose}
+        />
+      }
+      footer={
+        <ModalFooter
+          onCancel={handleClose}
+          cancelDisabled={loading}
+          confirmLabel="Save changes"
+          confirmLoading={loading}
+          onConfirm={handleSubmit}
+        />
+      }
     >
-      {/* Custom Header Section */}
-
-      <Group justify="space-between" align="flex-start" mb="lg" wrap="wrap" gap="sm">
-        <Group align="center" gap="md" style={{ flex: 1, minWidth: 200 }}>
-          <Box
-            bg={ORANGE}
-            p={10}
-            style={{ borderRadius: '12px', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}
-          >
-            <User width={28} height={28} style={{ color: 'white', display: 'block' }} />
-          </Box>
-          <Stack gap={2} style={{ flex: 1, minWidth: 0 }}>
-            <Title order={3} fw={700}>Edit Name</Title>
-            <Text c="dimmed" fz="sm" fw={400} style={{ maxWidth: 300, lineHeight: 1.4 }}>
-              Enter a new first name and last name.
-            </Text>
-          </Stack>
-        </Group>
-        <ActionIcon variant="transparent" color="gray" onClick={onClose} aria-label="Close">
-          <X width={24} height={24} />
-        </ActionIcon>
-      </Group>
-      <Divider my="lg" />
-
-      <Stack gap="lg">
-        <TextInput
-          label={
-            <Text size="sm" fw={700} mb={5}>
-              First Name <span style={{ color: 'red' }}>*</span>
-            </Text>
-          }
-          placeholder="Enter first name"
-          value={firstName}
-          onChange={(e) => setFirstName(e.currentTarget.value)}
-          error={errors.first_name}
-          radius="md"
-          size="md"
-          leftSection={<User width={18} height={18} style={{ color: '#888' }} />}
-          styles={{ input: { border: '1.5px solid #E0E0E0' } }}
-        />
-
-        <TextInput
-          label={
-            <Text size="sm" fw={700} mb={5}>
-              Last Name <span style={{ color: 'red' }}>*</span>
-            </Text>
-          }
-          placeholder="Enter last name"
-          value={lastName}
-          onChange={(e) => setLastName(e.currentTarget.value)}
-          error={errors.last_name}
-          radius="md"
-          size="md"
-          leftSection={<User width={18} height={18} style={{ color: '#888' }} />}
-          styles={{ input: { border: '1.5px solid #E0E0E0' } }}
-        />
-
-        {/* Footer Actions */}
-        <Group grow mt="lg">
-          <Button
-            variant="outline"
-            color="gray"
-            radius="md"
-            size="md"
-            h={48}
-            onClick={handleClose}
-            styles={{ root: { border: '1.5px solid #E0E0E0', color: '#333' } }}
-          >
-            Cancel
-          </Button>
-          <Button
-            bg="#FF5722"
-            radius="md"
-            size="md"
-            h={48}
-            onClick={handleSubmit}
-            loading={loading}
-            styles={{ root: { backgroundColor: '#FF5722' } }}
-          >
-            Save Changes
-          </Button>
-        </Group>
-      </Stack>
-    </Modal>
+      <EditNameFields
+        firstName={firstName}
+        lastName={lastName}
+        errors={errors}
+        onFirstNameChange={setFirstName}
+        onLastNameChange={setLastName}
+      />
+    </AppModal>
   );
 }

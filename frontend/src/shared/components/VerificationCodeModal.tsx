@@ -1,12 +1,18 @@
-import { useState, useEffect, useRef } from 'react';
-import {
-  Modal, Stack, Text, Group, Button, Divider, PinInput, Alert, Box, Title, rem, Anchor, ActionIcon, Center
-} from '@mantine/core';
-import { Envelope, InfoCircle, Check, X, AlertCircle } from '@boxicons/react';
+import { useEffect, useRef, useState } from 'react';
+import { Text } from '@mantine/core';
+import { Check, Envelope } from '@boxicons/react';
 
-const ORANGE = '#FF6B00';
-const CODE_TTL_SECONDS = 300;
-const RESEND_COOLDOWN_SECONDS = 55;
+import { AppModal } from './modals/AppModal';
+import { ModalFooter } from './modals/ModalFooter';
+import { ModalHeader } from './modals/ModalHeader';
+import { VerificationCodeForm } from './verification/VerificationCodeForm';
+import { VerificationCodeSending } from './verification/VerificationCodeSending';
+import { VerificationCodeSuccess } from './verification/VerificationCodeSuccess';
+import {
+  CODE_TTL_SECONDS,
+  RESEND_COOLDOWN_SECONDS,
+  maskEmail,
+} from './verification/verificationMeta';
 
 export interface VerificationCodeModalProps {
   opened: boolean;
@@ -25,8 +31,19 @@ export interface VerificationCodeModalProps {
    * Disabled by default (0).
    */
   autoRedirectMs?: number;
+  /**
+   * The code was already sent before the modal opened (the login endpoint
+   * sends it), so opening must not request another one.
+   */
+  codeSentOnOpen?: boolean;
+  /** Hide the resend control when the app cannot send another code. */
+  resendable?: boolean;
 }
 
+/**
+ * Owns the code request, the countdown and the verification call. The header
+ * frame is shared, and the form and success copy live in ./verification.
+ */
 export default function VerificationCodeModal({
   opened,
   onClose,
@@ -34,16 +51,19 @@ export default function VerificationCodeModal({
   email,
   onSendCode,
   onVerify,
-  title = 'Verification code sent',
+  title = 'Verify email address',
   subtitle,
   verifyLabel = 'Continue',
   cancelLabel = 'Cancel',
   autoRedirectMs = 0,
+  codeSentOnOpen = false,
+  resendable = true,
 }: VerificationCodeModalProps) {
   const [code, setCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  const [sending, setSending] = useState(false);
+  const [sending, setSending] = useState(!codeSentOnOpen);
+  const [resending, setResending] = useState(false);
   const [countdown, setCountdown] = useState(CODE_TTL_SECONDS);
   const [resendTimer, setResendTimer] = useState(RESEND_COOLDOWN_SECONDS);
   const [verified, setVerified] = useState(false);
@@ -53,7 +73,7 @@ export default function VerificationCodeModal({
   const onVerifiedRef = useRef(onVerified);
   onVerifiedRef.current = onVerified;
 
-  // Auto-redirect to the next step after successful verification.
+  /* Auto-redirect to the next step after successful verification. */
   useEffect(() => {
     if (!verified || autoRedirectMs <= 0) return;
     const id = setTimeout(() => onVerifiedRef.current(), autoRedirectMs);
@@ -62,18 +82,6 @@ export default function VerificationCodeModal({
       if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
     };
   }, [verified, autoRedirectMs]);
-
-  const formatClock = (totalSeconds: number) => {
-    const m = Math.floor(Math.max(totalSeconds, 0) / 60).toString().padStart(2, '0');
-    const s = (Math.max(totalSeconds, 0) % 60).toString().padStart(2, '0');
-    return `${m}:${s}`;
-  };
-
-  const maskEmail = (val: string) => {
-    if (!val) return '';
-    const [name, domain] = val.split('@');
-    return `${name.substring(0, 2)}${'*'.repeat(8)}@${domain}`;
-  };
 
   const startCountdown = () => {
     if (timerRef.current) clearInterval(timerRef.current);
@@ -87,42 +95,65 @@ export default function VerificationCodeModal({
 
   useEffect(() => {
     if (!opened) return;
+
     setCode('');
     setError('');
     setLoading(false);
+    setResending(false);
     setVerified(false);
 
+    if (codeSentOnOpen) {
+      /* The code is already in the inbox: just run its clock. */
+      setSending(false);
+      startCountdown();
+      return () => {
+        if (timerRef.current) clearInterval(timerRef.current);
+      };
+    }
+
+    setSending(true);
     (async () => {
-      setSending(true);
       try {
         await onSendCode();
         startCountdown();
       } catch {
         setError('We could not send the verification code. Please try again.');
+        /* Nothing is in the inbox yet: no clock to run, and no cooldown to
+           wait out before the person retries. */
+        setCountdown(0);
+        setResendTimer(0);
       } finally {
         setSending(false);
       }
     })();
 
-    return () => { if (timerRef.current) clearInterval(timerRef.current); };
+    return () => {
+      if (timerRef.current) clearInterval(timerRef.current);
+    };
+    // The code is requested once per open, not on every render.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [opened]);
 
   const handleResend = async () => {
-    if (resendTimer > 0) return;
+    if (resendTimer > 0 || resending) return;
     setError('');
-    setCode('');
+    setResending(true);
     try {
       await onSendCode();
+      setCode('');
       startCountdown();
     } catch {
-      setError('We could not send the verification code. Please try again.');
+      setError('We could not send a new code. Please try again.');
+      setResendTimer(0);
+    } finally {
+      setResending(false);
     }
   };
 
   const handleVerify = async () => {
     setError('');
     if (!code || code.length < 6) {
-      setError('Please enter the 6-digit verification code.');
+      setError('Enter the 6-digit verification code.');
       return;
     }
 
@@ -139,153 +170,85 @@ export default function VerificationCodeModal({
   };
 
   const handleClose = () => {
+    if (loading) return;
     if (timerRef.current) clearInterval(timerRef.current);
     if (redirectTimerRef.current) clearTimeout(redirectTimerRef.current);
     onClose();
   };
 
+  const maskedEmail = maskEmail(email);
+  const heading = verified ? 'Verification successful' : sending ? 'Sending your code' : title;
+  const description = verified ? undefined : (
+    <>
+      <Text component="span" inherit>
+        {sending
+          ? 'Sending a 6-digit verification code to'
+          : 'A 6-digit verification code has been sent to'}
+      </Text>
+      <Text
+        component="span"
+        inherit
+        fw={700}
+        c="var(--mantine-color-text)"
+        style={{ display: 'block', marginTop: 2 }}
+      >
+        {maskedEmail}
+      </Text>
+    </>
+  );
+
   return (
-    <Modal
+    <AppModal
       opened={opened}
       onClose={handleClose}
-      withCloseButton={false}
-      centered
-      radius={15}
-      size={440}
-      padding={35}
+      size="md"
+      label={heading}
+      closeOnClickOutside={!loading}
+      header={
+        <ModalHeader
+          title={heading}
+          description={description}
+          icon={verified ? <Check width={22} height={22} /> : <Envelope width={22} height={22} />}
+          onClose={handleClose}
+          closeDisabled={loading}
+          layout="stacked"
+          iconVariant="soft"
+          divider={false}
+        />
+      }
+      footer={
+        <ModalFooter
+          onCancel={verified || loading ? undefined : handleClose}
+          cancelLabel={cancelLabel}
+          confirmLabel={verified ? 'Continue' : verifyLabel}
+          confirmLoading={loading}
+          confirmDisabled={
+            !verified && (sending || countdown <= 0 || code.length < 6)
+          }
+          onConfirm={verified ? onVerified : handleVerify}
+          cancelVariant="text"
+          align="end"
+          divider={false}
+        />
+      }
     >
-      <Stack align="center" gap="md">
-        {/* Close Button Top Right */}
-        <Box style={{ position: 'absolute', top: 20, right: 20 }}>
-          <ActionIcon variant="transparent" color="gray" onClick={handleClose}>
-            <X width={24} height={24} />
-          </ActionIcon>
-        </Box>
-
-        {/* Dynamic Icon Header */}
-        <Box
-          bg={verified ? "var(--mantine-color-green-light)" : "var(--mantine-color-orange-light)"}
-          style={{
-            borderRadius: '50%',
-            width: rem(80),
-            height: rem(80),
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-          }}
-        >
-          {verified ? (
-            <Check width={40} height={40} color="var(--mantine-color-green-6)" />
-          ) : (
-            <Envelope width={40} height={40} color={ORANGE} strokeWidth={1} />
-          )}
-        </Box>
-
-        <Title order={3} fw={700} ta="center">
-          {verified ? 'Verification Successful' : title}
-        </Title>
-
-        {sending ? (
-          <Text size="sm" c="dimmed" ta="center">Sending verification code...</Text>
-        ) : verified ? (
-          <Text ta="center" c="dimmed" fz="sm">
-            {subtitle ?? 'Your identity has been successfully verified. You may now continue.'}
-          </Text>
-        ) : (
-          <Text ta="center" c="dimmed" fz="sm">
-            A 6-digit verification code has been sent to{' '}
-            <Text component="span" fw={700} c="var(--mantine-color-text)">
-              {maskEmail(email)}
-            </Text>
-          </Text>
-        )}
-
-        {!verified && !sending && (
-          <>
-            <PinInput
-              length={6}
-              size="md"
-              type="number"
-              value={code}
-              onChange={setCode}
-              disabled={loading}
-              styles={{
-                input: {
-                  width: rem(46),
-                  height: rem(48),
-                  fontSize: rem(18),
-                  fontWeight: 700,
-                  borderRadius: rem(8),
-                  '&:focus': { borderColor: ORANGE },
-                },
-              }}
-            />
-
-            <Text fz="xs" c="dimmed">
-              Code expires in{' '}
-              <Text span c={countdown > 0 ? 'red' : 'dimmed'} fw={600}>
-                {formatClock(countdown)}
-              </Text>
-            </Text>
-
-            <Text fz="sm" c="dimmed">
-              Didn't receive the code?{' '}
-              <Anchor
-                component="button"
-                c={resendTimer > 0 ? 'dimmed' : ORANGE}
-                fw={600}
-                disabled={resendTimer > 0}
-                onClick={handleResend}
-              >
-                Resend code {resendTimer > 0 && `(${resendTimer}s)`}
-              </Anchor>
-            </Text>
-
-            <Divider w="100%" my="xs" color="var(--mantine-color-default-border)" />
-
-            <Alert
-              variant="light"
-              color={error ? 'red' : 'orange'}
-              radius="md"
-              w="100%"
-              icon={error ? <AlertCircle width={20} /> : <InfoCircle width={20} />}
-              styles={{
-                message: { fontSize: rem(13), lineHeight: 1.4 },
-              }}
-            >
-              {error || 'Please check your inbox and spam folder for the verification code.'}
-            </Alert>
-          </>
-        )}
-
-        <Group w="100%" gap="sm" grow>
-          {!verified && (
-            <Button
-              variant="subtle"
-              h={54}
-              radius="md"
-              color="gray"
-              fw={600}
-              onClick={handleClose}
-              disabled={loading}
-            >
-              {cancelLabel}
-            </Button>
-          )}
-
-          <Button
-            h={54}
-            radius="md"
-            color={ORANGE}
-            loading={loading}
-            onClick={verified ? onVerified : handleVerify}
-            disabled={!verified && countdown <= 0}
-            style={{ fontSize: rem(16), fontWeight: 700 }}
-          >
-            {verified ? 'Continue' : verifyLabel}
-          </Button>
-        </Group>
-      </Stack>
-    </Modal>
+      {sending ? (
+        <VerificationCodeSending />
+      ) : verified ? (
+        <VerificationCodeSuccess message={subtitle} />
+      ) : (
+        <VerificationCodeForm
+          code={code}
+          onCodeChange={setCode}
+          error={error}
+          verifying={loading}
+          resending={resending}
+          countdown={countdown}
+          resendTimer={resendTimer}
+          onResend={handleResend}
+          resendable={resendable}
+        />
+      )}
+    </AppModal>
   );
 }

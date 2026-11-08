@@ -1,11 +1,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import type { Dispatch, SetStateAction } from 'react';
-import { Modal } from '@mantine/core';
+import { Box } from '@mantine/core';
 import { notifications } from '@mantine/notifications';
 
 import { AppNotification } from '../../shared/types/index';
 import { notificationsAPI } from '../../shared/services/api';
 import { onWebSocketMessage } from '../../shared/services/websocket';
+import { AppModal } from '../../shared/components/modals/AppModal';
+import { MODAL_PADDING_X } from '../../shared/components/modals/modalTheme';
 import { NotificationHeader } from './notifications/NotificationHeader';
 import { NotificationToolbar } from './notifications/NotificationToolbar';
 import { NotificationList } from './notifications/NotificationList';
@@ -40,9 +42,7 @@ export function NotificationsModal({
     }
   }, [onUnreadChange]);
 
-  /*
-   * Load notifications when the modal opens
-   */
+  /* Load notifications when the modal opens. */
   useEffect(() => {
     if (!opened) return;
 
@@ -61,7 +61,7 @@ export function NotificationsModal({
           notifications.show({
             title: 'Error',
             message: 'Failed to load notifications',
-            color: 'red',
+            color: 'orange',
           });
         }
       } finally {
@@ -107,7 +107,7 @@ export function NotificationsModal({
       notifications.show({
         title: 'Error',
         message: 'Failed to mark all as read',
-        color: 'red',
+        color: 'orange',
       });
     } finally {
       setMarkingAll(false);
@@ -140,30 +140,26 @@ export function NotificationsModal({
   };
 
   return (
-    <Modal
+    <AppModal
       opened={opened}
       onClose={onClose}
-      withCloseButton={false} // Custom close button in header
-      centered
-      radius="md"
-      size="lg"
-      padding="md"
-      /* A dialog on every screen, but never wider than the phone it is on */
-      styles={{
-        content: { maxWidth: 'min(620px, calc(100vw - 2rem))' },
-        body: { overflowX: 'hidden' },
-      }}
+      size="xl"
+      label="Notifications"
+      header={
+        <>
+          <NotificationHeader onClose={onClose} />
+          <Box px={MODAL_PADDING_X} pt="md" style={{ flexShrink: 0 }}>
+            <NotificationToolbar
+              unreadCount={unreadCount}
+              total={items.length}
+              markingAll={markingAll}
+              onMarkAllRead={handleMarkAllRead}
+            />
+          </Box>
+        </>
+      }
     >
-      <NotificationHeader onClose={onClose} />
-
-      <NotificationToolbar
-        unreadCount={unreadCount}
-        total={items.length}
-        markingAll={markingAll}
-        onMarkAllRead={handleMarkAllRead}
-      />
-
       <NotificationList items={items} loading={loading} onOpen={handleOpen} />
-    </Modal>
+    </AppModal>
   );
 }
