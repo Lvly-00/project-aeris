@@ -1,0 +1,220 @@
+/*
+ * Custom desktop title bar: replaces the native menu bar and carries the
+ * window controls plus the update button.
+ */
+
+:root {
+  /* 0 in the browser/PWA build; set to the bar height inside Electron. */
+  --aeris-titlebar-height: 0px;
+}
+
+html.electron-shell {
+  --aeris-titlebar-height: 40px;
+}
+
+/* Reserve the strip so the fixed bar never covers page content. */
+html.electron-shell body {
+  padding-top: var(--aeris-titlebar-height);
+}
+
+.desktop-titlebar {
+  --tb-accent: #ff5a05;
+  --tb-accent-strong: #e04e02;
+  --tb-accent-soft: rgba(255, 90, 5, 0.11);
+
+  position: fixed;
+  inset: 0 0 auto 0;
+  height: var(--aeris-titlebar-height);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: var(--mantine-color-body);
+  border-bottom: 1px solid var(--mantine-color-default-border);
+  user-select: none;
+  -webkit-app-region: drag;
+  app-region: drag;
+}
+
+html[data-mantine-color-scheme='dark'] .desktop-titlebar {
+  --tb-accent-strong: #ff8a4d;
+  --tb-accent-soft: rgba(255, 90, 5, 0.18);
+}
+
+.desktop-titlebar__left {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+  padding-left: 12px;
+}
+
+.desktop-titlebar__logo {
+  display: block;
+  height: 24px;
+  width: auto;
+  object-fit: contain;
+  -webkit-user-drag: none;
+}
+
+.desktop-titlebar__divider {
+  width: 1px;
+  height: 15px;
+  background: var(--mantine-color-default-border);
+}
+
+.desktop-titlebar__context {
+  font-size: 10.5px;
+  font-weight: 600;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  color: var(--mantine-color-dimmed);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.desktop-titlebar__right {
+  display: flex;
+  align-items: stretch;
+  height: 100%;
+  flex: 0 0 auto;
+}
+
+/* ── Update control ────────────────────────────────────────────────────── */
+
+.desktop-titlebar__update {
+  appearance: none;
+  border: 0;
+  font: inherit;
+  align-self: center;
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-start;
+  height: 28px;
+  padding: 0 7px;
+  margin-right: 4px;
+  border-radius: 7px;
+  color: var(--tb-accent-strong);
+  background: var(--tb-accent-soft);
+  overflow: hidden;
+  cursor: pointer;
+  outline: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  transition:
+    background-color 160ms ease,
+    color 160ms ease,
+    box-shadow 160ms ease;
+}
+
+.desktop-titlebar__update:hover,
+.desktop-titlebar__update:focus-visible {
+  background: var(--tb-accent);
+  color: #fff;
+  box-shadow: 0 2px 10px rgba(255, 90, 5, 0.35);
+}
+
+.desktop-titlebar__update:focus-visible {
+  box-shadow: 0 0 0 2px var(--mantine-color-body), 0 0 0 4px var(--tb-accent);
+}
+
+.desktop-titlebar__update:disabled {
+  cursor: default;
+}
+
+.desktop-titlebar__update.is-progress {
+  background: var(--tb-accent-soft);
+  color: var(--tb-accent-strong);
+  padding: 0 8px 0 6px;
+}
+
+.desktop-titlebar__update.is-progress:hover {
+  background: var(--tb-accent-soft);
+  color: var(--tb-accent-strong);
+  box-shadow: none;
+}
+
+.desktop-titlebar__update svg {
+  flex: 0 0 auto;
+  display: block;
+}
+
+.desktop-titlebar__ring {
+  transform: rotate(-90deg);
+}
+
+.desktop-titlebar__update-label {
+  max-width: 0;
+  opacity: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  font-size: 12px;
+  font-weight: 650;
+  letter-spacing: 0.1px;
+  transform: translateX(-3px);
+  margin-left: 0;
+  transition:
+    max-width 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    opacity 160ms ease 60ms,
+    transform 260ms cubic-bezier(0.2, 0.8, 0.2, 1),
+    margin-left 260ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+.desktop-titlebar__update:hover .desktop-titlebar__update-label,
+.desktop-titlebar__update:focus-visible .desktop-titlebar__update-label,
+.desktop-titlebar__update.is-progress .desktop-titlebar__update-label {
+  max-width: 70px;
+  opacity: 1;
+  transform: translateX(0);
+  margin-left: 6px;
+}
+
+/* ── Window controls ───────────────────────────────────────────────────── */
+
+.desktop-titlebar__win {
+  appearance: none;
+  border: 0;
+  background: transparent;
+  color: var(--mantine-color-dimmed);
+  width: 46px;
+  height: 100%;
+  display: grid;
+  place-items: center;
+  padding: 0;
+  cursor: default;
+  outline: none;
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  transition: background-color 120ms ease, color 120ms ease;
+}
+
+.desktop-titlebar__win:hover {
+  background: rgba(0, 0, 0, 0.055);
+  color: var(--mantine-color-text);
+}
+
+html[data-mantine-color-scheme='dark'] .desktop-titlebar__win:hover {
+  background: rgba(255, 255, 255, 0.08);
+}
+
+.desktop-titlebar__win:focus-visible {
+  box-shadow: inset 0 0 0 2px var(--tb-accent);
+}
+
+.desktop-titlebar__win--close:hover {
+  background: #e81123;
+  color: #fff;
+}
+
+.desktop-titlebar__win svg {
+  display: block;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .desktop-titlebar *,
+  .desktop-titlebar *::before,
+  .desktop-titlebar *::after {
+    transition-duration: 1ms !important;
+  }
+}

@@ -130,7 +130,7 @@ export default function LoginPage() {
   return (
     <Box
       style={{
-        height: '100vh',
+        height: 'calc(100vh - var(--aeris-titlebar-height, 0px))',
         width: '100vw',
         backgroundImage: `url('${isDark ? '/DARK_BACKGROUND.png' : '/BACKGROUND.png'}')`,
         backgroundSize: 'cover',

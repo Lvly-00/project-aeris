@@ -113,7 +113,7 @@ export default function DesktopLayout() {
   const filteredNav = navItems.filter(item => item.roles.includes(activeRole || ''));
 
   return (
-    <Box style={{ minHeight: '100vh', backgroundColor: 'var(--mantine-color-body)', display: 'flex', flexDirection: 'column' }}>
+    <Box style={{ minHeight: 'calc(100vh - var(--aeris-titlebar-height, 0px))', backgroundColor: 'var(--mantine-color-body)', display: 'flex', flexDirection: 'column' }}>
 
       <AdminVerificationModal
         opened={sudoModalOpened}
@@ -141,7 +141,7 @@ export default function DesktopLayout() {
 
             {/* Logo Section */}
             <Group gap={80} wrap="nowrap" style={{ minWidth: 0 }}>
-              <img src="/icon.png" alt="logo" style={{ height: 'clamp(40px, 6vw, 60px)', cursor: 'pointer', flexShrink: 0 }} onClick={() => navigate('/desktop/cameras')} />
+              {/* <img src="/icon.png" alt="logo" style={{ height: 'clamp(40px, 6vw, 60px)', cursor: 'pointer', flexShrink: 0 }} onClick={() => navigate('/desktop/cameras')} /> */}
 
               {/* Navigation Links */}
               <Group component="nav" gap={60} wrap="nowrap">

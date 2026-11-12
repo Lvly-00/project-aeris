@@ -18,12 +18,22 @@ contextBridge.exposeInMainWorld('electronAPI', {
     ipcRenderer.send('window-minimize');
   },
 
+  // Toggles between maximized and restored.
   maximize: () => {
     ipcRenderer.send('window-maximize');
   },
 
   close: () => {
     ipcRenderer.send('window-close');
+  },
+
+  isMaximized: () => ipcRenderer.invoke('window:is-maximized'),
+
+  // Subscribe to maximize/restore events. Returns an unsubscribe function.
+  onWindowStateChange: (callback) => {
+    const handler = (_event, state) => callback(state);
+    ipcRenderer.on('window-state', handler);
+    return () => ipcRenderer.removeListener('window-state', handler);
   },
 
   openDevTools: () => {
@@ -48,6 +58,7 @@ contextBridge.exposeInMainWorld('electronAPI', {
 
   // Auto-update against GitHub Releases. The renderer never touches the feed
   // or a token; it only asks the main process to check/download/install.
+  getUpdateStatus: () => ipcRenderer.invoke('update:status'),
   checkForUpdates: () => ipcRenderer.invoke('update:check'),
   downloadUpdate: () => ipcRenderer.invoke('update:download'),
   installUpdate: () => ipcRenderer.send('update:install'),

@@ -22,7 +22,7 @@ export default function UnauthorizedPage() {
   return (
     <Box
       style={{
-        minHeight: '100vh',
+        minHeight: 'calc(100vh - var(--aeris-titlebar-height, 0px))',
         backgroundColor: 'var(--mantine-color-body)',
         position: 'relative',
         overflow: 'hidden',
@@ -35,7 +35,7 @@ export default function UnauthorizedPage() {
       <Container
         size="md"
         style={{
-          minHeight: '100vh',
+          minHeight: 'calc(100vh - var(--aeris-titlebar-height, 0px))',
           display: 'flex',
           alignItems: 'center',
           justifyContent: 'center',

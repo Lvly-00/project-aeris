@@ -32,6 +32,9 @@ const { spawn, spawnSync } = require('child_process');
 const { autoUpdater } = require('electron-updater');
 
 const isDev = !app.isPackaged;
+// macOS keeps its native title bar (traffic lights + app menu); every other
+// platform uses the frameless window drawn by the renderer title bar.
+const isMac = process.platform === 'darwin';
 
 const DEV_FRONTEND_URL = 'http://localhost:5173';
 const DEV_BACKEND_URL = 'http://localhost:8000';
@@ -269,6 +272,9 @@ function createWindow() {
     minHeight: 700,
     icon: path.join(__dirname, 'icon.png'),
     show: false,
+    // No native frame or menu bar: the renderer draws the 40px title strip
+    // with minimize/maximize/close and the update button.
+    frame: isMac,
     backgroundColor: '#1a1b1e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -276,6 +282,14 @@ function createWindow() {
       contextIsolation: true,
     },
   });
+
+  const sendWindowState = () => {
+    if (mainWindow && !mainWindow.isDestroyed()) {
+      mainWindow.webContents.send('window-state', { maximized: mainWindow.isMaximized() });
+    }
+  };
+  mainWindow.on('maximize', sendWindowState);
+  mainWindow.on('unmaximize', sendWindowState);
 
   mainWindow.loadURL(targetUrl);
 
@@ -349,7 +363,12 @@ const UPDATE_CHANNEL_EVENTS = {
   checking: { status: 'checking' },
 };
 
+// Last status is cached so the title bar (which may mount after an early
+// startup check) can sync instead of missing the event.
+let lastUpdateStatus = { status: 'idle' };
+
 function sendUpdateStatus(payload) {
+  lastUpdateStatus = payload;
   writeLog(`update: ${payload.status}${payload.version ? ' ' + payload.version : ''}`);
   if (mainWindow && !mainWindow.isDestroyed()) {
     mainWindow.webContents.send('update-status', payload);
@@ -396,6 +415,26 @@ function setupAutoUpdater() {
   });
 }
 
+// ── Window controls (custom title bar) ──────────────────────────────────────
+ipcMain.on('window-minimize', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.minimize();
+});
+
+ipcMain.on('window-maximize', () => {
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.isMaximized()) mainWindow.unmaximize();
+  else mainWindow.maximize();
+});
+
+ipcMain.on('window-close', () => {
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.close();
+});
+
+ipcMain.handle(
+  'window:is-maximized',
+  () => Boolean(mainWindow && !mainWindow.isDestroyed() && mainWindow.isMaximized())
+);
+
 ipcMain.handle('app-version', () => app.getVersion());
 
 ipcMain.handle('update:check', async () => {
@@ -413,6 +452,8 @@ ipcMain.handle('update:check', async () => {
     return { ok: false, reason: 'error', message: err?.message || String(err) };
   }
 });
+
+ipcMain.handle('update:status', () => lastUpdateStatus);
 
 ipcMain.handle('update:download', async () => {
   try {
@@ -433,6 +474,10 @@ ipcMain.on('update:install', () => {
 
 app.whenReady().then(async () => {
   writeLog('App starting (bundled client)...');
+
+  // The menu bar (File / Edit / View / Window) is replaced by the custom
+  // title bar. macOS keeps its application menu for standard shortcuts.
+  if (!isMac) Menu.setApplicationMenu(null);
 
   if (isDev) {
     createWindow();
@@ -469,6 +514,15 @@ app.whenReady().then(async () => {
 
   createWindow();
   createTray();
+
+  // Quietly check once per launch so the title-bar update button can appear
+  // without the user opening Settings. Failures stay in the log.
+  setTimeout(() => {
+    if (!app.isPackaged) return;
+    autoUpdater
+      .checkForUpdates()
+      .catch((err) => writeLog(`Initial update check failed: ${err?.message || err}`));
+  }, 5000);
 
   app.on('activate', () => {
     if (mainWindow === null) createWindow();

@@ -1,6 +1,7 @@
 export {};
 
 type UpdateStatus =
+  | { status: 'idle' }
   | { status: 'checking' }
   | { status: 'available' | 'current' | 'downloaded'; version?: string }
   | {
@@ -24,6 +25,10 @@ declare global {
       minimize: () => void;
       maximize: () => void;
       close: () => void;
+      isMaximized: () => Promise<boolean>;
+      onWindowStateChange: (
+        callback: (state: { maximized: boolean }) => void
+      ) => () => void;
 
       openDevTools: () => void;
 
@@ -37,6 +42,7 @@ declare global {
       ) => void;
 
       getVersion: () => Promise<string>;
+      getUpdateStatus: () => Promise<UpdateStatus>;
       checkForUpdates: () => Promise<{
         ok: boolean;
         reason?: string;

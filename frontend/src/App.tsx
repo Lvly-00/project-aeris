@@ -4,6 +4,7 @@ import { useWebSocket } from './shared/hooks/useWebSocket';
 import { ErrorBoundary } from '../src/desktop/components/common/ErrorBoundary';
 import AgreementModal from './shared/components/AgreementModal';
 import { authAPI } from './shared/services/api';
+import DesktopTitleBar from './desktop/components/TitleBar/DesktopTitleBar';
 
 function WebSocketInit() {
   const { isAuthenticated } = useAuth();
@@ -35,6 +36,7 @@ export default function App() {
   return (
     <ErrorBoundary>
       <AuthProvider>
+        <DesktopTitleBar />
         <WebSocketInit />
         <AgreementGate />
         <AppRouter />

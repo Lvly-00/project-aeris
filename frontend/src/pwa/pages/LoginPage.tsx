@@ -202,7 +202,7 @@ export default function LoginPage() {
                             lh={1.4}
                             style={{ maxWidth: '90%' }}
                         >
-                            AI-Assisted Barangay CCTV Incident Monitoring & Decision Support System.
+                            AI-Assisted Emergency Response and Incident Surveillance System.
                         </Text>
                     </Stack>
 
