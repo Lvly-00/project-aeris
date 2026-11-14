@@ -521,6 +521,14 @@ ipcMain.on('get-ai-url', (event) => {
   event.returnValue = isDev ? 'http://localhost:8005/ai' : resolveServerUrl() + '/ai';
 });
 
+// Does this window use the native frame? The renderer must not draw its own
+// title strip on top of it, which is the double header seen after
+// fallbackToNativeFrame() rebuilds a window whose page was slow to paint.
+ipcMain.on('get-native-frame', (event) => {
+  const win = BrowserWindow.fromWebContents(event.sender);
+  event.returnValue = Boolean(win && win.__nativeFrame);
+});
+
 // ── Auto-update ──────────────────────────────────────────────────────────────
 // The app is a thin client: the UI it loads lives on the server, so most
 // changes ship with a deploy. Only the Electron shell needs a new installer,

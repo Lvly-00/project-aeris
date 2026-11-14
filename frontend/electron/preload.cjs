@@ -9,6 +9,10 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // (Vite dev server proxies /ai in development).
   getAiUrl: () => ipcRenderer.sendSync('get-ai-url'),
 
+  // True when the window has the native frame; the renderer then skips its
+  // own title strip instead of drawing a second header under the OS one.
+  usesNativeFrame: () => ipcRenderer.sendSync('get-native-frame'),
+
   // Absolute path of a File picked with <input type="file">. Browsers hide it
   // for privacy, but the bundled AI service runs on this machine and needs a
   // real path to open an MP4 source.
