@@ -105,6 +105,10 @@ class CameraManager:
         self._last_errors: Dict[int, dict] = {}
         self._errors_lock = threading.Lock()
 
+        # Cameras whose MP4 feeder thread is already looping their file.
+        self._mp4_feeders: set = set()
+        self._feeders_lock = threading.Lock()
+
         logger.info(
             "CameraManager initialised (detector=%s, accident_detector=%s)",
             "ready" if self._detector else "not loaded",
@@ -163,6 +167,13 @@ class CameraManager:
         # Start threads outside the lock to avoid deadlocks
         frame_reader.start()
         detection_worker.start()
+
+        # An MP4 frame reader waits for uploaded frames, so the file has to be
+        # pumped in by a feeder. Registering the camera is the only thing the
+        # API and the frontend do, so start it here rather than only on the
+        # backend-lookup path.
+        if stream_type == "MP4":
+            self._start_mp4_feeder(camera_id, source)
 
         with self._cameras_lock:
             if camera_id in self._cameras:
@@ -298,16 +309,6 @@ class CameraManager:
                         self._auto_registered.add(camera_id)
                     self.set_camera_error(camera_id, None)
                     logger.info("Camera %d: Auto-registered (%s, type=%s)", camera_id, rtsp_url, stream_type)
-                    # For MP4 cameras, kick off a frame-feeder loop
-                    if stream_type == "MP4":
-                        import threading as _threading
-                        from ..core.mp4_feeder import start_mp4_feeder
-                        _threading.Thread(
-                            target=start_mp4_feeder,
-                            args=(camera_id, rtsp_url, self),
-                            name=f"mp4-feeder-{camera_id}",
-                            daemon=True,
-                        ).start()
                 return success
             except Exception as e:
                 self.set_camera_error(
@@ -335,6 +336,22 @@ class CameraManager:
         if state is None:
             return None
         return state.frame_reader.get_jpeg()
+
+    def _start_mp4_feeder(self, camera_id: int, source: str) -> None:
+        """Loop an MP4 file into the camera's frame buffer (one thread per camera)."""
+        with self._feeders_lock:
+            if camera_id in self._mp4_feeders:
+                return
+            self._mp4_feeders.add(camera_id)
+
+        from ..core.mp4_feeder import start_mp4_feeder
+
+        threading.Thread(
+            target=start_mp4_feeder,
+            args=(camera_id, source, self),
+            name=f"mp4-feeder-{camera_id}",
+            daemon=True,
+        ).start()
 
     def set_camera_error(self, camera_id: int, message: Optional[str], kind: str = "service") -> None:
         """Remember (or clear) why a camera is not producing frames.

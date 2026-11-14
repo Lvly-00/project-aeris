@@ -79,12 +79,22 @@ function parseFrameErrorBody(
   return null;
 }
 
+// Registering a camera restarts the AI service's reader for it, so remember
+// what this page already registered instead of doing it on every remount.
+const registeredSources = new Map<number, string>();
+
+/** How often a camera with no frames may be re-registered. */
+const REGISTER_RETRY_MS = 10000;
+
 // ── RtspCanvas — inner polling component ─────────────────────────────────────
 
 interface RtspCanvasProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   cameraId: number;
   baseUrl: string;
+  /** Camera source, so the AI service can be told what to read. */
+  source?: string;
+  streamType?: string;
   onFrame?: () => void;
   onStatus?: (status: FeedStatus) => void;
   /** Fires when the decoder reports a new pixel size. */
@@ -100,6 +110,8 @@ export function RtspCanvas({
   onFrame,
   onStatus,
   onSize,
+  source = '',
+  streamType = 'RTSP',
   firstFrameTimeoutMs = FIRST_FRAME_TIMEOUT_MS,
 }: RtspCanvasProps) {
   const mountedRef = useRef(true);
@@ -141,8 +153,39 @@ export function RtspCanvas({
 
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+    // The AI service learns a camera's source either from the backend's
+    // /internal/ endpoint — restricted to the Docker network, so a desktop
+    // install polling the hosted backend is refused with 403 — or from this
+    // page, which already holds the config. Register here so the desktop no
+    // longer depends on that lookup.
+    const registrationKey = `${baseUrl}|${source}`;
+    let lastRegisterAt = 0;
+    const ensureRegistered = async () => {
+      const sourceValue = source.trim();
+      if (!sourceValue) return;
+      if (registeredSources.get(cameraId) === registrationKey) return;
+      if (Date.now() - lastRegisterAt < REGISTER_RETRY_MS) return;
+      lastRegisterAt = Date.now();
+      try {
+        const res = await fetch(`${baseUrl}/cameras/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            camera_id: cameraId,
+            source: sourceValue,
+            stream_type: streamType,
+          }),
+        });
+        if (res.ok) registeredSources.set(cameraId, registrationKey);
+        else registeredSources.delete(cameraId);
+      } catch {
+        // Service still starting; the next 404 tries again.
+      }
+    };
+
     const fetchAndDraw = async () => {
       armWatchdog();
+      await ensureRegistered();
       while (mountedRef.current) {
         try {
           abortCtrl = new AbortController();
@@ -184,6 +227,14 @@ export function RtspCanvas({
               lastErrorRef.current =
                 `HTTP ${res.status} ${res.statusText}`.trim() +
                 (reason ? ` — ${reason}` : '');
+            }
+            // A 404 means the service has no frame for this camera — which is
+            // also what a restarted sidecar reports, since it forgets every
+            // registration. Drop the cached one so the throttled retry can
+            // re-register instead of leaving the feed offline until a reload.
+            if (res.status === 404) {
+              registeredSources.delete(cameraId);
+              await ensureRegistered();
             }
             await sleep(1000);
             continue;
@@ -230,7 +281,7 @@ export function RtspCanvas({
       clearWatchdog();
       abortCtrl?.abort();
     };
-  }, [cameraId, baseUrl, canvasRef, onFrame, onStatus, onSize, firstFrameTimeoutMs]);
+  }, [cameraId, baseUrl, canvasRef, onFrame, onStatus, onSize, source, streamType, firstFrameTimeoutMs]);
 
   return null;
 }
@@ -393,6 +444,8 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
         canvasRef={canvasRef}
         cameraId={camera.id}
         baseUrl={baseUrl}
+        source={camera.stream_url}
+        streamType={camera.stream_type}
         onFrame={tick}
         onStatus={handleStatus}
         onSize={handleSize}

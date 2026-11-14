@@ -118,7 +118,6 @@ def _auto_register_cameras():
     from .core.camera_manager import CameraManager
     manager = CameraManager()
 
-    import threading
     for cam in cameras:
         cam_id = cam.get("id")
         stream_url = cam.get("stream_url") or ""
@@ -137,18 +136,11 @@ def _auto_register_cameras():
 
         elif stream_type == "MP4":
             try:
-                # Register in uploaded-frame mode (FrameReader will wait for frames).
+                # register_camera starts the feeder that loops the file into the
+                # uploaded-frame reader; starting another one here would double
+                # every frame and every detection.
                 manager.register_camera(cam_id, stream_url, "MP4")
                 logger.info("Auto-registered MP4 camera %d (file=%s)", cam_id, stream_url)
-                # Spin up a feeder thread that loops the video file forever.
-                from .core.mp4_feeder import start_mp4_feeder
-                t = threading.Thread(
-                    target=start_mp4_feeder,
-                    args=(cam_id, stream_url, manager),
-                    name=f"mp4-feeder-{cam_id}",
-                    daemon=True,
-                )
-                t.start()
             except Exception as exc:
                 logger.warning("Failed to register MP4 camera %d: %s", cam_id, exc)
 
