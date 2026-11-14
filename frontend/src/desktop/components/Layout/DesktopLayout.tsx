@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
-import { Camera, ChevronDown, Cog, DoorOpen, History, Moon, PlusCircle, Toggles, Sun, User } from '@boxicons/react';
+import { ArrowDownCircle, Camera, ChevronDown, Cog, DoorOpen, History, Moon, PlusCircle, RefreshCw, Toggles, Sun, User } from '@boxicons/react';
+import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../../shared/hooks/useAuth';
 import { authAPI } from '../../../shared/services/api';
 import { parseThrottleSeconds } from '../../../shared/utils/authErrors';
@@ -12,6 +13,14 @@ import {
 } from '@mantine/core';
 
 const SUDO_PROTECTED_PATHS = ['/desktop/profile', '/desktop/settings', '/desktop/accounts', '/desktop/audit'];
+
+/** Mirrors the payloads main.cjs sends on `update-status`. */
+type DesktopUpdateStatus =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'available' | 'current' | 'downloaded'; version?: string }
+  | { status: 'downloading'; percent: number }
+  | { status: 'error'; message?: string };
 
 export default function DesktopLayout() {
   const navigate = useNavigate();
@@ -27,6 +36,62 @@ export default function DesktopLayout() {
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [sudoThrottleSeconds, setSudoThrottleSeconds] = useState(0);
+
+  // Desktop-only update controls. They live in the account menu (not the title
+  // strip) so they survive the fallback to the native window frame, where the
+  // renderer draws no strip at all.
+  const desktopApi = window.electronAPI;
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus>({ status: 'idle' });
+
+  useEffect(() => {
+    if (!desktopApi?.isDesktop) return;
+    let cancelled = false;
+
+    desktopApi
+      .getVersion()
+      .then((v) => {
+        if (!cancelled) setAppVersion(v);
+      })
+      .catch(() => {});
+
+    desktopApi
+      .getUpdateStatus()
+      .then((s) => {
+        if (!cancelled) setUpdateStatus(s);
+      })
+      .catch(() => {});
+
+    const unsubscribe = desktopApi.onUpdateStatus((s) => setUpdateStatus(s));
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  const checkForUpdates = async () => {
+    if (!desktopApi?.checkForUpdates) return;
+    const result = await desktopApi.checkForUpdates();
+    if (!result.ok) {
+      notifications.show({
+        title: 'Update check failed',
+        message: result.message || 'Could not check for updates.',
+        color: 'red',
+      });
+    }
+  };
+
+  const downloadUpdate = async () => {
+    if (!desktopApi?.downloadUpdate) return;
+    const result = await desktopApi.downloadUpdate();
+    if (!result.ok) {
+      notifications.show({
+        title: 'Download failed',
+        message: result.message || 'Could not download the update.',
+        color: 'red',
+      });
+    }
+  };
 
   // FR-PPD-005: Countdown for admin-verification (429) cooldown while the
   // submit button is disabled — mirrors the login rate-limit behaviour.
@@ -220,6 +285,34 @@ export default function DesktopLayout() {
               <Menu.Dropdown>
                 <Menu.Item leftSection={<User size="sm" />} onClick={() => navigate('/desktop/profile')} disabled={isAdminLocked}>Profile</Menu.Item>
                 <Menu.Item leftSection={<Cog size="sm" />} onClick={() => navigate('/desktop/settings')} disabled={isAdminLocked}>Settings</Menu.Item>
+                {desktopApi?.isDesktop && (
+                  <>
+                    <Menu.Divider />
+                    <Menu.Label>
+                      Aeris Desktop{appVersion ? ` v${appVersion}` : ''}
+                    </Menu.Label>
+                    {updateStatus.status === 'downloaded' ? (
+                      <Menu.Item
+                        leftSection={<RefreshCw size="sm" />}
+                        onClick={() => desktopApi.installUpdate()}
+                      >
+                        Restart to install{updateStatus.version ? ` v${updateStatus.version}` : ''}
+                      </Menu.Item>
+                    ) : updateStatus.status === 'available' ? (
+                      <Menu.Item leftSection={<ArrowDownCircle size="sm" />} onClick={downloadUpdate}>
+                        Download update{updateStatus.version ? ` v${updateStatus.version}` : ''}
+                      </Menu.Item>
+                    ) : updateStatus.status === 'downloading' ? (
+                      <Menu.Item leftSection={<RefreshCw size="sm" />} disabled>
+                        Downloading… {Math.round(updateStatus.percent)}%
+                      </Menu.Item>
+                    ) : (
+                      <Menu.Item leftSection={<RefreshCw size="sm" />} onClick={checkForUpdates}>
+                        Check for updates
+                      </Menu.Item>
+                    )}
+                  </>
+                )}
                 <Menu.Divider />
                 {user?.role === 'CCTV Chief' && (
                   <Menu.Item
