@@ -7,9 +7,14 @@ WORKDIR /app
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
+# Debian trixie (the current python:3.12-slim base) dropped the transitional
+# libgl1-mesa-glx and renamed libglib2.0-0 to the time64 build. Using the old
+# names makes apt-get fail with "Unable to locate package" and exit 100, which
+# breaks the image build. libgl1 provides libGL.so.1; the t64 package provides
+# libglib-2.0.so.0 — both are what OpenCV loads at import time.
 RUN apt-get update && apt-get install -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
+    libgl1 \
+    libglib2.0-0t64 \
     libsm6 \
     libxext6 \
     libxrender-dev \
