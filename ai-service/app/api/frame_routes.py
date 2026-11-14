@@ -31,7 +31,19 @@ async def get_camera_frame(camera_id: int):
             if jpeg is not None:
                 break
     if jpeg is None:
-        raise HTTPException(status_code=404, detail="No frame available")
+        # Say *why*: the frontend is only allowed to blame the file when the
+        # service says the file is the problem; otherwise it must report the
+        # service (backend lookup failed, file not found…) as the cause.
+        error = _manager.get_camera_error(camera_id) or {}
+        raise HTTPException(
+            status_code=404,
+            detail={
+                "message": "No frame available",
+                "reason": error.get("message")
+                or "No frames for this camera yet (it may still be starting)",
+                "reason_kind": error.get("kind") or "service",
+            },
+        )
     return Response(content=jpeg, media_type="image/jpeg")
 
 

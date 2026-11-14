@@ -32,9 +32,10 @@ const MP4_FIRST_FRAME_TIMEOUT_MS = 10000;
 
 /**
  * Why a feed failed, so the overlay can say something true:
- *   unreachable — the request never got an answer (sidecar stopped, wrong port)
- *   no-frames   — the AI service answered 404: it has no frames for this source
- *   http        — the AI service answered with some other error status
+ *   unreachable — the request never got an answer (sidecar stopped, proxy 404)
+ *   no-frames   — the AI service answered and blamed the source file itself
+ *   http        — the AI service answered but produced no frame for another
+ *                 reason (its explanation travels in `detail`)
  *   timeout     — nothing arrived before the first-frame deadline
  */
 export type FeedFailureKind = 'unreachable' | 'no-frames' | 'http' | 'timeout';
@@ -43,6 +44,39 @@ interface FeedStatus {
   state: 'connecting' | 'live' | 'error';
   detail?: string;
   kind?: FeedFailureKind;
+}
+
+/**
+ * Decode the AI service's 404 body for /cameras/{id}/frame:
+ *   { message: "No frame available", reason, reason_kind: "file" | "service" }
+ * `file` means the service tried to read the video and could not — the only
+ * case where naming the path helps. `service` means the service itself could
+ * not produce a frame (e.g. its backend lookup failed). A body that is not this
+ * JSON did not come from the AI service at all.
+ */
+function parseFrameErrorBody(
+  raw: string,
+): { reason: string; reasonKind: 'file' | 'service' } | null {
+  const text = raw.trim();
+  if (!text) return null;
+  let body: any;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  const detail = body?.detail ?? body;
+  if (detail && typeof detail === 'object' && detail.message === 'No frame available') {
+    return {
+      reason: typeof detail.reason === 'string' ? detail.reason : '',
+      reasonKind: detail.reason_kind === 'service' ? 'service' : 'file',
+    };
+  }
+  // Older sidecars answer with a plain string detail and no explanation.
+  if (typeof detail === 'string' && /^No frame available/i.test(detail)) {
+    return { reason: '', reasonKind: 'file' };
+  }
+  return null;
 }
 
 // ── RtspCanvas — inner polling component ─────────────────────────────────────
@@ -99,8 +133,8 @@ export function RtspCanvas({
           kind: lastKindRef.current ?? 'timeout',
           detail:
             lastErrorRef.current ||
-            `No frames received within ${firstFrameTimeoutMs / 1000}s. ` +
-            `Check that the AI service is running and the camera source is reachable.`,
+            `No answer from the AI service within ${firstFrameTimeoutMs / 1000}s ` +
+            `at ${baseUrl}. It may not be running, or it may still be opening the source.`,
         });
       }, firstFrameTimeoutMs);
     };
@@ -117,12 +151,40 @@ export function RtspCanvas({
             { signal: abortCtrl.signal },
           );
           if (!res.ok) {
-            // 404 is the AI service saying "I have no frame for this camera":
-            // for an MP4 that means it could not open the file. Anything else
-            // is the service itself failing, and a thrown fetch never reached
-            // it at all — those must not be blamed on the file path.
-            lastKindRef.current = res.status === 404 ? 'no-frames' : 'http';
-            lastErrorRef.current = `Frame request failed: HTTP ${res.status} ${res.statusText}`.trim();
+            // Only the AI service's own frame answer says anything about the
+            // source file. A 404 from anything else (stopped sidecar behind a
+            // proxy, router/SPA catch-all) means the request never reached the
+            // service, and a thrown fetch above never reached it either —
+            // neither may be blamed on the file path.
+            const raw = await res.text().catch(() => '');
+            const answer = res.status === 404 ? parseFrameErrorBody(raw) : null;
+            const plain = raw.trim();
+            const reason =
+              answer?.reason ||
+              (/^<(!doctype|html)/i.test(plain) ? '' : plain.slice(0, 300));
+
+            if (answer?.reasonKind === 'file') {
+              lastKindRef.current = 'no-frames';
+              lastErrorRef.current =
+                reason || `The AI service has no frame for this file (HTTP ${res.status}).`;
+            } else if (answer) {
+              lastKindRef.current = 'http';
+              lastErrorRef.current = `HTTP ${res.status} ${res.statusText}: ${reason}`.trim();
+            } else if (res.status === 404) {
+              lastKindRef.current = 'unreachable';
+              lastErrorRef.current =
+                `HTTP 404 from ${baseUrl} — the request never reached the AI service` +
+                (reason ? ` (${reason})` : '');
+            } else if (/AI service unavailable/i.test(plain)) {
+              // Django's /ai proxy answers this when the sidecar is down.
+              lastKindRef.current = 'unreachable';
+              lastErrorRef.current = `The AI service did not answer: ${plain}`;
+            } else {
+              lastKindRef.current = 'http';
+              lastErrorRef.current =
+                `HTTP ${res.status} ${res.statusText}`.trim() +
+                (reason ? ` — ${reason}` : '');
+            }
             await sleep(1000);
             continue;
           }
@@ -154,8 +216,8 @@ export function RtspCanvas({
           if (e?.name === 'AbortError') break;
           lastKindRef.current = 'unreachable';
           lastErrorRef.current = e?.message
-            ? `Frame request error: ${e.message}`
-            : 'Frame request error';
+            ? `Could not reach the AI service at ${baseUrl}: ${e.message}`
+            : `Could not reach the AI service at ${baseUrl}`;
           await sleep(500);
         }
       }
@@ -273,33 +335,43 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
           title: 'AI service unreachable',
           body:
             'Aeris could not reach the local AI service on this PC, so this ' +
-            'video is not being read. Start (or restart) the app and try again.',
+            'video is not being read — the file itself is not the problem. ' +
+            'Start (or restart) the app and try again.',
           showPath: false,
         }
       : feed.kind === 'no-frames'
         ? {
             title: 'Video file could not be opened',
             body:
-              'The AI service is running but has no frames from this file. ' +
-              'Check that it still exists at this path and is a readable MP4. ' +
-              'If the path is correct, check that Aeris can reach its server.',
+              'The AI service is running but cannot read this file. The reason ' +
+              'below comes from the AI service.',
             showPath: true,
           }
         : feed.kind === 'http'
           ? {
               title: 'AI service error',
               body:
-                'The local AI service rejected the request for this video. ' +
-                'The response below says why.',
+                'The AI service answered but did not produce a frame for this ' +
+                'video. The reason below comes from the service, not from the file.',
               showPath: false,
             }
-          : {
-              title: 'No frames from the AI service',
-              body:
-                'The AI service did not deliver a frame in time. Check that it ' +
-                'is running and that it can read this file.',
-              showPath: true,
-            };
+          : feed.kind === 'timeout'
+            ? {
+                title: 'No answer from the AI service',
+                body:
+                  'The AI service did not deliver a frame in time, so Aeris ' +
+                  'cannot tell whether the file is readable. Check that the ' +
+                  'service is running, then try again.',
+                showPath: false,
+              }
+            : {
+                title: 'Connecting to the AI service failed',
+                body:
+                  'Aeris never got an answer for this video, so it cannot tell ' +
+                  'whether the file is readable. Check that the AI service is ' +
+                  'running, then try again.',
+                showPath: false,
+              };
 
   return (
     <Box
