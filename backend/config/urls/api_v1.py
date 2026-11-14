@@ -15,10 +15,21 @@ from rest_framework_simplejwt.views import (
 )
 
 from apps.health.views import HealthView
+from config.urls.internal import AIPublicIncidentCreateView
 
 urlpatterns = [
     # ── Health probe (compose, nginx, deploy script) ──────────────────────────
     path("health/", HealthView.as_view(), name="health"),
+
+    # ── AI service ingest from outside the Docker network ────────────────────
+    # Same handler as /internal/incidents/create/, but reachable over the public
+    # API and authenticated with X-API-Key (AI_SERVICE_API_KEY). Desktop installs
+    # run their sidecar on the operator's PC, where nginx refuses /internal/.
+    path(
+        "ai/incidents/create/",
+        AIPublicIncidentCreateView.as_view(),
+        name="ai-incident-create",
+    ),
 
     # ── OpenAPI schema & docs ─────────────────────────────────────────────────
     path("schema/", SpectacularAPIView.as_view(), name="schema"),

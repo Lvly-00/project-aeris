@@ -3,9 +3,13 @@ Incident Pusher - Bridges DetectionWorker results to the Django backend.
 
 Called from DetectionWorker after every detection batch. For each
 incident-worthy detection (Fire, Smoke, Vehicle_Accident) it fires a
-POST to /api/incidents/create-from-detection/ with source="ai" so that
-Django can create or update an Incident row and broadcast it over
-WebSocket to the PWA.
+multipart POST to /api/ai/incidents/create/ so that Django can create or
+update an Incident row and broadcast it over WebSocket to the PWA.
+
+That route is the public twin of /internal/incidents/create/: nginx refuses
+/internal/ from outside the Docker subnet, which is exactly what a desktop
+install is, so the sidecar authenticates with X-API-Key (AI_SERVICE_API_KEY)
+instead of X-Internal-Key.
 
 A per-camera, per-type cooldown (PUSH_COOLDOWN_SECONDS) prevents the
 pusher from flooding Django while the same detection stays in frame.
@@ -50,23 +54,18 @@ class IncidentPusher:
         self._last_push: Dict[Tuple[int, str], float] = {}
 
         self._session = requests.Session()
-        # Prefer INTERNAL_API_KEY so we get the same auth the camera
-        # auto-register flow uses; fall back to the public AI key.
-        key = INTERNAL_API_KEY or AI_SERVICE_API_KEY
+        # /internal/ is restricted to the Docker network, so a desktop install
+        # (whose AI service runs on the operator's PC) is refused there with
+        # 403. The public /api/ai/ endpoints accept the service key instead and
+        # still work inside Docker, so always use those.
+        key = AI_SERVICE_API_KEY or INTERNAL_API_KEY
         self._session.headers.update({
-            "X-Internal-Key": key,
+            "X-API-Key": key,
             "Accept": "application/json",
         })
-        # Base URL without trailing slash so we can append paths cleanly.
-        # The internal endpoint lives at /internal/ (no /api/ prefix).
-        base = BACKEND_API_URL.rstrip("/")
-        # Strip /api suffix if present to get the Django root, then point
-        # at the internal path.  e.g. http://localhost:8000/api → http://localhost:8000
-        if base.endswith("/api"):
-            django_root = base[:-4]
-        else:
-            django_root = base
-        self._incident_url = f"{django_root}/internal/incidents/create/"
+        # BACKEND_API_URL already includes the /api prefix, so paths append to it.
+        # e.g. https://host/api → https://host/api/ai/incidents/create/
+        self._incident_url = f"{BACKEND_API_URL.rstrip('/')}/ai/incidents/create/"
 
     # ------------------------------------------------------------------
     # Public API
@@ -150,10 +149,11 @@ class IncidentPusher:
                     incident_id,
                     "grouped" if grouped else "new",
                 )
-            elif resp.status_code == 401:
+            elif resp.status_code in (401, 403):
                 logger.warning(
-                    "Camera %d: incident push returned 401 — check INTERNAL_API_KEY",
-                    det.camera_id,
+                    "Camera %d: incident push returned %d — the backend rejected the "
+                    "service key; AI_SERVICE_API_KEY must match on both sides",
+                    det.camera_id, resp.status_code,
                 )
             else:
                 logger.warning(

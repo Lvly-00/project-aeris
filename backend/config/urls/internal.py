@@ -118,6 +118,41 @@ class InternalAPIKeyPermission(BasePermission):
         return True
 
 
+class AIServiceKeyPermission(BasePermission):
+    """X-API-Key check for AI services that cannot reach /internal/.
+
+    /internal/ is restricted to the Docker network, so a desktop install — whose
+    AI service runs on the operator's PC and calls the deployed backend over the
+    internet — is refused there. The /api/ai/ routes serve the same need and are
+    authenticated with the AI service key (the same value nginx injects for /ai),
+    so they must fail closed like the internal endpoints do.
+    """
+
+    message = "Invalid or missing X-API-Key."
+
+    def has_permission(self, request, view) -> bool:
+        expected: str = getattr(settings, "AI_SERVICE_API_KEY", "")
+
+        if not expected:
+            if getattr(settings, "DEBUG", False):
+                return True
+            logger.error(
+                "AI_SERVICE_API_KEY is not set on this server. "
+                "All /api/ai/ requests will be rejected."
+            )
+            return False
+
+        provided = request.headers.get("X-API-Key", "")
+        if not hmac.compare_digest(provided, expected):
+            logger.warning(
+                "AI ingest rejected bad X-API-Key from %s",
+                request.META.get("REMOTE_ADDR", "unknown"),
+            )
+            return False
+
+        return True
+
+
 # ── Throttle ──────────────────────────────────────────────────────────────────
 
 class InternalScopedThrottle(ScopedRateThrottle):
@@ -347,6 +382,16 @@ class CameraListView(APIView):
             return Response({"error": "Internal server error"}, status=500)
 
         return Response(cameras)
+
+
+class AIPublicIncidentCreateView(InternalIncidentCreateView):
+    """Incident ingest for AI services outside the Docker network.
+
+    Identical handling to the /internal/ endpoint; only the credential differs,
+    because a desktop sidecar can reach /api/ but never /internal/.
+    """
+
+    permission_classes = [AIServiceKeyPermission]
 
 
 # ── URL patterns — mounted at /internal/ by config/urls/main.py ───────────────

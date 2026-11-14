@@ -209,6 +209,12 @@ LOGGING = {
     },
 }
 
-# ── Internal service-to-service key (/internal/ endpoints) ───────────────────
+# ── Internal service-to-service key (/internal/ endpoints) ───────────────
 # Must match INTERNAL_API_KEY in the AI service's environment.
 INTERNAL_API_KEY = config("INTERNAL_API_KEY", default="")
+
+# ── AI service key (public ingest for AI services outside the Docker net) ────
+# Same value nginx injects as X-API-Key when it proxies /ai, and the key the
+# AI service itself validates. Used by /api/ai/ endpoints, which a desktop
+# install's local sidecar can reach even though nginx blocks /internal/.
+AI_SERVICE_API_KEY = config("AI_SERVICE_API_KEY", default="")
