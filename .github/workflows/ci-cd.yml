@@ -323,8 +323,8 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           # Baked into the installer so installations point at the real
           # deployment instead of localhost.
-          AERIS_SERVER_URL: https://aeris.barangay.local
-          AERIS_BACKEND_URL: https://aeris.barangay.local
+          AERIS_SERVER_URL: https://project-aeris.onrender.com
+          AERIS_BACKEND_URL: https://project-aeris.onrender.com
         run: npm run build:desktop -- --publish always
 
       - name: Upload build artifacts
