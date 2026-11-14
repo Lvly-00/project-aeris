@@ -46,6 +46,12 @@ extraResources:
 # server-url.txt in the user data folder; default http://localhost:8000).
 
 win:
+  # Without this, Windows uses Electron's default (blue) app icon for the exe,
+  # the Start-menu/desktop shortcut and the taskbar. Both files are tracked
+  # (build/ is gitignored, so the icon cannot live there): icon.ico holds the
+  # 16-256px sizes Windows asks for, icon.png is the 512px AERIS logo used for
+  # the window/taskbar icon in main.cjs.
+  icon: electron/icon.ico
   target:
     - target: nsis
       arch:
