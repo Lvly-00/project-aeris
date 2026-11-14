@@ -24,7 +24,10 @@ files:
   - electron/**/*
   - package.json
 
-electronDist: node_modules/electron/dist
+# No electronDist: pointing it at node_modules/electron/dist fails on CI
+# runners that skip the electron postinstall download ("The specified
+# electronDist does not exist"). Left unset, electron-builder fetches the
+# Electron distribution for the pinned version into its own cache.
 
 # Bundled deployment: the desktop app loads the local ai-service origin
 # (SPA + /ai). When scripts\build-desktop.ps1 is run with -IncludeAi, the
