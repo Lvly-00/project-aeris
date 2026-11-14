@@ -1,4 +1,4 @@
-# Must match the interpreter in .github/workflows/ci.yml. The pinned numpy
+# Must match the interpreter in .github/workflows/ci-cd.yml. The pinned numpy
 # (2.5.x) requires Python >= 3.12.
 FROM python:3.12-slim
 
