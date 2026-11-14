@@ -360,9 +360,15 @@ jobs:
       - name: Build and publish installers
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # Unsigned builds: skip identity discovery so the build doesn't fail
-          # looking for a certificate. Users will see a SmartScreen prompt.
+          # Don't fail looking for a certificate on the runner.
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
+          # Code signing. Set these two repository secrets and every build is
+          # signed, which is what removes "Unknown publisher" / the SmartScreen
+          # block: WINDOWS_CERT_PFX_BASE64 is the base64 of a .pfx and
+          # WINDOWS_CERT_PASSWORD its password. Left unset, the build stays
+          # unsigned and Windows keeps warning.
+          CSC_LINK: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
+          CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
           # Baked into the installer so installations point at the real
           # deployment instead of localhost.
           AERIS_SERVER_URL: https://project-aeris.onrender.com
