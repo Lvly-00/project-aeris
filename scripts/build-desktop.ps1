@@ -43,6 +43,7 @@ param(
     [string]$BackendUrl = "",
     [switch]$IncludeAi,
     [switch]$Publish,
+    [string]$Compression = "",
     [switch]$Local
 )
 
@@ -185,13 +186,23 @@ try {
         } else {
             Write-Host "  No ai-service\.env found; using environment/defaults" -ForegroundColor DarkYellow
         }
-        $aiKey = if ($env:AI_SERVICE_API_KEY) { $env:AI_SERVICE_API_KEY }
-                  elseif ($srcEnv["AI_SERVICE_API_KEY"]) { $srcEnv["AI_SERVICE_API_KEY"] }
-                  else { "ai-service-key" }
-        $internalKey = if ($env:INTERNAL_API_KEY) { $env:INTERNAL_API_KEY }
-                        elseif ($srcEnv["INTERNAL_API_KEY"]) { $srcEnv["INTERNAL_API_KEY"] }
-                        else { $aiKey }
-        $backendApi = "$($bakedBackendUrl.TrimEnd('/'))/api"
+        $aiKey = if ($env:AI_SERVICE_API_KEY) { $env:AI_SERVICE_API_KEY } else { $srcEnv["AI_SERVICE_API_KEY"] }
+        $internalKey = if ($env:INTERNAL_API_KEY) { $env:INTERNAL_API_KEY } else { $srcEnv["INTERNAL_API_KEY"] }
+
+        # Never ship the placeholder key: the bundled sidecar authenticates to
+        # the backend with these, and a guess silently breaks detection posting.
+        $missingKeys = @()
+        if (-not $aiKey) { $missingKeys += "AI_SERVICE_API_KEY" }
+        if (-not $internalKey) { $missingKeys += "INTERNAL_API_KEY" }
+        if ($missingKeys.Count -gt 0) {
+            throw (
+                "Missing required key(s): " + ($missingKeys -join ", ") +
+                ". Set them in ai-service\.env or as environment variables; " +
+                "refusing to bundle the placeholder key."
+            )
+        }
+        # Normalise to exactly one /api suffix: -BackendUrl may be given with it.
+        $backendApi = "$($bakedBackendUrl.TrimEnd('/') -replace '/api$', '')/api"
         $envLines = @(
             "AI_SERVICE_HOST=127.0.0.1",
             "AI_SERVICE_PORT=8005",
@@ -211,9 +222,23 @@ try {
             "RECONNECT_BASE_DELAY=1.0",
             "RECONNECT_MAX_DELAY=30.0"
         )
-        Set-Content -LiteralPath (Join-Path $staged ".env") -Value $envLines -Encoding ascii
+        # UTF-8 without BOM: the keys are opaque strings, and an OS-generated
+        # secret is not guaranteed to be pure ASCII. run_sidecar.py reads the
+        # file with utf-8-sig, so a BOM (Windows PowerShell 5.1) is tolerated
+        # too, but there is no reason to write one.
+        $sidecarEnv = Join-Path $staged ".env"
+        [System.IO.File]::WriteAllLines(
+            $sidecarEnv,
+            [string[]]$envLines,
+            (New-Object System.Text.UTF8Encoding($false))
+        )
+        # Lengths only — never print the keys themselves into the CI log.
+        Write-Host (
+            "  Sidecar .env: AI_SERVICE_API_KEY ($($aiKey.Length) chars), " +
+            "INTERNAL_API_KEY ($($internalKey.Length) chars), BACKEND_API_URL=$backendApi"
+        ) -ForegroundColor Green
 
-        # Convenience lamag uncher (used by main.cjs candidates if the exe name differs).
+        # Convenience launcher (used by main.cjs candidates if the exe name differs).
         Set-Content -LiteralPath (Join-Path $staged "start-ai.cmd") -Value "@echo off`r`ncd /d `"%~dp0`"`r`nai-server.exe" -Encoding ascii
 
         Write-Host "  Sidecar staged to ai-bundle\" -ForegroundColor Green
@@ -238,6 +263,7 @@ try {
         }
     }
     $builderArgs = @("--config", "electron-builder.yml")
+    if ($Compression) { $builderArgs += "--config.compression=$Compression" }
     if ($Publish) { $builderArgs += @("--publish", "always") }
     npx electron-builder @builderArgs
     if ($LASTEXITCODE -ne 0) { throw "Desktop build failed" }

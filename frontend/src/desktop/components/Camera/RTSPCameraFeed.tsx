@@ -23,9 +23,26 @@ import type { IncidentDetectedData } from './DetectionOverlay';
  */
 const FIRST_FRAME_TIMEOUT_MS = 25000;
 
+/**
+ * MP4 files are local: if the AI service cannot open one it 404s on every
+ * frame request straight away, so there is no reason to make the operator wait
+ * the full RTSP grace period before saying so.
+ */
+const MP4_FIRST_FRAME_TIMEOUT_MS = 10000;
+
+/**
+ * Why a feed failed, so the overlay can say something true:
+ *   unreachable — the request never got an answer (sidecar stopped, wrong port)
+ *   no-frames   — the AI service answered 404: it has no frames for this source
+ *   http        — the AI service answered with some other error status
+ *   timeout     — nothing arrived before the first-frame deadline
+ */
+export type FeedFailureKind = 'unreachable' | 'no-frames' | 'http' | 'timeout';
+
 interface FeedStatus {
   state: 'connecting' | 'live' | 'error';
   detail?: string;
+  kind?: FeedFailureKind;
 }
 
 // ── RtspCanvas — inner polling component ─────────────────────────────────────
@@ -38,17 +55,29 @@ interface RtspCanvasProps {
   onStatus?: (status: FeedStatus) => void;
   /** Fires when the decoder reports a new pixel size. */
   onSize?: (size: { width: number; height: number }) => void;
+  /** Overrides how long to wait for a first frame before reporting failure. */
+  firstFrameTimeoutMs?: number;
 }
 
-export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, onSize }: RtspCanvasProps) {
+export function RtspCanvas({
+  canvasRef,
+  cameraId,
+  baseUrl,
+  onFrame,
+  onStatus,
+  onSize,
+  firstFrameTimeoutMs = FIRST_FRAME_TIMEOUT_MS,
+}: RtspCanvasProps) {
   const mountedRef = useRef(true);
   const hasDrawnRef = useRef(false);
   const lastErrorRef = useRef('');
+  const lastKindRef = useRef<FeedFailureKind | undefined>(undefined);
 
   useEffect(() => {
     mountedRef.current = true;
     hasDrawnRef.current = false;
     lastErrorRef.current = '';
+    lastKindRef.current = undefined;
     let abortCtrl: AbortController | null = null;
     let watchdog: ReturnType<typeof setTimeout> | null = null;
 
@@ -67,12 +96,13 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, on
         if (!mountedRef.current || hasDrawnRef.current) return;
         onStatus?.({
           state: 'error',
+          kind: lastKindRef.current ?? 'timeout',
           detail:
             lastErrorRef.current ||
-            `No frames received within ${FIRST_FRAME_TIMEOUT_MS / 1000}s. ` +
+            `No frames received within ${firstFrameTimeoutMs / 1000}s. ` +
             `Check that the AI service is running and the camera source is reachable.`,
         });
-      }, FIRST_FRAME_TIMEOUT_MS);
+      }, firstFrameTimeoutMs);
     };
 
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
@@ -87,6 +117,11 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, on
             { signal: abortCtrl.signal },
           );
           if (!res.ok) {
+            // 404 is the AI service saying "I have no frame for this camera":
+            // for an MP4 that means it could not open the file. Anything else
+            // is the service itself failing, and a thrown fetch never reached
+            // it at all — those must not be blamed on the file path.
+            lastKindRef.current = res.status === 404 ? 'no-frames' : 'http';
             lastErrorRef.current = `Frame request failed: HTTP ${res.status} ${res.statusText}`.trim();
             await sleep(1000);
             continue;
@@ -117,6 +152,7 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, on
           if (onFrame) onFrame();
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
+          lastKindRef.current = 'unreachable';
           lastErrorRef.current = e?.message
             ? `Frame request error: ${e.message}`
             : 'Frame request error';
@@ -132,7 +168,7 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, on
       clearWatchdog();
       abortCtrl?.abort();
     };
-  }, [cameraId, baseUrl, canvasRef, onFrame, onStatus, onSize]);
+  }, [cameraId, baseUrl, canvasRef, onFrame, onStatus, onSize, firstFrameTimeoutMs]);
 
   return null;
 }
@@ -222,6 +258,49 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
 
   const failed = stalled || feed.state === 'error';
 
+  // A local MP4 that the AI service cannot open is a very different failure
+  // from an unreachable RTSP url: the operator can fix it by correcting the
+  // path, so name the file instead of showing the generic offline state — but
+  // only when the service actually answered. A stopped sidecar must not send
+  // anyone hunting for a file that is fine.
+  const isMp4 = camera.stream_type === 'MP4';
+  const mp4Path =
+    typeof camera.stream_url === 'string' ? camera.stream_url.trim() : '';
+
+  const mp4Failure =
+    feed.kind === 'unreachable'
+      ? {
+          title: 'AI service unreachable',
+          body:
+            'Aeris could not reach the local AI service on this PC, so this ' +
+            'video is not being read. Start (or restart) the app and try again.',
+          showPath: false,
+        }
+      : feed.kind === 'no-frames'
+        ? {
+            title: 'Video file could not be opened',
+            body:
+              'The AI service is running but has no frames from this file. ' +
+              'Check that it still exists at this path and is a readable MP4. ' +
+              'If the path is correct, check that Aeris can reach its server.',
+            showPath: true,
+          }
+        : feed.kind === 'http'
+          ? {
+              title: 'AI service error',
+              body:
+                'The local AI service rejected the request for this video. ' +
+                'The response below says why.',
+              showPath: false,
+            }
+          : {
+              title: 'No frames from the AI service',
+              body:
+                'The AI service did not deliver a frame in time. Check that it ' +
+                'is running and that it can read this file.',
+              showPath: true,
+            };
+
   return (
     <Box
       ref={containerRef}
@@ -245,6 +324,7 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
         onFrame={tick}
         onStatus={handleStatus}
         onSize={handleSize}
+        firstFrameTimeoutMs={isMp4 ? MP4_FIRST_FRAME_TIMEOUT_MS : undefined}
       />
       {!failed && (
         <DetectionOverlay
@@ -273,12 +353,39 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
           }}
         >
           <VideoSlash width={40} height={40} color="var(--mantine-color-dimmed)" />
-          <Text fw={700} size="md" c="white" mt="xs">Connection failure</Text>
-          <Text size="sm" c="var(--mantine-color-dimmed)" mt={4} w="90%" lh={1.5}>
-            {feed.state === 'error' && feed.detail
-              ? feed.detail
-              : 'Unable to connect to the camera source. Verify the configuration and connection.'}
+          <Text fw={700} size="md" c="white" mt="xs">
+            {isMp4 ? mp4Failure.title : 'Connection failure'}
           </Text>
+          {isMp4 ? (
+            <>
+              {mp4Failure.showPath && (
+                <Text
+                  size="sm"
+                  c="white"
+                  mt={4}
+                  w="90%"
+                  lh={1.5}
+                  style={{ wordBreak: 'break-all', fontFamily: 'monospace' }}
+                >
+                  {mp4Path || '(no path saved for this camera)'}
+                </Text>
+              )}
+              <Text size="xs" c="var(--mantine-color-dimmed)" mt={4} w="90%" lh={1.5}>
+                {mp4Failure.body}
+              </Text>
+              {feed.detail && (
+                <Text size="xs" c="var(--mantine-color-dimmed)" mt={2} w="90%" lh={1.5}>
+                  {feed.detail}
+                </Text>
+              )}
+            </>
+          ) : (
+            <Text size="sm" c="var(--mantine-color-dimmed)" mt={4} w="90%" lh={1.5}>
+              {feed.state === 'error' && feed.detail
+                ? feed.detail
+                : 'Unable to connect to the camera source. Verify the configuration and connection.'}
+            </Text>
+          )}
         </Box>
       ) : null}
     </Box>

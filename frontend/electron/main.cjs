@@ -172,6 +172,16 @@ function ensureAiServiceBundled() {
     return;
   }
   writeLog(`Spawning bundled ai-service launcher: ${executable}`);
+  // The sidecar reads its API keys from this file (run_sidecar.py). Without it
+  // the service still boots but fails closed: every guarded /ai route 403s and
+  // detection posts are rejected by the backend. Say so in the log instead of
+  // leaving a silent, keyless sidecar.
+  if (!fs.existsSync(path.join(aiDir, '.env'))) {
+    writeLog(
+      'WARNING: resources/ai-service/.env is missing — the sidecar will start ' +
+        'without AI_SERVICE_API_KEY/INTERNAL_API_KEY and reject AI requests',
+    );
+  }
   const isScript = /\.(cmd|bat)$/i.test(executable);
   const env = {
     ...process.env,
@@ -182,7 +192,9 @@ function ensureAiServiceBundled() {
     AI_FRONTEND_DIR: path.join(aiDir, 'frontend', 'dist'),
     // The bundled ai-service ships with a dev BACKEND_API_URL (localhost:8000)
     // in its .env. Override it so auto-registration can reach the real backend.
-    BACKEND_API_URL: `${resolveBackendUrl()}/api`,
+    // Strip a trailing /api first: a user override that already includes it
+    // would otherwise become /api/api and every /internal/ call would 404.
+    BACKEND_API_URL: `${resolveBackendUrl().replace(/\/api$/i, '')}/api`,
   };
   // If the configured bundle port was busy, start the sidecar on the free port.
   if (bundlePortOverride) {

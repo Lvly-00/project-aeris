@@ -1,4 +1,4 @@
-const { contextBridge, ipcRenderer } = require('electron');
+const { contextBridge, ipcRenderer, webUtils } = require('electron');
 
 contextBridge.exposeInMainWorld('electronAPI', {
   // Origin of the deployed backend (API/media) — resolved by main process.
@@ -8,6 +8,17 @@ contextBridge.exposeInMainWorld('electronAPI', {
   // desktop product the ai-service serves both and exposes its API under /ai
   // (Vite dev server proxies /ai in development).
   getAiUrl: () => ipcRenderer.sendSync('get-ai-url'),
+
+  // Absolute path of a File picked with <input type="file">. Browsers hide it
+  // for privacy, but the bundled AI service runs on this machine and needs a
+  // real path to open an MP4 source.
+  getPathForFile: (file) => {
+    try {
+      return webUtils.getPathForFile(file) || '';
+    } catch (_) {
+      return '';
+    }
+  },
 
   // Used by React to determine whether it's running in Electron
   isDesktop: true,

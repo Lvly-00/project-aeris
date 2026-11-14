@@ -61,7 +61,11 @@ export function CameraFeed({ camera, onIncidentDetected, onStats }: CameraFeedPr
   const [playState, setPlayState] = useState<'connecting' | 'live'>('connecting');
   const [stats, setStats] = useState<FeedStats>(IDLE_FEED_STATS);
 
-  const delegates = camera.stream_type === 'RTSP';
+  // MP4 files are read by the AI service (mp4_feeder), so the desktop renders
+  // them from the same JPEG frame feed as RTSP. Streaming them from the
+  // backend only works when the file happens to exist on the server, which is
+  // why MP4 used to fail on a deployed install while RTSP worked.
+  const delegates = camera.stream_type === 'RTSP' || camera.stream_type === 'MP4';
 
   // Shared hook resolves the token from localStorage *and* sessionStorage, so
   // MP4 keeps working when the user logged in without "Remember Me".
@@ -181,7 +185,7 @@ export function CameraFeed({ camera, onIncidentDetected, onStats }: CameraFeedPr
     );
   }
 
-  if (camera.stream_type === 'RTSP') {
+  if (camera.stream_type === 'RTSP' || camera.stream_type === 'MP4') {
     return (
       <RTSPCameraFeed
         camera={camera}

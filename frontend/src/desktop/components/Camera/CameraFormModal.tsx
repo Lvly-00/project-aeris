@@ -37,12 +37,6 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
         if (values.stream_type === 'MP4' && !/\.(mp4|mkv|webm)(\?.*)?$/i.test(value)) {
           return 'MP4 source must point to a video file (.mp4, .mkv, .webm)';
         }
-        if (
-          (values.stream_type === 'HTTP' || values.stream_type === 'EMBED') &&
-          !/^https?:\/\//i.test(value)
-        ) {
-          return 'HTTP/Embed source must start with http:// or https://';
-        }
         return null;
       },
     },
@@ -57,10 +51,13 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
   }, [initialValues, opened]);
 
   const handleFileSelect = (file: File | null) => {
-    if (file) {
-      form.setFieldValue('stream_url', file.name);
-      form.setFieldValue('stream_type', 'MP4');
-    }
+    if (!file) return;
+    // The AI service opens the file itself, so it needs the full path, not the
+    // bare name the browser exposes. Electron provides it; on the web there is
+    // no path to give, so the typed value is kept as-is.
+    const fullPath = window.electronAPI?.getPathForFile?.(file) || '';
+    form.setFieldValue('stream_type', 'MP4');
+    form.setFieldValue('stream_url', fullPath || file.name);
   };
 
   const handleSubmit = (event: React.FormEvent) => {
@@ -142,7 +139,8 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
 
             {form.values.stream_type === 'MP4' && (
               <Text fw={600} c="dimmed" mb={4} size="xs">
-                Local file path for testing
+                Video file on the machine running the AI service — use Locate File
+                to store its full path
               </Text>
             )}
 
@@ -188,9 +186,7 @@ export function CameraFormModal({ opened, onClose, onSubmit, initialValues, load
             placeholder="Select type"
             data={[
               { value: 'RTSP', label: 'RTSP Stream' },
-              { value: 'HTTP', label: 'HTTP Stream' },
-              { value: 'MP4', label: 'MP4 Video File (Testing)' },
-              { value: 'EMBED', label: 'Embedded Web Page' }
+              { value: 'MP4', label: 'MP4 Video File' }
             ]}
             {...form.getInputProps('stream_type')}
             radius="md"

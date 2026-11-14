@@ -18,6 +18,8 @@ declare global {
     electronAPI?: {
       getBackendUrl: () => string;
       getAiUrl: () => string;
+      /** Absolute path of a File chosen via <input type="file">. */
+      getPathForFile: (file: File) => string;
 
       isDesktop: boolean;
       platform: string;
