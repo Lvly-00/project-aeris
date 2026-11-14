@@ -119,6 +119,10 @@ htmlcov/
 coverage.xml
 .coverage
 
+/docs
+
+PRODUCTION_READINESS.md
+
 # ── Docker ───────────────────────────────────────────────────────────────────
 # docker-compose.override.yml is intentionally untracked (local dev overrides)
 docker-compose.override.yml
