@@ -5,6 +5,7 @@ import { ErrorBoundary } from '../src/desktop/components/common/ErrorBoundary';
 import AgreementModal from './shared/components/AgreementModal';
 import { authAPI } from './shared/services/api';
 import DesktopTitleBar from './desktop/components/TitleBar/DesktopTitleBar';
+import { SpeedInsights } from '@vercel/speed-insights/react';
 
 function WebSocketInit() {
   const { isAuthenticated } = useAuth();
@@ -40,6 +41,7 @@ export default function App() {
         <WebSocketInit />
         <AgreementGate />
         <AppRouter />
+        <SpeedInsights />
       </AuthProvider>
     </ErrorBoundary>
   );
