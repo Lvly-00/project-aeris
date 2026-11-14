@@ -216,6 +216,42 @@ jobs:
       (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')) ||
       (github.event_name == 'workflow_dispatch' && inputs.desktop_version == '')
     steps:
+      # appleboy/ssh-action only reports "missing server host" for an empty
+      # host and fails the step without naming the other missing values, so
+      # check them up front and fail with an explicit list instead.
+      - name: Preflight deploy secrets
+        if: >-
+          (github.event_name == 'push' && github.ref == format('refs/heads/{0}', matrix.branch)) ||
+          (github.event_name == 'workflow_dispatch' && inputs.target == matrix.environment)
+        shell: bash
+        env:
+          DEPLOY_HOST: ${{ secrets[format('{0}DEPLOY_HOST', matrix.secret_prefix)] }}
+          DEPLOY_USER: ${{ secrets[format('{0}DEPLOY_USER', matrix.secret_prefix)] }}
+          DEPLOY_SSH_KEY: ${{ secrets[format('{0}DEPLOY_SSH_KEY', matrix.secret_prefix)] }}
+          DEPLOY_PATH: ${{ secrets[format('{0}DEPLOY_PATH', matrix.secret_prefix)] }}
+        run: |
+          missing=()
+          for name in DEPLOY_HOST DEPLOY_USER DEPLOY_SSH_KEY DEPLOY_PATH; do
+            if [ -z "${!name}" ]; then
+              missing+=("${{ matrix.secret_prefix }}${name}")
+            fi
+          done
+
+          if [ ${#missing[@]} -gt 0 ]; then
+            echo "::error::Missing deploy secrets for environment '${{ matrix.environment }}': ${missing[*]}"
+            echo "" >&2
+            echo "These are empty for environment '${{ matrix.environment }}':" >&2
+            for name in "${missing[@]}"; do
+              echo "  - $name" >&2
+            done
+            echo "" >&2
+            echo "Add them under Settings -> Environments -> ${{ matrix.environment }}" >&2
+            echo "(or as repository secrets) and re-run this job." >&2
+            exit 1
+          fi
+
+          echo "All four deploy secrets are set for environment '${{ matrix.environment }}'."
+
       - name: Pull the new tag and restart
         if: >-
           (github.event_name == 'push' && github.ref == format('refs/heads/{0}', matrix.branch)) ||
