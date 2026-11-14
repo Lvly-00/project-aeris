@@ -119,6 +119,7 @@ htmlcov/
 coverage.xml
 .coverage
 
+/benchmark
 /docs
 
 PRODUCTION_READINESS.md

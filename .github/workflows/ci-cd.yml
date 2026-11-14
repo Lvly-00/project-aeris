@@ -1,8 +1,5 @@
 name: CI/CD
 
-# One pipeline for the whole repository. Previously this logic was spread over
-# ci.yml, deploy.yml, deploy-staging.yml and desktop-release.yml, which repeated
-# the same three image builds three times. Now:
 #
 #   pull_request            -> checks + build images (no push, no deploy)
 #   push to main            -> checks + push :<sha> and :latest + deploy production
@@ -10,10 +7,10 @@ name: CI/CD
 #   push of a desktop-v* tag-> checks + desktop installer release
 #   workflow_dispatch       -> pick an environment to deploy, or a desktop version
 #
-# Required environment secrets — the same four names on both environments,
-# which is what lets one deploy job serve staging and production:
-#   environments: staging, production
-#     DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_PATH
+# Required repository secrets:
+#   production: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_PATH
+#   staging:    STAGING_DEPLOY_HOST, STAGING_DEPLOY_USER,
+#               STAGING_DEPLOY_SSH_KEY, STAGING_DEPLOY_PATH
 #
 # Each server keeps its own .env; nothing secret is passed through the workflow.
 # Deploys pin AERIS_TAG to the deployed commit, so a rollout is reproducible and
@@ -38,12 +35,6 @@ on:
 
 permissions:
   contents: read
-
-# Pull request runs supersede each other; branch pushes and releases never do,
-# so a deploy in flight is not cancelled by the next commit.
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
   backend:
@@ -198,38 +189,40 @@ jobs:
           cache-from: type=gha,scope=${{ matrix.image }}
           cache-to: type=gha,mode=max,scope=${{ matrix.image }}
 
-  # One deploy job for both environments. DEPLOY_HOST / DEPLOY_USER /
-  # DEPLOY_SSH_KEY / DEPLOY_PATH live on the `staging` and `production`
-  # environments under the same names, so `environment:` below picks the right
-  # set of secrets and no prefix or dynamic lookup is needed.
+  # One deploy job, parameterised per environment instead of two near-identical
+  # jobs. Secrets are read by prefix, so production keeps its existing names.
   deploy:
-    name: Deploy
+    name: Deploy ${{ matrix.environment }}
     needs: images
-    if: >-
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')) ||
-      (github.event_name == 'workflow_dispatch' && inputs.desktop_version == '')
     runs-on: ubuntu-latest
-    environment: >-
-      ${{ (github.event_name == 'workflow_dispatch' && inputs.target)
-          || (github.ref_name == 'staging' && 'staging')
-          || 'production' }}
+    environment: ${{ matrix.environment }}
     concurrency:
-      group: >-
-        deploy-${{ (github.event_name == 'workflow_dispatch' && inputs.target)
-                  || (github.ref_name == 'staging' && 'staging')
-                  || 'production' }}
+      group: deploy-${{ matrix.environment }}
       cancel-in-progress: false
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - environment: staging
+            branch: staging
+            secret_prefix: STAGING_
+          - environment: production
+            branch: main
+            secret_prefix: ''
+    if: >-
+      (github.event_name == 'push' && github.ref == format('refs/heads/{0}', matrix.branch)) ||
+      (github.event_name == 'workflow_dispatch' && inputs.target == matrix.environment && inputs.desktop_version == '')
     steps:
       - name: Pull the new tag and restart
         uses: appleboy/ssh-action@v1.0.3
         with:
-          host: ${{ secrets.DEPLOY_HOST }}
-          username: ${{ secrets.DEPLOY_USER }}
-          key: ${{ secrets.DEPLOY_SSH_KEY }}
+          host: ${{ secrets[format('{0}DEPLOY_HOST', matrix.secret_prefix)] }}
+          username: ${{ secrets[format('{0}DEPLOY_USER', matrix.secret_prefix)] }}
+          key: ${{ secrets[format('{0}DEPLOY_SSH_KEY', matrix.secret_prefix)] }}
+          envs: TAG
           script: |
-            set -eu
-            tag='${{ github.sha }}'
-            cd "${{ secrets.DEPLOY_PATH }}"
+            set -euo pipefail
+            cd "${{ secrets[format('{0}DEPLOY_PATH', matrix.secret_prefix)] }}"
 
             # Rewrite only the AERIS_TAG line so the rest of the server .env
             # (secrets, hosts, origins) stays untouched.
@@ -245,22 +238,20 @@ jobs:
             previous=$(grep -E '^AERIS_TAG=' .env | head -n1 | cut -d= -f2 || true)
             printf 'AERIS_TAG=%s\n' "${previous:-latest}" > .aeris-previous-tag
 
-            set_tag "$tag"
-            echo "Rolling out AERIS_TAG=$tag"
+            set_tag "$TAG"
+            echo "Rolling out AERIS_TAG=$TAG"
 
             docker compose pull
             docker compose up -d --remove-orphans
 
             # The stack is considered live only once the API answers.
-            attempt=1
-            while [ "$attempt" -le 30 ]; do
+            for attempt in $(seq 1 30); do
               code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8000/api/health/ || true)
               if [ "$code" = "200" ]; then
-                echo "Deployed AERIS_TAG=$tag"
+                echo "Deployed AERIS_TAG=$TAG"
                 exit 0
               fi
               sleep 5
-              attempt=$((attempt + 1))
             done
 
             echo "Health check failed; restoring previous tag" >&2
@@ -269,6 +260,8 @@ jobs:
             docker compose pull
             docker compose up -d --remove-orphans
             exit 1
+        env:
+          TAG: ${{ github.sha }}
 
   # Independent of the server deploys: the desktop shell only ships when a
   # desktop-v* tag is pushed (or a version is supplied on dispatch).
@@ -323,8 +316,8 @@ jobs:
           CSC_IDENTITY_AUTO_DISCOVERY: 'false'
           # Baked into the installer so installations point at the real
           # deployment instead of localhost.
-          AERIS_SERVER_URL: https://aeris.barangay.local
-          AERIS_BACKEND_URL: https://aeris.barangay.local
+          AERIS_SERVER_URL: https://project-aeris.onrender.com
+          AERIS_BACKEND_URL: https://project-aeris.onrender.com
         run: npm run build:desktop -- --publish always
 
       - name: Upload build artifacts
