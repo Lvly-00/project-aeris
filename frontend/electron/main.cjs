@@ -44,6 +44,9 @@ const DEFAULT_BACKEND_URL = 'https://project-aeris.onrender.com';
 let mainWindow = null;
 let tray = null;
 let aiProcess = null;
+// Set while fallbackToNativeFrame() swaps the window out and in again: the
+// destroyed window briefly leaves zero windows, which must not quit the app.
+let recreatingWindow = false;
 // When the configured bundle port is already taken (e.g. a leftover dev AI
 // service), the bundled sidecar is started on a free port instead and the
 // window loads from that port. /ai is same-origin, so nothing else changes.
@@ -56,14 +59,55 @@ function writeLog(msg) {
   } catch (_) {}
 }
 
+// Where the last resolveServerUrl() call got its value. Logged with the load so
+// app.log can distinguish "stale server-url.txt override" from "broken bundle".
+let serverUrlSource = 'default';
+
+// Directory electron-builder ships the PyInstaller sidecar into.
+function bundledAiDir() {
+  return path.join(process.resourcesPath, 'ai-service');
+}
+
+// True when this install carries its own AI sidecar, i.e. the window must load
+// the local bundle origin rather than any hosted frontend.
+function hasBundledSidecar() {
+  if (isDev) return false;
+  try {
+    const dir = bundledAiDir();
+    if (!fs.existsSync(dir)) return false;
+    return ['ai-server.exe', 'ai-server.cmd', 'start-ai.cmd', 'start-ai.bat'].some(
+      (name) => fs.existsSync(path.join(dir, name)),
+    );
+  } catch (_) {
+    return false;
+  }
+}
+
 function resolveServerUrl() {
+  serverUrlSource = 'default';
   let url = process.env.AERIS_SERVER_URL || '';
+  if (url) serverUrlSource = `AERIS_SERVER_URL (${url})`;
 
   if (!url) {
     try {
       const cfgPath = path.join(app.getPath('userData'), 'server-url.txt');
       if (fs.existsSync(cfgPath)) {
-        url = fs.readFileSync(cfgPath, 'utf-8').trim();
+        const configured = fs.readFileSync(cfgPath, 'utf-8').trim();
+        if (configured) {
+          // A bundled install serves its own SPA. A leftover override pointing
+          // at a hosted frontend is how the desktop window ends up rendering
+          // the web shell: no title bar, no window controls, and /ai going to a
+          // remote AI service that cannot see this machine's cameras.
+          if (hasBundledSidecar() && !isLocalUrl(configured)) {
+            serverUrlSource = `server-url.txt IGNORED (${configured} is remote)`;
+            writeLog(
+              `Ignoring server-url.txt "${configured}": this install bundles its own app origin`,
+            );
+          } else {
+            url = configured;
+            serverUrlSource = `server-url.txt (${configured})`;
+          }
+        }
       }
     } catch (_) {}
   }
@@ -77,6 +121,7 @@ function resolveServerUrl() {
       if (fs.existsSync(bundled)) {
         const parsed = JSON.parse(fs.readFileSync(bundled, 'utf-8'));
         url = (parsed && parsed.url || '').trim();
+        if (url) serverUrlSource = `server-url.json (${url})`;
       }
     } catch (_) {}
   }
@@ -172,6 +217,21 @@ function ensureAiServiceBundled() {
     return;
   }
   writeLog(`Spawning bundled ai-service launcher: ${executable}`);
+
+  // Inventory what actually shipped. "The cameras are not working" is usually
+  // answered by one of these lines: a missing executable, a missing .env (which
+  // makes every guarded /ai route fail closed), or a missing SPA directory.
+  const inventory = [
+    ['ai-server.exe', path.join(aiDir, 'ai-server.exe')],
+    ['.env', path.join(aiDir, '.env')],
+    ['yolo11n.pt', path.join(aiDir, 'yolo11n.pt')],
+    ['frontend/dist/index.html', path.join(aiDir, 'frontend', 'dist', 'index.html')],
+  ];
+  for (const [label, target] of inventory) {
+    if (!fs.existsSync(target)) writeLog(`Bundle check: ${label} MISSING in ${aiDir}`);
+  }
+  writeLog(`Bundle check: ${inventory.filter(([, t]) => fs.existsSync(t)).length}/4 files present in ${aiDir}`);
+
   // The sidecar reads its API keys from this file (run_sidecar.py). Without it
   // the service still boots but fails closed: every guarded /ai route 403s and
   // detection posts are rejected by the backend. Say so in the log instead of
@@ -267,15 +327,93 @@ function scheduleLoadRetry(targetUrl) {
   }, 2000);
 }
 
-function createWindow() {
-  const targetUrl = isDev ? DEV_FRONTEND_URL : resolveServerUrl();
+// A frameless window whose renderer never drew the custom title strip cannot be
+// moved, minimised or closed with the mouse. Rebuild it with the native frame
+// so the user always has window controls, whatever went wrong in the page.
+function fallbackToNativeFrame(reason) {
+  if (isMac) return;
+  if (!mainWindow || mainWindow.isDestroyed()) return;
+  if (mainWindow.__nativeFrame) return;
+  const url = mainWindow.webContents.getURL() || resolveServerUrl();
+  writeLog(`Falling back to the native window frame (${reason}) — reloading ${url}`);
+  recreatingWindow = true;
+  const stale = mainWindow;
+  mainWindow = null;
+  stale.removeAllListeners('closed');
+  stale.destroy();
+  createWindow({ forceNativeFrame: true, initialUrl: url });
+  recreatingWindow = false;
+}
+
+// Ask the page whether it exposes the bridge and actually drew the title strip.
+function verifyRendererChrome(loadedUrl) {
+  if (isDev || !mainWindow || mainWindow.isDestroyed()) return;
+  const win = mainWindow;
+  const MAX_ATTEMPTS = 6;
+  let attempts = 0;
+
+  // Retry for ~6s: a slow first paint must not trigger a needless fallback that
+  // would leave the window with both the native frame and a late custom strip.
+  const check = async () => {
+    if (!mainWindow || mainWindow.isDestroyed() || mainWindow !== win) return;
+    attempts += 1;
+    let hasBridge = false;
+    let hasTitleBar = false;
+    try {
+      hasBridge = await win.webContents.executeJavaScript(
+        'Boolean(window.electronAPI && window.electronAPI.isDesktop === true)',
+      );
+      hasTitleBar = await win.webContents.executeJavaScript(
+        'Boolean(document.querySelector(".desktop-titlebar"))',
+      );
+    } catch (err) {
+      writeLog(`Chrome check failed for ${loadedUrl}: ${err.message}`);
+    }
+
+    if (hasBridge && hasTitleBar) {
+      writeLog(`Chrome check ${loadedUrl}: ok (electronAPI + title bar)`);
+      return;
+    }
+    if (attempts < MAX_ATTEMPTS) {
+      setTimeout(check, 1000);
+      return;
+    }
+    writeLog(
+      `Chrome check ${loadedUrl}: electronAPI=${hasBridge} titleBar=${hasTitleBar} after ${MAX_ATTEMPTS}s`,
+    );
+    fallbackToNativeFrame(!hasBridge ? 'preload bridge missing' : 'page drew no title bar');
+  };
+
+  setTimeout(check, 1500);
+}
+
+// Is the local AI actually up? This is what turns "cameras do not work" into
+// "unreachable" / "403 missing key" / "200" in app.log.
+async function probeAiService(stage) {
+  const base = resolveServerUrl();
+  if (!isLocalUrl(base)) {
+    writeLog(`AI health (${stage}): skipped — window origin ${base} is not local`);
+    return;
+  }
+  try {
+    const res = await fetch(`${base}/health`, { signal: AbortSignal.timeout(5000) });
+    const body = (await res.text()).slice(0, 200);
+    writeLog(`AI health (${stage}): HTTP ${res.status} ${body}`);
+  } catch (err) {
+    writeLog(`AI health (${stage}): unreachable — ${err.message}`);
+  }
+}
+
+function createWindow(options = {}) {
+  const targetUrl = options.initialUrl || (isDev ? DEV_FRONTEND_URL : resolveServerUrl());
+  const nativeFrame = Boolean(options.forceNativeFrame) || isMac;
   let allowedOrigin;
   try {
     allowedOrigin = new URL(targetUrl).origin;
   } catch (_) {
     allowedOrigin = targetUrl;
   }
-  writeLog(`Loading ${targetUrl}`);
+  writeLog(`Loading ${targetUrl} (source: ${serverUrlSource}, nativeFrame: ${nativeFrame})`);
 
   mainWindow = new BrowserWindow({
     width: 1400,
@@ -285,8 +423,10 @@ function createWindow() {
     icon: path.join(__dirname, 'icon.png'),
     show: false,
     // No native frame or menu bar: the renderer draws the 40px title strip
-    // with minimize/maximize/close and the update button.
-    frame: isMac,
+    // with minimize/maximize/close and the update button. If that renderer
+    // never arrives, fallbackToNativeFrame() rebuilds this window with the
+    // native frame so the window can always be moved/closed.
+    frame: nativeFrame,
     backgroundColor: '#1a1b1e',
     webPreferences: {
       preload: path.join(__dirname, 'preload.cjs'),
@@ -294,6 +434,8 @@ function createWindow() {
       contextIsolation: true,
     },
   });
+
+  mainWindow.__nativeFrame = nativeFrame;
 
   const sendWindowState = () => {
     if (mainWindow && !mainWindow.isDestroyed()) {
@@ -304,6 +446,20 @@ function createWindow() {
   mainWindow.on('unmaximize', sendWindowState);
 
   mainWindow.loadURL(targetUrl);
+
+  // A preload that throws leaves window.electronAPI undefined, which is the
+  // other way to end up with a frameless window and no controls.
+  mainWindow.webContents.on('preload-error', (_event, preloadPath, error) => {
+    writeLog(`preload-error: ${preloadPath} — ${error?.message || error}`);
+    fallbackToNativeFrame('preload failed');
+  });
+
+  mainWindow.webContents.on('did-finish-load', () => {
+    if (!mainWindow || mainWindow.isDestroyed()) return;
+    const loaded = mainWindow.webContents.getURL() || targetUrl;
+    writeLog(`Loaded ${loaded}`);
+    if (!nativeFrame) verifyRendererChrome(loaded);
+  });
 
   mainWindow.webContents.on('did-fail-load', (_event, errorCode, errorDescription, validatedURL) => {
     // Ignore aborted navigations (normal when SPA routes change)
@@ -527,6 +683,11 @@ app.whenReady().then(async () => {
   createWindow();
   createTray();
 
+  // Local AI diagnostics, log-only: tells "sidecar never came up" apart from
+  // "camera source unreadable" when a feed is offline.
+  setTimeout(() => probeAiService('8s'), 8000);
+  setTimeout(() => probeAiService('30s'), 30000);
+
   // Quietly check once per launch so the title-bar update button can appear
   // without the user opening Settings. Failures stay in the log.
   setTimeout(() => {
@@ -548,6 +709,7 @@ app.on('before-quit', () => {
 
 app.on('window-all-closed', () => {
   if (loadRetryTimer) clearTimeout(loadRetryTimer);
+  if (recreatingWindow) return;
   if (process.platform !== 'darwin') {
     app.quit();
   }
