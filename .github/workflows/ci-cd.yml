@@ -2,12 +2,15 @@ name: CI/CD
 
 #
 #   pull_request            -> checks + build images (no push, no deploy)
-#   push to main            -> checks + push :<sha> and :latest + deploy production
-#   push to staging         -> checks + push :<sha> and :staging + deploy staging
-#   push of a desktop-v* tag-> checks + desktop installer release
-#   workflow_dispatch       -> pick an environment to deploy, or a desktop version
+#   push to main            -> checks + push :<sha> and :latest
+#   push to staging         -> checks + push :<sha> and :staging
+#   push of a desktop-v* tag-> desktop installer release
+#   workflow_dispatch       -> deploy the compose stack by hand, or a desktop version
 #
-# Required repository secrets:
+# Production runs on Render (backend + AI service) and Vercel (frontend); both
+# deploy from GitHub on their own, so nothing here needs to reach a server. The
+# SSH + docker-compose deploy job is kept for the optional self-hosted stack and
+# only runs when dispatched. Its secrets are therefore optional:
 #   production: DEPLOY_HOST, DEPLOY_USER, DEPLOY_SSH_KEY, DEPLOY_PATH
 #   staging:    STAGING_DEPLOY_HOST, STAGING_DEPLOY_USER,
 #               STAGING_DEPLOY_SSH_KEY, STAGING_DEPLOY_PATH
@@ -209,12 +212,16 @@ jobs:
           - environment: production
             branch: main
             secret_prefix: ''
+    # Deploys are manual: Render and Vercel ship from GitHub themselves, so a
+    # push must not try to SSH anywhere (it would fail without the optional
+    # DEPLOY_* secrets). Dispatch this workflow and pick an environment to roll
+    # out the self-hosted compose stack instead.
+    #
     # The `matrix` context is not available in a job-level `if:`, so this guard
     # only uses github/inputs. The per-environment selection happens on the
     # step below, where matrix IS available.
     if: >-
-      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')) ||
-      (github.event_name == 'workflow_dispatch' && inputs.desktop_version == '')
+      github.event_name == 'workflow_dispatch' && inputs.desktop_version == ''
     steps:
       # appleboy/ssh-action only reports "missing server host" for an empty
       # host and fails the step without naming the other missing values, so
