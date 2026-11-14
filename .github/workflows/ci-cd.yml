@@ -209,11 +209,17 @@ jobs:
           - environment: production
             branch: main
             secret_prefix: ''
+    # The `matrix` context is not available in a job-level `if:`, so this guard
+    # only uses github/inputs. The per-environment selection happens on the
+    # step below, where matrix IS available.
     if: >-
-      (github.event_name == 'push' && github.ref == format('refs/heads/{0}', matrix.branch)) ||
-      (github.event_name == 'workflow_dispatch' && inputs.target == matrix.environment && inputs.desktop_version == '')
+      (github.event_name == 'push' && (github.ref == 'refs/heads/main' || github.ref == 'refs/heads/staging')) ||
+      (github.event_name == 'workflow_dispatch' && inputs.desktop_version == '')
     steps:
       - name: Pull the new tag and restart
+        if: >-
+          (github.event_name == 'push' && github.ref == format('refs/heads/{0}', matrix.branch)) ||
+          (github.event_name == 'workflow_dispatch' && inputs.target == matrix.environment)
         uses: appleboy/ssh-action@v1.0.3
         with:
           host: ${{ secrets[format('{0}DEPLOY_HOST', matrix.secret_prefix)] }}
