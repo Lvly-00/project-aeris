@@ -24,9 +24,8 @@ import {
 } from '@mantine/core';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { notifications } from '@mantine/notifications';
-import { AddressBook, Brain, InfoCircle, Plus, Save, Trash, User } from '@boxicons/react';
+import { AddressBook, Brain, Plus, Save, Trash, User } from '@boxicons/react';
 import { aiAPI, contactsAPI } from '../../shared/services/api';
-import UpdatesPanel from '../components/UpdatesPanel';
 
 const INCIDENT_TYPES = [
   'Fire', 'Smoke', 'Vehicle_Accident',
@@ -52,6 +51,8 @@ export default function SettingsPage() {
     const tab = searchParams.get('tab');
     // "system" was the old System Info tab; keep old links working.
     if (tab === 'system') return 'contacts';
+    // "about" held the update panel; updates live in the window title bar now.
+    if (tab === 'about') return 'ai';
     return tab || 'ai';
   });
   // `null` means "not edited yet — mirror the loaded config"
@@ -222,9 +223,6 @@ export default function SettingsPage() {
           </Tabs.Tab>
           <Tabs.Tab value="contacts" leftSection={<AddressBook  width={ 14 } height={ 14 } />}>
             Contacts
-          </Tabs.Tab>
-          <Tabs.Tab value="about" leftSection={<InfoCircle  width={ 14 } height={ 14 } />}>
-            Updates
           </Tabs.Tab>
         </Tabs.List>
 
@@ -411,9 +409,6 @@ export default function SettingsPage() {
           </Card>
         </Tabs.Panel>
 
-        <Tabs.Panel value="about">
-          <UpdatesPanel />
-        </Tabs.Panel>
       </Tabs>
 
       <Modal
