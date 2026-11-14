@@ -42,6 +42,7 @@ param(
     [string]$ServerUrl = "",
     [string]$BackendUrl = "",
     [switch]$IncludeAi,
+    [switch]$Publish,
     [switch]$Local
 )
 
@@ -138,10 +139,32 @@ try {
         Copy-Item -Path (Join-Path $buildOut "*") -Destination $staged -Recurse -Force
 
         # Runtime files that ultralytics/torch load as files (never embedded).
-        Copy-Item -LiteralPath (Join-Path $aiDir "yolo11n.pt") -Destination $staged -Force
+        # *.pt is gitignored: fetch the base YOLO weights if this checkout has
+        # none (ultralytics downloads them on first use).
+        $yoloPath = Join-Path $aiDir "yolo11n.pt"
+        if (-not (Test-Path -LiteralPath $yoloPath)) {
+            Write-Host "  yolo11n.pt missing; fetching with ultralytics..." -ForegroundColor DarkYellow
+            Push-Location $aiDir
+            try {
+                & $venvPy -c "from ultralytics import YOLO; YOLO('yolo11n.pt')"
+                if ($LASTEXITCODE -ne 0) { throw "Could not obtain yolo11n.pt" }
+            }
+            finally {
+                Pop-Location
+            }
+        }
+        Copy-Item -LiteralPath $yoloPath -Destination $staged -Force
+
+        # Accident-detector weights are gitignored too. Ship them when present;
+        # without them the sidecar still runs, just without accident detection.
+        $accidentWeights = Join-Path $aiDir "models\accident_detector\weights\best.pt"
         $weightsDir = Join-Path $staged "models\accident_detector\weights"
         New-Item -ItemType Directory -Path $weightsDir -Force | Out-Null
-        Copy-Item -LiteralPath (Join-Path $aiDir "models\accident_detector\weights\best.pt") -Destination $weightsDir -Force
+        if (Test-Path -LiteralPath $accidentWeights) {
+            Copy-Item -LiteralPath $accidentWeights -Destination $weightsDir -Force
+        } else {
+            Write-Host "  WARNING: accident weights (best.pt) not found; bundling without them" -ForegroundColor DarkYellow
+        }
 
         # The SPA the sidecar serves as the app origin (<staged>\frontend\dist).
         New-Item -ItemType Directory -Path (Join-Path $staged "frontend") -Force | Out-Null
@@ -149,14 +172,25 @@ try {
 
         # Write a production .env beside the exe (source: repo .env keys,
         # backend overridden with the baked deployment backend).
+        # ai-service\.env is gitignored, so a CI checkout has none. Read it when
+        # present, otherwise fall back to the environment/defaults.
         $srcEnv = @{}
-        foreach ($line in Get-Content -LiteralPath (Join-Path $aiDir ".env")) {
-            if ($line -match '^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$') {
-                $srcEnv[$matches[1]] = $matches[2].Trim()
+        $envPath = Join-Path $aiDir ".env"
+        if (Test-Path -LiteralPath $envPath) {
+            foreach ($line in Get-Content -LiteralPath $envPath) {
+                if ($line -match '^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$') {
+                    $srcEnv[$matches[1]] = $matches[2].Trim()
+                }
             }
+        } else {
+            Write-Host "  No ai-service\.env found; using environment/defaults" -ForegroundColor DarkYellow
         }
-        $aiKey = if ($srcEnv["AI_SERVICE_API_KEY"]) { $srcEnv["AI_SERVICE_API_KEY"] } else { "ai-service-key" }
-        $internalKey = if ($srcEnv["INTERNAL_API_KEY"]) { $srcEnv["INTERNAL_API_KEY"] } else { $aiKey }
+        $aiKey = if ($env:AI_SERVICE_API_KEY) { $env:AI_SERVICE_API_KEY }
+                  elseif ($srcEnv["AI_SERVICE_API_KEY"]) { $srcEnv["AI_SERVICE_API_KEY"] }
+                  else { "ai-service-key" }
+        $internalKey = if ($env:INTERNAL_API_KEY) { $env:INTERNAL_API_KEY }
+                        elseif ($srcEnv["INTERNAL_API_KEY"]) { $srcEnv["INTERNAL_API_KEY"] }
+                        else { $aiKey }
         $backendApi = "$($bakedBackendUrl.TrimEnd('/'))/api"
         $envLines = @(
             "AI_SERVICE_HOST=127.0.0.1",
@@ -203,7 +237,9 @@ try {
             Write-Host "  If packaging fails with 'Insufficient system resources', install 7-Zip or set ELECTRON_BUILDER_COMPRESSION_LEVEL=1" -ForegroundColor DarkYellow
         }
     }
-    npx electron-builder --config electron-builder.yml
+    $builderArgs = @("--config", "electron-builder.yml")
+    if ($Publish) { $builderArgs += @("--publish", "always") }
+    npx electron-builder @builderArgs
     if ($LASTEXITCODE -ne 0) { throw "Desktop build failed" }
 
     Write-Host ""

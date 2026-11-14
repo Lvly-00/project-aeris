@@ -337,6 +337,25 @@ jobs:
           cache: npm
           cache-dependency-path: frontend/package-lock.json
 
+      # The AI sidecar is frozen into the installer, so the runner needs the
+      # same interpreter the AI service image uses (numpy 2.5.x needs 3.12).
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+          cache-dependency-path: ai-service/requirements.production.txt
+
+      - name: Prepare the AI sidecar toolchain
+        working-directory: .
+        shell: pwsh
+        run: |
+          python -m venv ai-service\.venv
+          $py = "ai-service\.venv\Scripts\python.exe"
+          & $py -m pip install --upgrade pip
+          & $py -m pip install --extra-index-url https://download.pytorch.org/whl/cpu `
+            -r ai-service\requirements.production.txt pyinstaller
+          if ($LASTEXITCODE -ne 0) { throw "Installing AI service requirements failed" }
+
       - name: Resolve version from tag
         shell: pwsh
         run: |
@@ -357,7 +376,14 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      # Bundled build: scripts/build-desktop.ps1 builds the SPA, freezes the AI
+      # service with PyInstaller, stages it into ai-bundle for extraResources,
+      # then packages and publishes. The window loads the local sidecar origin
+      # (SPA + /ai), while API/WebSocket calls go to the deployed backend — that
+      # is why cameras can be reached over RTSP from the operator's machine.
       - name: Build and publish installers
+        working-directory: .
+        shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           # Don't fail looking for a certificate on the runner.
@@ -369,11 +395,14 @@ jobs:
           # unsigned and Windows keeps warning.
           CSC_LINK: ${{ secrets.WINDOWS_CERT_PFX_BASE64 }}
           CSC_KEY_PASSWORD: ${{ secrets.WINDOWS_CERT_PASSWORD }}
-          # Baked into the installer so installations point at the real
-          # deployment instead of localhost.
-          AERIS_SERVER_URL: https://project-aeris.onrender.com
-          AERIS_BACKEND_URL: https://project-aeris.onrender.com
-        run: npm run build:desktop -- --publish always
+          # Shared secrets for the bundled sidecar; omit and the script falls
+          # back to its defaults, which the backend must then accept.
+          AI_SERVICE_API_KEY: ${{ secrets.AI_SERVICE_API_KEY }}
+          INTERNAL_API_KEY: ${{ secrets.INTERNAL_API_KEY }}
+        run: |
+          ./scripts/build-desktop.ps1 -IncludeAi -Publish `
+            -ServerUrl http://localhost:8005 `
+            -BackendUrl https://project-aeris.onrender.com
 
       - name: Upload build artifacts
         if: always()
