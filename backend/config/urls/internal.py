@@ -314,6 +314,13 @@ class InternalIncidentCreateView(APIView):
                 data = IncidentSerializer(
                     open_incident, context={"request": request}
                 ).data
+
+                # Broadcast the update so connected clients (PWA/desktop)
+                # see the rising detection count and confidence in real
+                # time instead of waiting for the next poll.
+                broadcast_incident("incident_update", data)
+                broadcast_stats_changed()
+
                 return Response({**data, "grouped": True}, status=200)
 
             # New incident. The message names the place, and an unlabelled

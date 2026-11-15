@@ -210,6 +210,25 @@ def create_app() -> FastAPI:
     @application.on_event("startup")
     def on_startup():
         logger.info("AI service starting up — initialising singletons")
+
+        # Fail-loud check: without a matching key the backend will reject
+        # every incident push with 403 and detections will never create
+        # incidents, while everything else (detection, streaming) still works.
+        # Log a highly-visible warning so the misconfiguration is easy to find.
+        if not AI_SERVICE_API_KEY:
+            logger.error(
+                "╔══════════════════════════════════════════════════════════╗\n"
+                "║  AI_SERVICE_API_KEY IS NOT SET                           ║\n"
+                "║  Incident pushes to the backend WILL be rejected (403).  ║\n"
+                "║  Set AI_SERVICE_API_KEY to the same value as the backend ║\n"
+                "║  environment variable with the same name.                ║\n"
+                "╚══════════════════════════════════════════════════════════╝"
+            )
+        else:
+            logger.info(
+                "AI_SERVICE_API_KEY is set (len=%d) — incident pushes are armed",
+                len(AI_SERVICE_API_KEY),
+            )
         # Importing the singletons here triggers their __init__ (model loading etc.)
         from .core.camera_manager import CameraManager
         from .core.model_registry import ModelRegistry

@@ -59,7 +59,7 @@ export default function IncidentDetailPage() {
       return res.data as Incident;
     },
     enabled: !!incidentId,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
 
   /*

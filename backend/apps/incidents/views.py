@@ -503,6 +503,11 @@ class IncidentViewSet(viewsets.ModelViewSet):
                     context={"request": request},
                 ).data
 
+                # Broadcast the update so connected clients see the rising
+                # detection count and confidence in real time instead of
+                # waiting for the next poll cycle.
+                broadcast_incident("incident_update", data)
+
                 return Response(
                     {**data, "grouped": True},
                     status=status.HTTP_200_OK,

@@ -51,7 +51,7 @@ export default function IncidentsPage() {
   /*
    * Active incidents, kept fresh three ways:
    *   1. refetch on mount (navigating back from the detail page)
-   *   2. 10s polling safety net
+   *   2. 5s polling safety net
    *   3. WebSocket events invalidate this key instantly
    */
   const { data: incidents = [], isLoading: loading } = useQuery({
@@ -77,7 +77,7 @@ export default function IncidentsPage() {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
 
   /*
