@@ -496,6 +496,17 @@ function createWindow(options = {}) {
   if (isDev) {
     mainWindow.webContents.openDevTools();
   }
+
+  // F12 toggles DevTools in any build — useful for diagnosing production issues.
+  mainWindow.webContents.on('before-input-event', (_event, input) => {
+    if (input.type === 'keyDown' && input.key === 'F12') {
+      if (mainWindow.webContents.isDevToolsOpened()) {
+        mainWindow.webContents.closeDevTools();
+      } else {
+        mainWindow.webContents.openDevTools();
+      }
+    }
+  });
 }
 
 function createTray() {

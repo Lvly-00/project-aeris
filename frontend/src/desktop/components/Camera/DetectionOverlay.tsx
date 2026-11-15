@@ -202,11 +202,19 @@ export function DetectionOverlay({
               cameraName: cameraName || `Camera #${cameraId}`,
             });
           }
-        } catch (err) {
+        } catch (err: any) {
           // Allow an immediate retry on the next poll instead of waiting out
           // the throttle window.
           lastReportedAt.current.delete(key);
-          console.warn('Failed to create incident from detection:', err);
+          // Log the full response so DevTools (F12) shows exactly why it failed
+          // (401 expired token, 403 wrong role/key, 400 bad data, 404 camera, etc.)
+          const status = err?.response?.status;
+          const detail = err?.response?.data?.detail || err?.response?.data?.error || err?.message;
+          console.error(
+            `[DetectionOverlay] createFromDetection failed — camera=${cameraId} type=${d.incident_type} ` +
+            `status=${status ?? 'network error'} detail=${JSON.stringify(detail)}`,
+            err?.response?.data ?? err,
+          );
         }
       }
     } catch {
