@@ -67,20 +67,20 @@ export function NotificationsModal({
         const data = res.data.results || res.data || [];
         if (!cancelled) {
           setItems(data);
+          setLoading(false);  // clear loading before setLoaded to avoid cancellation race
           setLoaded(true);
+          refreshCount();     // fire-and-forget — badge update, not critical path
         }
-        await refreshCount();
       } catch (error) {
         console.error('[NOTIFICATIONS] Failed to load:', error);
         if (!cancelled) {
+          setLoading(false);
           notifications.show({
             title: 'Error',
             message: 'Failed to load notifications',
             color: 'orange',
           });
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     };
 

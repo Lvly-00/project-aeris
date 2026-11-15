@@ -27,7 +27,7 @@ function RoleGuard({ children, allowedRoles }: { children: React.ReactNode; allo
     if (loading) return <LoadingOverlay visible zIndex={1000} />;
 
     if (!isAuthenticated) {
-        return <Navigate to="/pwa/login" replace />;
+        return <Navigate to="/login" replace />;
     }
 
     // Normalize role check (handling case sensitivity)
@@ -36,7 +36,7 @@ function RoleGuard({ children, allowedRoles }: { children: React.ReactNode; allo
 
     if (!currentRole || !allowedRoles.includes(currentRole)) {
         // If they are in the wrong area, push them to their correct home
-        return <Navigate to={isAdminRole ? "/pwa/admin" : "/pwa/tanod"} replace />;
+        return <Navigate to={isAdminRole ? "/admin" : "/tanod"} replace />;
     }
 
     return <>{children}</>;
@@ -63,7 +63,7 @@ export default function PwaRouter() {
                 path="login"
                 element={
                     isAuthenticated ? (
-                        <Navigate to={isAdminRole ? "/pwa/admin" : "/pwa/tanod"} replace />
+                        <Navigate to={isAdminRole ? "/admin" : "/tanod"} replace />
                     ) : (
                         <LoginPage />
                     )
@@ -116,7 +116,7 @@ export default function PwaRouter() {
                 }
             />
 
-            <Route path="*" element={<Navigate to="/pwa" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     );
 }

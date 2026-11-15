@@ -59,7 +59,7 @@ export default function MessageDetailsPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message?.id, message?.is_read]);
 
-  const goBack = () => navigate('/pwa/tanod/messages', { replace: true });
+  const goBack = () => navigate('/tanod/messages', { replace: true });
 
   if (isLoading || !message) {
     return <MessageDetailSkeleton />;

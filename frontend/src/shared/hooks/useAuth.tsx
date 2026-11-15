@@ -35,11 +35,11 @@ const AuthContext = createContext<AuthContextType | undefined>(
  * currently being used.
  */
 function getCurrentLoginPath() {
-  if (window.location.pathname.startsWith('/pwa')) {
-    return '/pwa/login';
+  if (window.location.pathname.startsWith('/desktop')) {
+    return '/desktop/login';
   }
 
-  return '/desktop/login';
+  return '/login';
 }
 
 export function AuthProvider({

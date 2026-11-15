@@ -340,7 +340,7 @@ export default function IncidentsPage() {
                   onClick={(item) =>
                     selectMode
                       ? toggleSelect(item.id)
-                      : navigate(`/pwa/admin/incidents/${item.id}`)
+                      : navigate(`/admin/incidents/${item.id}`)
                   }
                 />
               </Box>

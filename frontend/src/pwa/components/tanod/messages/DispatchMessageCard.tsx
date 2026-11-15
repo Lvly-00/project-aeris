@@ -146,7 +146,7 @@ export function DispatchMessageCard({
             }}
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/pwa/tanod/messages/${message.id}`, { replace: true });
+              navigate(`/tanod/messages/${message.id}`, { replace: true });
             }}
           />
         </Stack>
@@ -170,7 +170,7 @@ export function DispatchMessageCard({
 
   return (
     <Link
-      to={`/pwa/tanod/messages/${message.id}`}
+      to={`/tanod/messages/${message.id}`}
       aria-label={`Open message: ${message.title}${unread ? ', unread' : ''}`}
       style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
     >

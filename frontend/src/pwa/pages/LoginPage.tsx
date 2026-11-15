@@ -144,7 +144,7 @@ export default function LoginPage() {
                 return;
             }
 
-            navigate('/pwa', {
+            navigate('/', {
                 replace: true,
             });
         } catch (err: any) {
@@ -420,7 +420,7 @@ export default function LoginPage() {
                 onVerify={async (code) => {
                     await verify2FALogin(twoFAEmail, code, rememberMe);
                 }}
-                onVerified={() => navigate('/pwa', { replace: true })}
+                onVerified={() => navigate('/', { replace: true })}
                 title="Verify it's you"
                 subtitle="You're verified. Opening your dashboard."
                 verifyLabel="Continue to dashboard"

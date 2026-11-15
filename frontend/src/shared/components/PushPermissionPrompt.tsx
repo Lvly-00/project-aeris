@@ -24,8 +24,8 @@ export default function PushPermissionPrompt() {
 
   // Decide whether we're inside the authenticated app (not on login/forgot/etc.)
   const isInsideApp =
-    location.pathname.startsWith('/pwa/admin') ||
-    location.pathname.startsWith('/pwa/tanod');
+    location.pathname.startsWith('/admin') ||
+    location.pathname.startsWith('/tanod');
 
   useEffect(() => {
     // Must be logged in and inside the app shell (past login page)

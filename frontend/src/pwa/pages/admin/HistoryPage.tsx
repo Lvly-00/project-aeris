@@ -254,7 +254,7 @@ export default function HistoryPage() {
                                     onClick={
                                         selectMode
                                             ? undefined
-                                            : (item) => navigate(`/pwa/admin/incidents/${item.id}`)
+                                            : (item) => navigate(`/admin/incidents/${item.id}`)
                                     }
                                 />
                             </Box>

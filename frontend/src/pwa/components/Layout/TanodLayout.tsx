@@ -13,8 +13,8 @@ import type { AppNotification, DispatchMessage } from '../../../shared/types';
 import { NotificationsModal } from '../NotificationsModal';
 
 const navData = [
-    { icon: Inbox, label: 'Messages', path: '/pwa/tanod/messages' },
-    { icon: User, label: 'Profile', path: '/pwa/tanod/profile', isAvatar: true },
+    { icon: Inbox, label: 'Messages', path: '/tanod/messages' },
+    { icon: User, label: 'Profile', path: '/tanod/profile', isAvatar: true },
 ];
 
 export function TanodLayout() {
@@ -32,7 +32,7 @@ export function TanodLayout() {
 
     const activeColor = 'var(--mantine-color-orange-filled)';
 
-    const isProfilePage = location.pathname === '/pwa/profile' || location.pathname.startsWith('/pwa/profile/');
+    const isProfilePage = location.pathname === '/profile' || location.pathname.startsWith('/profile/');
 
     useEffect(() => {
         let cancelled = false;
@@ -71,7 +71,7 @@ export function TanodLayout() {
     const openNotification = async (n: AppNotification) => {
         const incidentId = n.incident;
         if (!incidentId) {
-            navigate('/pwa/tanod/messages');
+            navigate('/tanod/messages');
             return;
         }
 
@@ -81,14 +81,14 @@ export function TanodLayout() {
             const message = rows.find((row) => row.incident === incidentId);
 
             if (message) {
-                navigate(`/pwa/tanod/messages/${message.id}`);
+                navigate(`/tanod/messages/${message.id}`);
                 return;
             }
         } catch (error) {
             console.error('[TANOD] Failed to open the dispatch for a notification:', error);
         }
 
-        navigate('/pwa/tanod/messages');
+        navigate('/tanod/messages');
     };
 
     return (

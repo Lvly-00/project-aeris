@@ -8,7 +8,7 @@ export default function DesktopGuard({
   children: React.ReactNode;
 }) {
   if (!isDesktopApp) {
-    return <Navigate to="/pwa" replace />;
+    return <Navigate to="/login" replace />;
   }
 
   return <>{children}</>;

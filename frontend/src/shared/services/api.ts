@@ -27,8 +27,8 @@ function isPublicAuthPath(): boolean {
 /** The refresh token is gone or expired: end the session and say why. */
 function redirectToExpiredLogin(): void {
   if (isPublicAuthPath()) return;
-  const isPwa = window.location.pathname.startsWith('/pwa');
-  window.location.href = `${isPwa ? '/pwa/login' : '/desktop/login'}?expired=1`;
+  const isPwa = !window.location.pathname.startsWith('/desktop');
+  window.location.href = `${isPwa ? '/login' : '/desktop/login'}?expired=1`;
 }
 
 const api = axios.create({

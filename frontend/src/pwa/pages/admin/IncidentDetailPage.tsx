@@ -156,7 +156,7 @@ export default function IncidentDetailPage() {
      * list. Using browser history here would return to a previous detail page
      * when the user hopped between alerts, which is not a place they came from.
      */
-    navigate('/pwa/admin/incidents', { replace: true });
+    navigate('/admin/incidents', { replace: true });
   };
 
   if (isLoading) return <IncidentDetailSkeleton />;
@@ -184,7 +184,7 @@ export default function IncidentDetailPage() {
             variant="subtle"
             size="md"
             radius="md"
-            onClick={() => navigate('/pwa/admin/incidents', { replace: true })}
+            onClick={() => navigate('/admin/incidents', { replace: true })}
           >
             Back to incidents
           </Button>

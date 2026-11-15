@@ -76,7 +76,7 @@ export default function ForgotPasswordPage() {
         }
     };
 
-    const backToLogin = () => navigate(`/${app}/login`, { replace: true });
+    const backToLogin = () => navigate(app === 'pwa' ? '/login' : '/desktop/login', { replace: true });
 
     // Auto-redirect to the verification-code page 3s after the success modal
     // is shown (a code was successfully sent to a registered account).

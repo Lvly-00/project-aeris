@@ -166,7 +166,7 @@ export default function VerificationCodePage() {
       <Anchor
         component="button"
         type="button"
-        onClick={() => navigate(`/${app}/login`, { replace: true })}
+        onClick={() => navigate(app === 'pwa' ? '/login' : '/desktop/login', { replace: true })}
         c="dimmed"
         fz={rem(13)}
         fw={600}
