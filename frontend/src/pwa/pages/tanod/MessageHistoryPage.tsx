@@ -62,9 +62,9 @@ export default function MessageHistoryPage() {
     const [filter, setFilter] = useState<TypeFilter>('all');
 
     const { data, isLoading, isError } = useQuery({
-        queryKey: ['dispatch-message-history'],
+        queryKey: ['dispatch-messages'],
         queryFn: async () => {
-            const res = await dispatchMessagesAPI.list({ incident__status: 'Resolved' });
+            const res = await dispatchMessagesAPI.list();
             const rows: DispatchMessage[] = res.data?.results ?? res.data ?? [];
             return rows;
         },
@@ -76,9 +76,14 @@ export default function MessageHistoryPage() {
     const messages = useMemo<DispatchMessage[]>(() => {
         if (!data) return [];
 
+        // Keep only messages whose incident is Resolved, deduplicate, newest first.
         const seen = new Set<number>();
         return data
-            .filter((m) => (seen.has(m.id) ? false : (seen.add(m.id), true)))
+            .filter((m) => {
+                if (seen.has(m.id)) return false;
+                seen.add(m.id);
+                return m.incident_data?.status === 'Resolved';
+            })
             .sort(
                 (a, b) =>
                     new Date(b.created_at).getTime() - new Date(a.created_at).getTime()

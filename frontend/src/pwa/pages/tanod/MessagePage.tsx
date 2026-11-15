@@ -49,9 +49,15 @@ export default function MessagesPage() {
     const rows: DispatchMessage[] = data?.data?.results ?? data?.data ?? [];
 
     // One card per message, newest first, even if the API repeats a row.
+    // Exclude messages whose incident has already been resolved — those belong
+    // in History, not the active inbox.
     const seen = new Set<number>();
     return rows
-      .filter((message) => (seen.has(message.id) ? false : (seen.add(message.id), true)))
+      .filter((message) => {
+        if (seen.has(message.id)) return false;
+        seen.add(message.id);
+        return message.incident_data?.status !== 'Resolved';
+      })
       .sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
       );
