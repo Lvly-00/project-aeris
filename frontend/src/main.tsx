@@ -46,9 +46,14 @@ const theme = createTheme({
 
 const isElectron = Boolean((window as any).electronAPI?.isDesktop);
 
-// PWA service worker — production only. During `vite dev` the SW's cached
-// HTML/JS fights Vite's HMR (stale HTML = stale HMR token = broken WebSocket),
-// so dev never registers it.
+// PWA service worker — not registered during Electron, and not registered
+// during `vite dev` because the SW's cached HTML fights Vite's HMR.
+// In production (and when accessed from a phone on the local network) the
+// built output is served by the backend/nginx, so PROD is true and the SW
+// registers normally.
+//
+// For local phone testing without a production build, you can temporarily
+// change `import.meta.env.PROD` to `true` here, but revert before committing.
 if (import.meta.env.PROD && 'serviceWorker' in navigator && !isElectron) {
   window.addEventListener('load', () => {
     navigator.serviceWorker.register('/sw.js').catch(() => {

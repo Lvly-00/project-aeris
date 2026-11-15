@@ -51,22 +51,33 @@ export function isPushSupported(): boolean {
  * notifications, or `'unsupported'` when the browser doesn't support it.
  */
 export async function subscribeToPush(): Promise<'subscribed' | 'denied' | 'unsupported'> {
-  if (!isPushSupported()) return 'unsupported';
+  if (!isPushSupported()) {
+    console.warn('[PUSH] Not supported in this browser/environment');
+    return 'unsupported';
+  }
 
   // Ask for permission (only shown when not already granted/denied).
   const permission = await Notification.requestPermission();
-  if (permission !== 'granted') return 'denied';
+  if (permission !== 'granted') {
+    console.warn('[PUSH] Permission not granted:', permission);
+    return 'denied';
+  }
 
   try {
     const registration = await navigator.serviceWorker.ready;
+    console.log('[PUSH] Service worker ready, subscribing...');
+
     const vapidKey = await getVapidPublicKey();
+    console.log('[PUSH] Got VAPID key, length:', vapidKey.length);
 
     const subscription = await registration.pushManager.subscribe({
       userVisibleOnly: true,
       applicationServerKey: urlBase64ToUint8Array(vapidKey),
     });
 
+    console.log('[PUSH] Subscribed to push manager, sending to backend...');
     await savePushSubscription(subscription);
+    console.log('[PUSH] Subscription saved to backend ✓');
     return 'subscribed';
   } catch (err) {
     console.error('[PUSH] Subscribe error:', err);

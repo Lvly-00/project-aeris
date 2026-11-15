@@ -16,4 +16,9 @@ urlpatterns = [
         views.PushSubscriptionView.as_view(),
         name="push-subscription",
     ),
+    path(
+        "test-push/",
+        views.TestPushView.as_view(),
+        name="test-push",
+    ),
 ] + router.urls

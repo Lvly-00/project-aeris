@@ -1,5 +1,6 @@
 import { Text, rem } from '@mantine/core';
 import { Bell } from '@boxicons/react';
+import { notifications } from '@mantine/notifications';
 
 import { AppModal } from './modals/AppModal';
 import { ModalHeader } from './modals/ModalHeader';
@@ -21,21 +22,28 @@ export default function NotificationPermissionModal({
   confirming = false,
 }: NotificationPermissionModalProps) {
 
-  /**
-   * When the user clicks Enable:
-   *  1. Subscribe to Web Push so background notifications work.
-   *  2. Call the parent's onConfirm() to also set receive_notifications=true
-   *     on the account (which controls WS + push delivery on the backend).
-   *
-   * subscribeToPush() is best-effort — a failure doesn't block the in-app
-   * WebSocket notifications from working.
-   */
   const handleConfirm = async () => {
     if (isPushSupported()) {
       try {
-        await subscribeToPush();
-      } catch {
-        // Browser may have already granted or denied — either way proceed
+        const result = await subscribeToPush();
+        if (result === 'denied') {
+          // User blocked the browser prompt — still save the account preference
+          // so in-app (WebSocket) notifications work, but warn them.
+          notifications.show({
+            title: 'Push notifications blocked',
+            message: 'You blocked the browser permission. Enable it in your browser settings to receive notifications when the app is closed.',
+            color: 'yellow',
+            autoClose: 7000,
+          });
+        }
+      } catch (err) {
+        console.error('[PUSH] Subscription failed:', err);
+        notifications.show({
+          title: 'Could not enable push notifications',
+          message: 'Push notifications failed to set up. In-app alerts will still work. Check the browser console for details.',
+          color: 'orange',
+          autoClose: 6000,
+        });
       }
     }
     onConfirm();

@@ -112,7 +112,6 @@ export function AuthProvider({
         // permission was already granted — no prompt shown.
         if (
           res.data.receive_notifications &&
-          import.meta.env.PROD &&
           'serviceWorker' in navigator &&
           'PushManager' in window &&
           Notification.permission === 'granted'

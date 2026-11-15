@@ -108,6 +108,38 @@ class VapidPublicKeyView(APIView):
         return Response({"vapid_public_key": getattr(settings, "VAPID_PUBLIC_KEY", "")})
 
 
+class TestPushView(APIView):
+    """
+    POST /api/notifications/test-push/
+    Sends a test push notification to all subscriptions for the authenticated
+    user. Used for debugging — remove or restrict in production.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from .models import PushSubscription
+        subs = PushSubscription.objects.filter(user=request.user)
+        if not subs.exists():
+            return Response(
+                {"error": "No push subscriptions found for your account. Enable notifications from your profile first."},
+                status=404,
+            )
+        delivered = 0
+        for sub in subs:
+            ok = send_push_notification(sub, {
+                "title": "AERIS Test Push",
+                "message": "Push notifications are working correctly!",
+                "priority": "High",
+                "url": "/pwa",
+            })
+            if ok:
+                delivered += 1
+        return Response({
+            "subscriptions_found": subs.count(),
+            "delivered": delivered,
+        })
+
+
 class PushSubscriptionView(APIView):
     """
     POST   /api/notifications/push-subscription/   — save a subscription
