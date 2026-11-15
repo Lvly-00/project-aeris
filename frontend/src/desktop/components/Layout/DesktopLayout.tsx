@@ -249,7 +249,44 @@ export default function DesktopLayout() {
             </Group>
 
             {/* User Profile Section */}
-            <Menu position="bottom-end" withArrow width={220}>
+            <Group gap={12} wrap="nowrap" align="center">
+              {/* Update button — shown in the header when an update is ready */}
+              {desktopApi?.isDesktop && (updateStatus.status === 'available' || updateStatus.status === 'downloading' || updateStatus.status === 'downloaded') && (
+                <UnstyledButton
+                  onClick={
+                    updateStatus.status === 'downloaded'
+                      ? () => desktopApi.installUpdate()
+                      : updateStatus.status === 'available'
+                        ? downloadUpdate
+                        : undefined
+                  }
+                  disabled={updateStatus.status === 'downloading'}
+                  style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: 6,
+                    padding: '6px 12px',
+                    borderRadius: 8,
+                    backgroundColor: 'var(--mantine-color-orange-light)',
+                    color: 'var(--mantine-color-orange-filled)',
+                    fontWeight: 600,
+                    fontSize: 13,
+                    whiteSpace: 'nowrap',
+                    opacity: updateStatus.status === 'downloading' ? 0.7 : 1,
+                    cursor: updateStatus.status === 'downloading' ? 'default' : 'pointer',
+                  }}
+                >
+                  {updateStatus.status === 'downloaded' ? (
+                    <><RefreshCw width={14} height={14} /> Restart to install{(updateStatus as any).version ? ` v${(updateStatus as any).version}` : ''}</>
+                  ) : updateStatus.status === 'downloading' ? (
+                    <><RefreshCw width={14} height={14} /> Downloading… {Math.round(updateStatus.percent)}%</>
+                  ) : (
+                    <><ArrowDownCircle width={14} height={14} /> Update available</>
+                  )}
+                </UnstyledButton>
+              )}
+
+              <Menu position="bottom-end" withArrow width={220}>
               <Menu.Target>
                 <UnstyledButton>
                   <Group gap={12}>
@@ -285,34 +322,6 @@ export default function DesktopLayout() {
               <Menu.Dropdown>
                 <Menu.Item leftSection={<User size="sm" />} onClick={() => navigate('/desktop/profile')} disabled={isAdminLocked}>Profile</Menu.Item>
                 <Menu.Item leftSection={<Cog size="sm" />} onClick={() => navigate('/desktop/settings')} disabled={isAdminLocked}>Settings</Menu.Item>
-                {desktopApi?.isDesktop && (
-                  <>
-                    <Menu.Divider />
-                    <Menu.Label>
-                      Aeris Desktop{appVersion ? ` v${appVersion}` : ''}
-                    </Menu.Label>
-                    {updateStatus.status === 'downloaded' ? (
-                      <Menu.Item
-                        leftSection={<RefreshCw size="sm" />}
-                        onClick={() => desktopApi.installUpdate()}
-                      >
-                        Restart to install{updateStatus.version ? ` v${updateStatus.version}` : ''}
-                      </Menu.Item>
-                    ) : updateStatus.status === 'available' ? (
-                      <Menu.Item leftSection={<ArrowDownCircle size="sm" />} onClick={downloadUpdate}>
-                        Download update{updateStatus.version ? ` v${updateStatus.version}` : ''}
-                      </Menu.Item>
-                    ) : updateStatus.status === 'downloading' ? (
-                      <Menu.Item leftSection={<RefreshCw size="sm" />} disabled>
-                        Downloading… {Math.round(updateStatus.percent)}%
-                      </Menu.Item>
-                    ) : (
-                      <Menu.Item leftSection={<RefreshCw size="sm" />} onClick={checkForUpdates}>
-                        Check for updates
-                      </Menu.Item>
-                    )}
-                  </>
-                )}
                 <Menu.Divider />
                 {user?.role === 'CCTV Chief' && (
                   <Menu.Item
@@ -329,6 +338,7 @@ export default function DesktopLayout() {
                 <Menu.Item leftSection={<DoorOpen size="sm" />} color="orange" onClick={logout}>Logout</Menu.Item>
               </Menu.Dropdown>
             </Menu>
+            </Group>
 
           </Group>
         </Container>
