@@ -267,14 +267,20 @@ class IncidentGroupingTests(IncidentTestBase):
 
     @patch("apps.incidents.views.create_incident_notification")
     @patch("apps.incidents.views.broadcast_incident")
-    def test_grouped_detection_broadcasts_nothing(self, mock_broadcast, mock_notify):
+    def test_grouped_detection_broadcasts_update(self, mock_broadcast, mock_notify):
         self.detect()
         mock_broadcast.reset_mock()
         mock_notify.reset_mock()
 
         self.detect()
 
-        mock_broadcast.assert_not_called()
+        # Grouped detections now broadcast an incident_update so the PWA
+        # reflects the rising detection count in real time instead of waiting
+        # for the next poll cycle.
+        mock_broadcast.assert_called_once()
+        call_args = mock_broadcast.call_args
+        self.assertEqual(call_args[0][0], "incident_update")
+        # Notification is NOT re-fired for grouped hits (only for new incidents).
         mock_notify.assert_not_called()
 
     # --- every detection hit is listed -----------------------------------
