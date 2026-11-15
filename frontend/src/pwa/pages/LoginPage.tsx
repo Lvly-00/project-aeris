@@ -76,6 +76,13 @@ export default function LoginPage() {
         };
     }, []);
 
+    // Detect iOS Safari — it never fires beforeinstallprompt
+    const isIos = typeof window !== 'undefined' &&
+        /iphone|ipad|ipod/i.test(navigator.userAgent) &&
+        !(window as any).MSStream;
+    const isInStandaloneMode = typeof window !== 'undefined' &&
+        window.matchMedia('(display-mode: standalone)').matches;
+
     const handleDownloadApp = async () => {
         if (installPrompt) {
             installPrompt.prompt();
@@ -83,6 +90,7 @@ export default function LoginPage() {
             if (choice?.outcome === 'accepted') setInstalled(true);
             setInstallPrompt(null);
         } else {
+            // iOS Safari never fires beforeinstallprompt — show manual instructions
             setShowHint(true);
         }
     };
@@ -365,11 +373,46 @@ export default function LoginPage() {
                                     )}
 
                                     {showHint && !installed && (
-                                        <Text fz={11} c="dimmed" ta="center">
-                                            Open your browser menu and choose{' '}
-                                            <b>&quot;Add to Home Screen&quot;</b> /{' '}
-                                            <b>&quot;Install app&quot;</b> to install AERIS.
-                                        </Text>
+                                        <Stack gap={4} mt={4}>
+                                            {isIos || isInStandaloneMode === false && !installPrompt ? (
+                                                // iOS Safari — no install API, show step-by-step
+                                                isIos ? (
+                                                    <Stack gap={2}>
+                                                        <Text fz={12} fw={600} c="dimmed" ta="center">
+                                                            Install on iPhone / iPad:
+                                                        </Text>
+                                                        <Text fz={11} c="dimmed" ta="center" lh={1.5}>
+                                                            1. Tap the{' '}
+                                                            <Text span fw={700} c={PRIMARY_ORANGE}>Share</Text>
+                                                            {' '}button <Text span fw={700}>⎙</Text> in Safari's toolbar
+                                                        </Text>
+                                                        <Text fz={11} c="dimmed" ta="center" lh={1.5}>
+                                                            2. Scroll down and tap{' '}
+                                                            <Text span fw={700} c={PRIMARY_ORANGE}>"Add to Home Screen"</Text>
+                                                        </Text>
+                                                        <Text fz={11} c="dimmed" ta="center" lh={1.5}>
+                                                            3. Tap <Text span fw={700} c={PRIMARY_ORANGE}>"Add"</Text> — AERIS appears on your home screen
+                                                        </Text>
+                                                    </Stack>
+                                                ) : (
+                                                    <Text fz={11} c="dimmed" ta="center">
+                                                        Open your browser menu and tap{' '}
+                                                        <Text span fw={700}>"Add to Home Screen"</Text>
+                                                        {' '}or{' '}
+                                                        <Text span fw={700}>"Install app"</Text>
+                                                        {' '}to install AERIS.
+                                                    </Text>
+                                                )
+                                            ) : (
+                                                <Text fz={11} c="dimmed" ta="center">
+                                                    Open your browser menu and tap{' '}
+                                                    <Text span fw={700}>"Add to Home Screen"</Text>
+                                                    {' '}or{' '}
+                                                    <Text span fw={700}>"Install app"</Text>
+                                                    {' '}to install AERIS.
+                                                </Text>
+                                            )}
+                                        </Stack>
                                     )}
                                 </Stack>
                             </form>

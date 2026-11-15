@@ -10,15 +10,30 @@
  *     missed cache never rejects the FetchEvent ("network error response").
  */
 
-const CACHE_NAME = 'aeris-static-v1';
+const CACHE_NAME = 'aeris-static-v2';
 
 const APP_SHELL = [
   '/',
   '/pwa',
   '/manifest.webmanifest',
   '/index.html',
+  '/icons/icon-120.png',
+  '/icons/icon-152.png',
+  '/icons/icon-167.png',
+  '/icons/icon-180.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/splash/splash-1170x2532.png',
+  '/splash/splash-1179x2556.png',
+  '/splash/splash-1284x2778.png',
+  '/splash/splash-1290x2796.png',
+  '/splash/splash-828x1792.png',
+  '/splash/splash-750x1334.png',
+  '/splash/splash-640x1136.png',
+  '/splash/splash-2048x2732.png',
+  '/splash/splash-1668x2388.png',
+  '/splash/splash-1668x2224.png',
+  '/splash/splash-1536x2048.png',
 ];
 
 const BYPASS_PREFIXES = ['/api/', '/ws/', '/ai/', '/media/', '/admin/'];
