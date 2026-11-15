@@ -351,7 +351,10 @@ class InternalIncidentCreateView(APIView):
 
         broadcast_incident("incident_created", data)
         broadcast_stats_changed()
-        create_incident_notification(incident)
+        try:
+            create_incident_notification(incident)
+        except Exception as e:
+            logger.error(f"create_incident_notification failed (incident {incident.pk}): {e}")
 
         logger.info(
             "[Internal] Created new AI incident #%s (type=%s, camera=%s, conf=%.2f)",

@@ -209,7 +209,11 @@ def create_incident_notification(incident):
     priority = (
         "High" if incident.confidence_score >= 0.8 else "Medium"
     )
-    alert_type = NotificationType.objects.get(name="Alert")
+    try:
+        alert_type = NotificationType.objects.get(name="Alert")
+    except NotificationType.DoesNotExist:
+        logger.warning("NotificationType 'Alert' not found — skipping incident notification")
+        return None
     type_name = incident.incident_type.name
 
     # Skip users who have opted out of notifications (receive_notifications=False).
@@ -567,7 +571,10 @@ class IncidentViewSet(viewsets.ModelViewSet):
             data
         )
 
-        create_incident_notification(incident)
+        try:
+            create_incident_notification(incident)
+        except Exception as e:
+            logger.error(f"create_incident_notification failed (incident {incident.pk}): {e}")
 
         return Response(
             {**data, "grouped": False},
