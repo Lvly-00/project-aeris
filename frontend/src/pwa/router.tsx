@@ -14,6 +14,7 @@ import IncidentDetailPage from './pages/admin/IncidentDetailPage';
 import HistoryPage from './pages/admin/HistoryPage';
 import MessagePage from './pages/tanod/MessagePage';
 import MessageDetailsPage from './pages/tanod/MessageDetailsPage';
+import MessageHistoryPage from './pages/tanod/MessageHistoryPage';
 import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
 
@@ -101,7 +102,7 @@ export default function PwaRouter() {
                 <Route path="messages" element={<MessagePage />} />
                 {/* <Route path="messages/:id" element={<MessageDetailsPage />} /> */}
                 <Route path="messages/:id" element={<MessageDetailsPage />} />
-
+                <Route path="history" element={<MessageHistoryPage />} />
                 <Route path="profile" element={<ProfilePage />} />
             </Route>
 

@@ -12,6 +12,8 @@ interface DispatchMessageCardProps {
   /** When set, the card selects instead of navigating (delete mode). */
   onSelect?: () => void;
   selected?: boolean;
+  /** Render just the card body with no link wrapper (parent provides the link). */
+  linkless?: boolean;
 }
 
 /**
@@ -23,6 +25,7 @@ export function DispatchMessageCard({
   message,
   onSelect,
   selected = false,
+  linkless = false,
 }: DispatchMessageCardProps) {
   const navigate = useNavigate();
   const [hovered, setHovered] = useState(false);
@@ -166,6 +169,10 @@ export function DispatchMessageCard({
         {body}
       </UnstyledButton>
     );
+  }
+
+  if (linkless) {
+    return <>{body}</>;
   }
 
   return (

@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { useNavigate, useParams, useLocation } from 'react-router-dom';
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query';
 import { Container } from '@mantine/core';
 
@@ -20,7 +20,13 @@ export default function MessageDetailsPage() {
   const navigate = useNavigate();
   const queryClient = useQueryClient();
   const { id } = useParams<{ id: string }>();
+  const location = useLocation();
   const messageId = Number(id);
+
+  // Return to whatever list the user came from (messages or history).
+  const fromHistory = (location.state as { from?: string } | null)?.from === 'history';
+  const goBack = () =>
+    navigate(fromHistory ? '/tanod/history' : '/tanod/messages', { replace: true });
 
   const { data, isLoading } = useQuery({
     queryKey: ['dispatch-message', messageId],
@@ -58,8 +64,6 @@ export default function MessageDetailsPage() {
     // Only the message identity and read state should trigger a mark-read.
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [message?.id, message?.is_read]);
-
-  const goBack = () => navigate('/tanod/messages', { replace: true });
 
   if (isLoading || !message) {
     return <MessageDetailSkeleton />;

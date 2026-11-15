@@ -3,7 +3,7 @@ import {
     AppShell, Group, ActionIcon, Text, Stack, UnstyledButton,
     Container, rem, Image, Avatar, Indicator
 } from '@mantine/core';
-import { Bell, Inbox, User } from '@boxicons/react';
+import { Bell, Inbox, History, User } from '@boxicons/react';
 import { Outlet, useNavigate, useLocation } from 'react-router-dom';
 import { dispatchMessagesAPI, notificationsAPI } from '../../../shared/services/api';
 import { useAuth } from '../../../shared/hooks/useAuth';
@@ -14,6 +14,7 @@ import { NotificationsModal } from '../NotificationsModal';
 
 const navData = [
     { icon: Inbox, label: 'Messages', path: '/tanod/messages' },
+    { icon: History, label: 'History', path: '/tanod/history' },
     { icon: User, label: 'Profile', path: '/tanod/profile', isAvatar: true },
 ];
 
