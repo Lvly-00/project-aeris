@@ -120,15 +120,17 @@ class IncidentGroupingTests(IncidentTestBase):
         self.assertEqual(Incident.objects.count(), 2)
         self.assertEqual(Notification.objects.count(), 2)
 
-    def test_repeat_detection_of_other_type_creates_separate_incident(self):
-        self.detect(self.camera, incident_type="Fire")
+    def test_repeat_detection_of_other_type_folds_into_open_incident(self):
+        first = self.detect(self.camera, incident_type="Fire")
         res = self.detect(self.camera, incident_type="Vehicle_Accident")
 
-        # Grouping is per incident type, not per camera: a different type
-        # opens its own incident and its own alert.
-        self.assertFalse(res.data["grouped"])
-        self.assertEqual(Incident.objects.count(), 2)
-        self.assertEqual(Notification.objects.count(), 2)
+        # A camera slot holds one open incident at a time regardless of type.
+        # A Vehicle_Accident detection while a Fire incident is open is grouped
+        # into the existing incident — no second alert fires.
+        self.assertTrue(res.data["grouped"])
+        self.assertEqual(res.data["id"], first.data["id"])
+        self.assertEqual(Incident.objects.count(), 1)
+        self.assertEqual(Notification.objects.count(), 1)
 
     # --- re-arming -------------------------------------------------------
 
@@ -502,16 +504,21 @@ class IncidentGroupingTests(IncidentTestBase):
 
         res = self.client.get(BY_CAMERA_URL)
         row = res.data[0]
-        # Grouping is per incident type now, so the newest incident carries only
-        # its own type.
-        self.assertEqual(row["incident_types"], ["Vehicle_Accident"])
+        # All three detections are folded into one incident (one slot per camera).
+        # The incident_types list shows all distinct types seen on that incident.
+        self.assertEqual(len(res.data), 1)
+        self.assertIn("Fire", row["incident_types"])
+        self.assertIn("Smoke", row["incident_types"])
+        self.assertIn("Vehicle_Accident", row["incident_types"])
 
     def test_by_camera_never_exceeds_three_types(self):
         for incident_type in ("Fire", "Smoke", "Vehicle_Accident"):
             self.detect(self.camera, incident_type=incident_type)
 
         res = self.client.get(BY_CAMERA_URL)
-        self.assertEqual(len(res.data[0]["incident_types"]), 1)
+        # Still one camera row; all three types visible.
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(len(res.data[0]["incident_types"]), 3)
 
     def test_by_camera_falls_back_to_incident_type_with_no_detections(self):
         self.detect(source="simulation")

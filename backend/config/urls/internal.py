@@ -279,7 +279,7 @@ class InternalIncidentCreateView(APIView):
 
         with transaction.atomic():
             open_incident = find_open_incident(
-                camera, lock=True, incident_type=type_obj
+                camera, lock=True
             )
 
             if open_incident is not None:

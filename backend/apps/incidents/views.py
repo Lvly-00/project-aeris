@@ -92,6 +92,14 @@ def find_open_incident(camera, lock=False, incident_type=None):
     camera keeps folding new detections into it instead of raising a new
     alert. Simulations are deliberately excluded — they are test alerts, so
     they must not occupy a camera's live slot and mask real detections.
+
+    One incident is kept open per camera at a time, regardless of detection
+    type. If Fire and Smoke both trigger on the same camera, the second
+    detection is folded into the already-open Fire incident rather than
+    creating a separate Smoke incident. The incident_type filter is kept as
+    a parameter for callers that need type-scoped lookups (e.g. tests), but
+    the production create_from_detection path does not pass it so that all
+    types share the same camera slot.
     """
     if camera is None:
         return None
@@ -501,7 +509,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             open_incident = (
-                find_open_incident(camera, lock=True, incident_type=type_obj)
+                find_open_incident(camera, lock=True)
                 if group_repeats
                 else None
             )
