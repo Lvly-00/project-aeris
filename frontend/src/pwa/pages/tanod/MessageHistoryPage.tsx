@@ -63,22 +63,18 @@ export default function MessageHistoryPage() {
 
     const { data, isLoading, isError } = useQuery({
         queryKey: ['dispatch-messages'],
-        queryFn: async () => {
-            const res = await dispatchMessagesAPI.list();
-            const rows: DispatchMessage[] = res.data?.results ?? res.data ?? [];
-            return rows;
-        },
+        queryFn: () => dispatchMessagesAPI.list(),
         staleTime: 0,
         refetchOnMount: 'always',
         refetchInterval: 15000,
     });
 
     const messages = useMemo<DispatchMessage[]>(() => {
-        if (!data) return [];
+        const rows: DispatchMessage[] = data?.data?.results ?? data?.data ?? [];
 
         // Keep only messages whose incident is Resolved, deduplicate, newest first.
         const seen = new Set<number>();
-        return data
+        return rows
             .filter((m) => {
                 if (seen.has(m.id)) return false;
                 seen.add(m.id);
