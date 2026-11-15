@@ -1,4 +1,4 @@
-/* AERIS service worker — PWA installability + offline shell.
+/* AERIS service worker — PWA installability + offline shell + Web Push.
  *
  * Strategy:
  *   - SPA navigations: network-first, fall back to the cached copy of the
@@ -8,6 +8,8 @@
  *     cross-origin request always go straight to the network.
  *   - Every respondWith() is guaranteed to resolve to a Response so a
  *     missed cache never rejects the FetchEvent ("network error response").
+ *   - Push notifications: show a system notification even when every tab
+ *     is closed. Tapping opens the relevant incident detail page.
  */
 
 const CACHE_NAME = 'aeris-static-v2';
@@ -76,6 +78,63 @@ async function offlineResponse() {
     })
   );
 }
+
+// ── Web Push ──────────────────────────────────────────────────────────────────
+// Receives background push payloads from the backend (pywebpush / VAPID).
+// Fires even when every tab is closed.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    /* non-JSON payload — treat as empty */
+  }
+
+  const title = data.title || 'AERIS Alert';
+  const options = {
+    body: data.message || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    // Use a stable tag per notification so duplicate pushes collapse on
+    // the device instead of stacking, then re-notify so the alert fires.
+    tag: data.notification_id ? `notif-${data.notification_id}` : 'aeris-notif',
+    renotify: true,
+    data: {
+      incident_id: data.incident_id ?? null,
+      notification_id: data.notification_id ?? null,
+      // Deep-link URL is computed by the backend based on the recipient's role.
+      // Falls back to /pwa if the payload doesn't include one.
+      url: data.url || (data.incident_id ? `/pwa/admin/incidents/${data.incident_id}` : '/pwa'),
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Tapping the notification opens (or focuses) the incident detail page.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url || '/pwa';
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Reuse an existing tab if one already has the app open.
+        for (const client of clientList) {
+          if ('focus' in client) {
+            client.navigate(targetUrl);
+            return client.focus();
+          }
+        }
+        // No existing tab — open a new one.
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+      })
+  );
+});
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;

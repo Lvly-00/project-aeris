@@ -181,6 +181,10 @@ def broadcast_notification(notification):
     Push a notification to the user it is addressed to. Every notification
     has a recipient, so it is sent to that user's private group
     (user_{id}) — admins and tanods never receive each other's toasts.
+
+    Also delivers a Web Push (background) notification to every device the
+    recipient has subscribed from, so the alert reaches them even when the
+    app is not open in the browser.
     """
     try:
         recipient = getattr(notification, "recipient", None)
@@ -189,13 +193,42 @@ def broadcast_notification(notification):
         channel_layer = get_channel_layer()
         recipient_id = getattr(notification, "recipient_id", None)
         group = f"user_{recipient_id}" if recipient_id else "incidents"
+
+        serialized = NotificationSerializer(notification).data
         async_to_sync(channel_layer.group_send)(
             group,
             {
                 "type": "user_notification_new",
-                "payload": NotificationSerializer(notification).data,
+                "payload": serialized,
             },
         )
+
+        # Background (Web Push) — fires even when the tab is closed.
+        if recipient is not None:
+            incident_id = getattr(notification, "incident_id", None)
+            # Build a deep-link URL appropriate for the recipient's role.
+            # Admins/operators land on the incident detail page;
+            # tanods land on their dispatch messages list for that incident.
+            role_name = getattr(getattr(recipient, "role", None), "name", "")
+            if role_name in ("CCTV Chief", "CCTV Operator"):
+                url = f"/pwa/admin/incidents/{incident_id}" if incident_id else "/pwa"
+            else:
+                url = f"/pwa/tanod/messages?incident={incident_id}" if incident_id else "/pwa/tanod/messages"
+            try:
+                from apps.notifications.views import push_to_user
+                push_to_user(
+                    recipient,
+                    {
+                        "title": notification.title,
+                        "message": notification.message or "",
+                        "priority": notification.priority,
+                        "incident_id": incident_id,
+                        "notification_id": notification.pk,
+                        "url": url,
+                    },
+                )
+            except Exception as push_err:
+                logger.warning("[PUSH] push_to_user error: %s", push_err)
     except Exception as e:
         logger.error(f"WebSocket Notification Broadcast Failed: {e}")
 

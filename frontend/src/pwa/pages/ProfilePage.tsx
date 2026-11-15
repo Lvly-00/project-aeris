@@ -71,7 +71,10 @@ export default function ProfilePage() {
       setNotifConsentOpened(true);
       return;
     }
-    // Turning off takes effect immediately
+    // Turning off: unsubscribe from push and update the account preference.
+    import('../../shared/services/pushNotifications').then(({ unsubscribeFromPush }) => {
+      unsubscribeFromPush().catch(() => {});
+    });
     handleUpdate('receive_notifications', false);
   };
 

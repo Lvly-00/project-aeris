@@ -209,6 +209,11 @@ LOGGING = {
     },
 }
 
+# ── Web Push (VAPID) ─────────────────────────────────────────────────────────
+VAPID_PUBLIC_KEY = config("VAPID_PUBLIC_KEY", default="")
+VAPID_PRIVATE_KEY = config("VAPID_PRIVATE_KEY", default="")
+VAPID_CLAIMS_SUB = config("VAPID_CLAIMS_SUB", default="mailto:admin@example.com")
+
 # ── Internal service-to-service key (/internal/ endpoints) ───────────────
 # Must match INTERNAL_API_KEY in the AI service's environment.
 INTERNAL_API_KEY = config("INTERNAL_API_KEY", default="")

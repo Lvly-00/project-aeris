@@ -72,6 +72,17 @@ export function AuthProvider({
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
+      // Remove the push subscription from the backend before clearing tokens,
+      // so we don't leave orphaned subscription rows on the server.
+      if ('serviceWorker' in navigator && 'PushManager' in window) {
+        try {
+          const { unsubscribeFromPush } = await import('../services/pushNotifications');
+          await unsubscribeFromPush();
+        } catch {
+          /* best-effort */
+        }
+      }
+
       clearTokens();
 
       setUser(null);
@@ -95,6 +106,21 @@ export function AuthProvider({
       .getProfile()
       .then((res) => {
         setUser(res.data);
+        // If the user has already granted push permission in a previous session,
+        // silently re-subscribe so the backend has a current endpoint.
+        // This runs only on the PWA (service worker required) and only when
+        // permission was already granted — no prompt shown.
+        if (
+          res.data.receive_notifications &&
+          import.meta.env.PROD &&
+          'serviceWorker' in navigator &&
+          'PushManager' in window &&
+          Notification.permission === 'granted'
+        ) {
+          import('../services/pushNotifications').then(({ subscribeToPush }) => {
+            subscribeToPush().catch(() => {/* best-effort */});
+          });
+        }
       })
       .catch(() => {
         // Stored token is dead/expired: drop it silently. Do NOT call

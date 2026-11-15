@@ -262,6 +262,11 @@ export const notificationsAPI = {
   markRead: (id: number) => api.post(`/notifications/${id}/mark-read/`),
   markAllRead: () => api.post('/notifications/mark-all-read/'),
   unreadCount: () => api.get('/notifications/unread_count/'),
+  vapidPublicKey: () => api.get<{ vapid_public_key: string }>('/notifications/vapid-public-key/'),
+  savePushSubscription: (data: { endpoint: string; p256dh: string; auth: string }) =>
+    api.post('/notifications/push-subscription/', data),
+  deletePushSubscription: (endpoint: string) =>
+    api.delete('/notifications/push-subscription/', { data: { endpoint } }),
 };
 
 export const analyticsAPI = {
