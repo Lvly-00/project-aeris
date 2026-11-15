@@ -96,4 +96,3 @@ class Command(BaseCommand):
             f"{created['Barangay Tanod']} Barangay Tanod(s) "
             f"(skipped {skipped['CCTV Operator'] + skipped['Barangay Tanod']} existing)"
         ))
-        self.stdout.write(f"Seeded user password: {password}")
