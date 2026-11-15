@@ -195,10 +195,6 @@ export default function IncidentsPage() {
               </Menu.Target>
 
               <Menu.Dropdown>
-                {/* <Menu.Label>
-                  Global Actions
-                </Menu.Label> */}
-
                 <Menu.Item
                   color="red"
                   leftSection={<Trash  width={ 16 } height={ 16 } />}
@@ -216,19 +212,6 @@ export default function IncidentsPage() {
           <Text c="dimmed">
             Monitor and manage active incidents.
           </Text>
-
-          {/* {!loading && incidents.length > 0 && (
-            <Badge
-              size="sm"
-              variant="light"
-              color="orange"
-              radius="sm"
-              tt="none"
-              styles={{ label: { fontWeight: 700 } }}
-            >
-              {incidents.length} active
-            </Badge>
-          )} */}
         </Group>
       </Stack>
 

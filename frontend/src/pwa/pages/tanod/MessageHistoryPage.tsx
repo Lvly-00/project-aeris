@@ -10,15 +10,21 @@ import {
     Alert,
     Paper,
     Skeleton,
+    Checkbox,
+    Button,
+    Box,
+    ActionIcon,
+    Menu,
 } from '@mantine/core';
-import { Filter, History } from '@boxicons/react';
+import { DotsVerticalRounded, Filter, History, Trash } from '@boxicons/react';
 import { Link } from 'react-router-dom';
-import { useQuery } from '@tanstack/react-query';
+import { useQuery, useQueryClient } from '@tanstack/react-query';
+import { notifications } from '@mantine/notifications';
 
 import { dispatchMessagesAPI } from '../../../shared/services/api';
-import type { DispatchMessage } from '../../../shared/types';
-import type { IncidentType } from '../../../shared/types';
+import type { DispatchMessage, IncidentType } from '../../../shared/types';
 import { DispatchMessageCard } from '../../components/tanod/messages/DispatchMessageCard';
+import { DeleteConfirmModal } from '../../components/commons/DeleteConfirmModal';
 
 type TypeFilter = 'all' | IncidentType;
 
@@ -39,10 +45,6 @@ function HistorySkeletonList() {
     );
 }
 
-/**
- * Wraps DispatchMessageCard in a Link that passes `from: 'history'` state so
- * MessageDetailsPage knows to return here instead of to the messages list.
- */
 function HistoryMessageCard({ message }: { message: DispatchMessage }) {
     return (
         <Link
@@ -51,15 +53,19 @@ function HistoryMessageCard({ message }: { message: DispatchMessage }) {
             style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
             aria-label={`Open message: ${message.title}`}
         >
-            {/* Pass onSelect=undefined so the card renders its inner body without
-                its own Link wrapper — we provide the link above. */}
             <DispatchMessageCard message={message} linkless />
         </Link>
     );
 }
 
 export default function MessageHistoryPage() {
+    const queryClient = useQueryClient();
+
     const [filter, setFilter] = useState<TypeFilter>('all');
+    const [selectMode, setSelectMode] = useState(false);
+    const [selectedIds, setSelectedIds] = useState<number[]>([]);
+    const [deleteOpened, setDeleteOpened] = useState(false);
+    const [deleting, setDeleting] = useState(false);
 
     const { data, isLoading, isError } = useQuery({
         queryKey: ['dispatch-messages'],
@@ -72,7 +78,6 @@ export default function MessageHistoryPage() {
     const messages = useMemo<DispatchMessage[]>(() => {
         const rows: DispatchMessage[] = data?.data?.results ?? data?.data ?? [];
 
-        // Keep only messages whose incident is Resolved, deduplicate, newest first.
         const seen = new Set<number>();
         return rows
             .filter((m) => {
@@ -89,35 +94,124 @@ export default function MessageHistoryPage() {
 
     const visible = useMemo<DispatchMessage[]>(() => {
         if (filter === 'all') return messages;
-        return messages.filter(
-            (m) => m.incident_data?.incident_type === filter
-        );
+        return messages.filter((m) => m.incident_data?.incident_type === filter);
     }, [messages, filter]);
+
+    const allSelected = visible.length > 0 && selectedIds.length === visible.length;
+    const someSelected = selectedIds.length > 0 && selectedIds.length < visible.length;
+
+    const toggleSelectAll = () =>
+        setSelectedIds(allSelected ? [] : visible.map((m) => m.id));
+
+    const toggleSelect = (id: number) =>
+        setSelectedIds((prev) =>
+            prev.includes(id) ? prev.filter((x) => x !== id) : [...prev, id]
+        );
+
+    const exitSelectMode = () => {
+        setSelectMode(false);
+        setSelectedIds([]);
+    };
+
+    const selectedMessages = visible.filter((m) => selectedIds.includes(m.id));
+
+    const handleDeleteSelected = async () => {
+        const ids = selectedIds;
+        setDeleting(true);
+        try {
+            await Promise.all(ids.map((id) => dispatchMessagesAPI.delete(id)));
+            queryClient.invalidateQueries({ queryKey: ['dispatch-messages'] });
+            exitSelectMode();
+            setDeleteOpened(false);
+            notifications.show({
+                title: 'Deleted',
+                message: `${ids.length} message${ids.length === 1 ? '' : 's'} removed from history`,
+                color: 'red',
+            });
+        } catch (error) {
+            console.error('[HISTORY] Delete selected failed:', error);
+            notifications.show({
+                title: 'Error',
+                message: 'Failed to delete selected messages',
+                color: 'red',
+            });
+        } finally {
+            setDeleting(false);
+        }
+    };
 
     return (
         <Container size="sm" py="lg" px={0}>
             {/* Page Header */}
             <Stack mb="lg" gap={4}>
-                <Title order={1} fz={rem(32)} fw={700} style={{ letterSpacing: rem(-1) }}>
-                    History
-                </Title>
+                <Group justify="space-between" align="center" wrap="nowrap" gap="xs">
+                    <Title order={1} fz={rem(32)} fw={700} style={{ letterSpacing: rem(-1) }}>
+                        History
+                    </Title>
+
+                    {!selectMode && (
+                        <Menu shadow="md" width={200} position="bottom-end">
+                            <Menu.Target>
+                                <ActionIcon variant="transparent" color="gray" size="lg" aria-label="History actions">
+                                    <DotsVerticalRounded width={24} height={24} />
+                                </ActionIcon>
+                            </Menu.Target>
+                            <Menu.Dropdown>
+                                <Menu.Item
+                                    color="red"
+                                    leftSection={<Trash width={16} height={16} />}
+                                    disabled={visible.length === 0}
+                                    onClick={() => setSelectMode(true)}
+                                >
+                                    Delete Messages
+                                </Menu.Item>
+                            </Menu.Dropdown>
+                        </Menu>
+                    )}
+                </Group>
                 <Text c="dimmed" fz="md" fw={400}>
                     Messages from resolved incidents.
                 </Text>
             </Stack>
 
-            {/* Filter Bar */}
-            <Group mb="lg">
-                <Select
-                    size="sm"
-                    radius="sm"
-                    value={filter}
-                    onChange={(value) => setFilter((value as TypeFilter) || 'all')}
-                    data={FILTER_OPTIONS}
-                    leftSection={<Filter width={16} height={16} />}
-                    w={200}
-                    allowDeselect={false}
-                />
+            {/* Control Bar */}
+            <Group justify="space-between" mb="lg">
+                {selectMode ? (
+                    <Checkbox
+                        label="Select all"
+                        checked={allSelected}
+                        indeterminate={someSelected}
+                        onChange={toggleSelectAll}
+                        radius="sm"
+                    />
+                ) : (
+                    <Select
+                        size="sm"
+                        radius="sm"
+                        value={filter}
+                        onChange={(value) => setFilter((value as TypeFilter) || 'all')}
+                        data={FILTER_OPTIONS}
+                        leftSection={<Filter width={16} height={16} />}
+                        w={200}
+                        allowDeselect={false}
+                    />
+                )}
+
+                {selectMode && (
+                    <Group gap="xs">
+                        <Button variant="subtle" color="gray" onClick={exitSelectMode}>
+                            Cancel
+                        </Button>
+                        <Button
+                            color="red"
+                            leftSection={<Trash width={16} height={16} />}
+                            disabled={selectedIds.length === 0}
+                            onClick={() => setDeleteOpened(true)}
+                        >
+                            Delete ({selectedIds.length})
+                        </Button>
+                    </Group>
+                )}
             </Group>
 
             {/* Results */}
@@ -141,10 +235,61 @@ export default function MessageHistoryPage() {
                     </Paper>
                 ) : (
                     visible.map((message) => (
-                        <HistoryMessageCard key={message.id} message={message} />
+                        <Group key={message.id} wrap="nowrap" align="center" gap="xs">
+                            {selectMode && (
+                                <Checkbox
+                                    checked={selectedIds.includes(message.id)}
+                                    onChange={() => toggleSelect(message.id)}
+                                    radius="sm"
+                                    aria-label={`Select message: ${message.title}`}
+                                />
+                            )}
+                            <Box style={{ flex: 1, minWidth: 0 }}>
+                                {selectMode ? (
+                                    <DispatchMessageCard
+                                        message={message}
+                                        onSelect={() => toggleSelect(message.id)}
+                                        selected={selectedIds.includes(message.id)}
+                                    />
+                                ) : (
+                                    <HistoryMessageCard message={message} />
+                                )}
+                            </Box>
+                        </Group>
                     ))
                 )}
             </Stack>
+
+            <DeleteConfirmModal
+                opened={deleteOpened}
+                onClose={() => setDeleteOpened(false)}
+                onConfirm={handleDeleteSelected}
+                loading={deleting}
+                title={selectedIds.length === 1 ? 'Delete Message' : 'Delete Messages'}
+                description={
+                    selectedIds.length === 1 ? (
+                        <>
+                            Are you sure you want to delete{' '}
+                            <Text span fw={600} c="var(--mantine-color-text)">
+                                {selectedMessages[0]?.title ?? 'this message'}
+                            </Text>
+                            ? This action cannot be undone.
+                        </>
+                    ) : (
+                        <>
+                            Delete{' '}
+                            <Text span fw={600} c="var(--mantine-color-text)">
+                                {selectedIds.length} selected messages
+                            </Text>
+                            ? This action cannot be undone.
+                        </>
+                    )
+                }
+                items={selectedMessages.map((m) => m.title)}
+                noun="Message"
+                listTitle="Messages to be deleted"
+                confirmLabel={`Delete (${selectedIds.length})`}
+            />
         </Container>
     );
 }
