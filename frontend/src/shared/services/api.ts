@@ -165,8 +165,14 @@ export const authAPI = {
     api.post('/accounts/login/', data),
   verify2FALogin: (email: string, code: string, device_id?: string) =>
     api.post('/accounts/login-verify-2fa/', { email, code, device_id }),
+  // Bounded so an unreachable/slow backend cannot leave the sign-out
+  // confirmation spinning forever.
   logout: () =>
-    api.post('/accounts/logout/', { refresh: getRefreshToken() ?? undefined }),
+    api.post(
+      '/accounts/logout/',
+      { refresh: getRefreshToken() ?? undefined },
+      { timeout: 5000 }
+    ),
   requestPasswordReset: (email: string) =>
     api.post('/accounts/password-reset/', { email }),
   verifyPasswordResetCode: (email: string, code: string) =>

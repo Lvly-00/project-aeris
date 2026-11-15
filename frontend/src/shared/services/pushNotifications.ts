@@ -32,6 +32,18 @@ async function getVapidPublicKey(): Promise<string> {
   return _vapidPublicKey;
 }
 
+/**
+ * The page's registered service worker, if any.
+ *
+ * Deliberately not `navigator.serviceWorker.ready`: that promise never
+ * resolves when no worker is registered for the page — which is the case in
+ * the desktop build — and callers such as sign-out would hang forever.
+ */
+async function getServiceWorkerRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (!('serviceWorker' in navigator)) return null;
+  return (await navigator.serviceWorker.getRegistration()) ?? null;
+}
+
 /** True when the runtime supports Web Push. */
 export function isPushSupported(): boolean {
   return (
@@ -64,7 +76,11 @@ export async function subscribeToPush(): Promise<'subscribed' | 'denied' | 'unsu
   }
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await getServiceWorkerRegistration();
+    if (!registration) {
+      console.warn('[PUSH] No service worker registered; push is unavailable');
+      return 'unsupported';
+    }
     console.log('[PUSH] Service worker ready, subscribing...');
 
     const vapidKey = await getVapidPublicKey();
@@ -93,7 +109,8 @@ export async function unsubscribeFromPush(): Promise<void> {
   if (!isPushSupported()) return;
 
   try {
-    const registration = await navigator.serviceWorker.ready;
+    const registration = await getServiceWorkerRegistration();
+    if (!registration) return;
     const subscription = await registration.pushManager.getSubscription();
     if (!subscription) return;
 
