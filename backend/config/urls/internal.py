@@ -343,6 +343,15 @@ class InternalIncidentCreateView(APIView):
                 evidence_image=evidence,
             )
 
+            # The Incident save above reads the file to upload it to Cloudinary.
+            # Seek back to 0 so record_detection_hit can upload the same bytes
+            # for the Detection snapshot without getting an empty stream.
+            if evidence is not None and hasattr(evidence, 'seek'):
+                try:
+                    evidence.seek(0)
+                except Exception:
+                    evidence = None
+
             record_detection_hit(
                 incident, type_obj, camera, confidence, evidence, bbox_raw
             )

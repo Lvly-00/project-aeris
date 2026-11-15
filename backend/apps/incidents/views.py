@@ -529,6 +529,15 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 evidence_image=evidence,
             )
 
+            # The Incident save above reads the file to upload it to Cloudinary.
+            # Seek back to 0 so record_detection_hit can upload the same bytes
+            # again for the Detection row without getting an empty stream.
+            if evidence is not None and hasattr(evidence, 'seek'):
+                try:
+                    evidence.seek(0)
+                except Exception:
+                    evidence = None
+
             recorded = 0
             for index in range(repeat):
                 row = record_detection_hit(
