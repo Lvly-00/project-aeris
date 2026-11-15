@@ -3,6 +3,7 @@ import AppRouter  from './router';
 import { useWebSocket } from './shared/hooks/useWebSocket';
 import { ErrorBoundary } from '../src/desktop/components/common/ErrorBoundary';
 import AgreementModal from './shared/components/AgreementModal';
+import PushPermissionPrompt from './shared/components/PushPermissionPrompt';
 import { authAPI } from './shared/services/api';
 import DesktopTitleBar from './desktop/components/TitleBar/DesktopTitleBar';
 
@@ -39,6 +40,7 @@ export default function App() {
         <DesktopTitleBar />
         <WebSocketInit />
         <AgreementGate />
+        <PushPermissionPrompt />
         <AppRouter />
       </AuthProvider>
     </ErrorBoundary>
