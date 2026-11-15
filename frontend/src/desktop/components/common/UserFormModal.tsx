@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Modal, Stack, Group, TextInput, PasswordInput, Select, Button, Box,
-  LoadingOverlay, Title, ActionIcon, Text
+  Title, ActionIcon, Text
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { Envelope, Edit, Lock, ShieldAlt, User,  UserPlus, X } from '@boxicons/react';
@@ -109,8 +109,7 @@ export function UserFormModal({ opened, onClose, onSubmit, initialValues, loadin
             </Group>
             <hr style={{ border: '0.5px solid #eee', marginBottom: '25px' }} />
 
-            <Box pos="relative">
-                <LoadingOverlay visible={loading} />
+            <Box>
                 <form onSubmit={form.onSubmit(onSubmit)}>
                     <Stack gap="lg">
                         <Group grow>

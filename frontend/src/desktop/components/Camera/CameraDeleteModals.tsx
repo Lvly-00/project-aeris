@@ -43,7 +43,6 @@ export function SingleDeleteCameraModal({
       zIndex={1100}
       overlayProps={{
         backgroundOpacity: 0.6,
-        blur: 3,
       }}
       styles={{
         content: {
@@ -191,7 +190,6 @@ export function MassDeleteCamerasModal({
       zIndex={1100}
       overlayProps={{
         backgroundOpacity: 0.6,
-        blur: 3,
       }}
       styles={{
         content: {

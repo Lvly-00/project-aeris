@@ -1,11 +1,5 @@
-import { useState } from 'react';
-import { Image, Stack, Text, rem } from '@mantine/core';
-import { CheckShield } from '@boxicons/react';
-
-import { AppModal } from './modals/AppModal';
-import { ModalHeader } from './modals/ModalHeader';
-import { ModalFooter } from './modals/ModalFooter';
-import { AgreementChecklist } from './agreement/AgreementChecklist';
+import { useState, type ReactNode } from 'react';
+import { Modal, Stack, Text, Button, Divider, Center, Image, Box, Checkbox, Group } from '@mantine/core';
 import TermsAndConditionsModal from './TermsAndConditionsModal';
 import PrivacyPolicyModal from './PrivacyPolicyModal';
 
@@ -17,9 +11,32 @@ export interface AgreementModalProps {
   onDecline: () => void;
 }
 
+function LinkButton({ onClick, children }: { onClick: () => void; children: ReactNode }) {
+  return (
+    <Button
+      variant="subtle"
+      size="sm"
+      p={0}
+      mih={0}
+      h="auto"
+      fw={600}
+      radius={0}
+      color="orange"
+      onClick={(e) => {
+        e.preventDefault();
+        e.stopPropagation();
+        onClick();
+      }}
+    >
+      {children}
+    </Button>
+  );
+}
+
 /**
- * Non-dismissible first-login acceptance gate. The checklist lives in
- * ./agreement; the full documents open on top of this modal.
+ * Non-dismissible first-login acceptance gate. Presents the summary and lets
+ * the user open the full Terms and Conditions / Privacy Policy modals before
+ * agreeing.
  */
 export default function AgreementModal({ opened, onAgree, onDecline }: AgreementModalProps) {
   const [loading, setLoading] = useState(false);
@@ -30,6 +47,7 @@ export default function AgreementModal({ opened, onAgree, onDecline }: Agreement
   const [privacyChecked, setPrivacyChecked] = useState(false);
 
   const allChecked = termsChecked && privacyChecked;
+  const someChecked = termsChecked || privacyChecked;
 
   const handleAgree = async () => {
     setLoading(true);
@@ -44,58 +62,113 @@ export default function AgreementModal({ opened, onAgree, onDecline }: Agreement
 
   return (
     <>
-      <AppModal
+      <Modal
         opened={opened}
         onClose={() => {}}
         closeOnClickOutside={false}
         closeOnEscape={false}
+        withCloseButton={false}
+        centered
+        radius="lg"
         size="md"
-        label="Review and accept the terms"
-        header={
-          <ModalHeader
-            title="Before you continue"
-            description="Review and accept both documents to use AERIS."
-            icon={<CheckShield width={20} height={20} />}
-            onClose={() => {}}
-            showClose={false}
-          />
-        }
-        footer={
-          <ModalFooter
-            onCancel={onDecline}
-            cancelLabel="Decline"
-            cancelDisabled={loading}
-            confirmLabel="Agree"
-            confirmDisabled={!allChecked}
-            confirmLoading={loading}
-            onConfirm={handleAgree}
-          />
-        }
+        aria-label="Review and accept the terms"
+        /* The sheet draws its own full-bleed dividers, so it carries no body
+           padding; the inner box clips them to the rounded corners. */
+        padding={0}
+        /* Same firm veil as every other dialog in the app. */
+        overlayProps={{ color: '#000', backgroundOpacity: 0.72 }}
       >
-        <Stack gap="md">
-          <Image src="/icon.png" alt="AERIS" w={rem(56)} mx="auto" />
+        <Box style={{ overflow: 'hidden', borderRadius: '15px' }}>
+          <Center py="xl" style={{ flexDirection: 'column' }}>
+            <Image src="/icon.png" alt="Aeris Logo" w={110} mb="lg" />
+            <Text c="dimmed" fz="sm" ta="center" style={{ maxWidth: 360, lineHeight: 1.5 }}>
+              Before you continue, please review and accept our Terms and Conditions and Privacy Policy.
+            </Text>
+          </Center>
 
-          <Text fz={rem(14)} c="dimmed" ta="center" lh={1.55}>
-            AERIS records and reviews CCTV footage for barangay public safety. Accept
-            the terms and privacy policy to continue.
-          </Text>
+          <Divider />
 
-          <AgreementChecklist
-            termsChecked={termsChecked}
-            privacyChecked={privacyChecked}
-            onTermsChange={setTermsChecked}
-            onPrivacyChange={setPrivacyChecked}
-            onOpenTerms={() => setTermsOpened(true)}
-            onOpenPrivacy={() => setPrivacyOpened(true)}
-          />
+          <Stack gap="md" p="xl">
+            <Checkbox
+              radius="xl"
+              size="md"
+              color="orange"
+              checked={termsChecked}
+              onChange={(e) => setTermsChecked(e.currentTarget.checked)}
+              label={
+                <Text component="span" fz="sm">
+                  I accept the <LinkButton onClick={() => setTermsOpened(true)}>Terms and Conditions</LinkButton>
+                </Text>
+              }
+            />
+            <Checkbox
+              radius="xl"
+              size="md"
+              color="orange"
+              checked={privacyChecked}
+              onChange={(e) => setPrivacyChecked(e.currentTarget.checked)}
+              label={
+                <Text component="span" fz="sm">
+                  I accept the <LinkButton onClick={() => setPrivacyOpened(true)}>Privacy Policy</LinkButton>
+                </Text>
+              }
+            />
+
+            <Divider />
+
+            <Checkbox
+              radius="xl"
+              size="md"
+              color="orange"
+              checked={allChecked}
+              indeterminate={!allChecked && someChecked}
+              onChange={(e) => {
+                const v = e.currentTarget.checked;
+                setTermsChecked(v);
+                setPrivacyChecked(v);
+              }}
+              label={
+                <Text size="sm" fw={600}>
+                  I agree to everything (Terms and Conditions and Privacy Policy)
+                </Text>
+              }
+            />
+          </Stack>
 
           {error && (
-            <Text fz={rem(13)} c="orange.6" ta="center">
+            <Text size="sm" c="red" ta="center" pb="xs">
               {error}
             </Text>
           )}
-        </Stack>
-      </AppModal>
+
+          <Box px="xl" pb="xl">
+            <Group gap="sm" grow>
+              <Button
+                variant="subtle"
+                color="gray"
+                size="md"
+                h={48}
+                fw={600}
+                onClick={onDecline}
+                disabled={loading}
+              >
+                Decline
+              </Button>
+              <Button
+                disabled={!allChecked || loading}
+                color="orange"
+                size="md"
+                h={48}
+                radius="md"
+                loading={loading}
+                onClick={handleAgree}
+              >
+                Agree
+              </Button>
+            </Group>
+          </Box>
+        </Box>
+      </Modal>
 
       <TermsAndConditionsModal
         opened={termsOpened}

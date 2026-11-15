@@ -65,7 +65,7 @@ export default function SuccessModal({
         radius={15}
         padding={40}
         size={440}
-        overlayProps={{ blur: 4, opacity: 0.4 }}
+        overlayProps={{ opacity: 0.4 }}
       >
         <Stack align="center" gap="lg" w="100%">
           <Box

@@ -393,7 +393,19 @@ class UserViewSet(viewsets.ModelViewSet):
             # limit (5 requests/minute → HTTP 429 "time out").
             known_user = User.objects.filter(email__iexact=email).first()
             _audit_action(known_user, request, AuditLog.Action.LOGIN_FAILED, {"email": email})
-            # NFR-LG-009 — identical response whether the email or password is wrong
+            # A missing account is reported distinctly so the login page can
+            # flag the email field. This gives up NFR-LG-009's combined
+            # message for unknown emails; a wrong password still returns the
+            # generic 401 below.
+            if known_user is None:
+                return Response(
+                    {
+                        "detail": (
+                            "No account is registered with that email address."
+                        )
+                    },
+                    status=status.HTTP_404_NOT_FOUND,
+                )
             return Response(
                 {"detail": "Invalid email or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -464,14 +476,26 @@ class UserViewSet(viewsets.ModelViewSet):
                     "If you did not attempt to log in, you can safely "
                     "ignore this email.\n"
                 )
-                send_email(
+                sent = send_email(
                     to_email=user.email,
                     subject="Your AERIS login verification code",
                     html_content=html_body,
                     text_content=text_body,
                 )
             except Exception:
-                logger.warning("2FA login email failed for %s", user.email)
+                logger.exception("2FA login email failed for %s", user.email)
+                sent = False
+
+            if not sent:
+                return Response(
+                    {
+                        "detail": (
+                            "We could not send the verification code to your email. "
+                            "Please try again in a moment."
+                        )
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
 
             _audit_action(user, request, AuditLog.Action.TWO_FACTOR_ENABLED, {"phase": "login_code_sent"})
 
@@ -585,14 +609,26 @@ class UserViewSet(viewsets.ModelViewSet):
                 "If you did not request a password reset, you can safely "
                 "ignore this email.\n"
             )
-            send_email(
+            sent = send_email(
                 to_email=user.email,
                 subject="Your AERIS password reset code",
                 html_content=html_body,
                 text_content=text_body,
             )
         except Exception:
-            logger.warning("Password reset email failed for %s", user.email)
+            logger.exception("Password reset email failed for %s", user.email)
+            sent = False
+
+        if not sent:
+            return Response(
+                {
+                    "detail": (
+                        "We could not send the password reset email. "
+                        "Please try again in a moment."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         _audit_action(user, request, AuditLog.Action.PASSWORD_RESET_REQUESTED, {"requested_for": requested_for})
 
@@ -937,14 +973,26 @@ class UserViewSet(viewsets.ModelViewSet):
                 "If you did not request this change, you can safely "
                 "ignore this email.\n"
             )
-            send_email(
+            sent = send_email(
                 to_email=user.email,
                 subject="Verify your AERIS email change",
                 html_content=html_body,
                 text_content=text_body,
             )
         except Exception:
-            logger.warning("Email change verification email failed for %s", user.email)
+            logger.exception("Email change verification email failed for %s", user.email)
+            sent = False
+
+        if not sent:
+            return Response(
+                {
+                    "detail": (
+                        "We could not send the verification code to your email. "
+                        "Please try again in a moment."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         _audit_action(
             user, request, AuditLog.Action.EMAIL_CHANGE_REQUESTED,
@@ -1142,14 +1190,17 @@ class UserViewSet(viewsets.ModelViewSet):
                 "If you did not request this, you can safely "
                 "ignore this email.\n"
             )
-            send_email(
+            sent = send_email(
                 to_email=user.email,
                 subject="Your AERIS verification code",
                 html_content=html_body,
                 text_content=text_body,
             )
         except Exception:
-            logger.warning("2FA verification email failed for %s", user.email)
+            logger.exception("2FA verification email failed for %s", user.email)
+            sent = False
+
+        if not sent:
             return Response(
                 {"detail": "We could not send the verification code. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

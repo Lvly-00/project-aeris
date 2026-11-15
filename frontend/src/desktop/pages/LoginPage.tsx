@@ -174,7 +174,7 @@ export default function LoginPage() {
             <Stack gap="md">
               <TextInput
                 label="Email"
-                placeholder="you@barangay.local"
+                placeholder="you@gmail.com"
                 size="md"
                 radius="md"
                 withAsterisk={false}

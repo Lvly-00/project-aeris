@@ -4,7 +4,7 @@ import {
   Badge,
   Box,
   FileButton,
-  LoadingOverlay,
+  Loader,
   Paper,
   Stack,
   Text,
@@ -61,11 +61,6 @@ export default function ProfileIdentityCard({
         borderColor: 'var(--mantine-color-orange-light-color)',
       }}
     >
-      <LoadingOverlay
-        visible={uploading}
-        overlayProps={{ blur: 2, backgroundOpacity: 0.45 }}
-      />
-
       <Stack align="center" gap={0}>
         <Box style={{ position: 'relative' }}>
           <Box p={3} style={{ border: `2px solid ${ORANGE}`, borderRadius: '50%' }}>
@@ -90,6 +85,8 @@ export default function ProfileIdentityCard({
                 {...props}
                 aria-label="Change profile photo"
                 title="Change profile photo"
+                disabled={uploading}
+                aria-busy={uploading}
                 style={{
                   position: 'absolute',
                   right: -4,
@@ -117,7 +114,11 @@ export default function ProfileIdentityCard({
                     boxShadow: 'var(--mantine-shadow-sm)',
                   }}
                 >
-                  <Camera width={17} height={17} color="white" />
+                  {uploading ? (
+                    <Loader size={15} color="white" aria-label="Uploading photo" />
+                  ) : (
+                    <Camera width={17} height={17} color="white" />
+                  )}
                 </Box>
               </UnstyledButton>
             )}

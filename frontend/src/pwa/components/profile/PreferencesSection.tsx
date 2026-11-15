@@ -2,7 +2,7 @@ import type { ReactNode } from 'react';
 import {
   Box,
   Group,
-  LoadingOverlay,
+  Loader,
   Paper,
   Select,
   Switch,
@@ -61,7 +61,8 @@ function PreferenceRow({ icon, title, description, control }: PreferenceRowProps
 
 interface PreferencesSectionProps {
   user: User;
-  updating: boolean;
+  /** Field currently being saved, so only that control shows a spinner. */
+  updatingField: string | null;
   onNotificationToggle: (checked: boolean) => void;
   onTwoFactorClick: () => void;
   onLanguageChange: (language: string) => void;
@@ -69,7 +70,7 @@ interface PreferencesSectionProps {
 
 export default function PreferencesSection({
   user,
-  updating,
+  updatingField,
   onNotificationToggle,
   onTwoFactorClick,
   onLanguageChange,
@@ -78,12 +79,7 @@ export default function PreferencesSection({
   const { setColorScheme } = useMantineColorScheme();
 
   return (
-    <Paper withBorder radius="lg" pos="relative" style={{ overflow: 'hidden' }}>
-      <LoadingOverlay
-        visible={updating}
-        overlayProps={{ blur: 2, backgroundOpacity: 0.45 }}
-      />
-
+    <Paper withBorder radius="lg" style={{ overflow: 'hidden' }}>
       <ProfileSectionHeading
         title="PREFERENCES"
         description="Alerts, security, and display."
@@ -94,13 +90,17 @@ export default function PreferencesSection({
         title="Notifications"
         description="Alerts about new incidents and updates."
         control={
-          <Switch
-            color="orange"
-            size="md"
-            aria-label="Receive notifications"
-            checked={user.receive_notifications}
-            onChange={(event) => onNotificationToggle(event.currentTarget.checked)}
-          />
+          updatingField === 'receive_notifications' ? (
+            <Loader size="sm" color="orange" aria-label="Saving notifications" />
+          ) : (
+            <Switch
+              color="orange"
+              size="md"
+              aria-label="Receive notifications"
+              checked={user.receive_notifications}
+              onChange={(event) => onNotificationToggle(event.currentTarget.checked)}
+            />
+          )
         }
       />
 
@@ -175,6 +175,12 @@ export default function PreferencesSection({
           data={['English', 'Filipino']}
           w="100%"
           maw={rem(240)}
+          disabled={updatingField === 'preferred_language'}
+          rightSection={
+            updatingField === 'preferred_language' ? (
+              <Loader size="xs" color="orange" aria-label="Saving language" />
+            ) : undefined
+          }
         />
       </Box>
     </Paper>

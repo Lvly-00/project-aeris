@@ -22,7 +22,6 @@ export function DeleteUserModal({ opened, onClose, onConfirm, userName, loading 
             zIndex={1100}
             overlayProps={{
                 backgroundOpacity: 0.6,
-                blur: 3,
             }}
             styles={{
                 content: {

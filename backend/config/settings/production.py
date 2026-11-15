@@ -103,6 +103,17 @@ CHANNEL_LAYERS = {
     },
 }
 
+# ── Email — Brevo Transactional Email API v3 (free-tier compatible) ──────────
+# 2FA codes, password resets and email changes go through the Brevo REST API
+# (apps/accounts/email.py), NOT Django's SMTP backend. Without this key the
+# helper logs "BREVO_API_KEY is not configured" and returns False without
+# raising, so the login endpoint still answers "code sent" while nothing is
+# delivered. Set BREVO_API_KEY in the deployed environment.
+BREVO_API_KEY = config("BREVO_API_KEY", default="")
+DEFAULT_FROM_EMAIL = config(
+    "DEFAULT_FROM_EMAIL", default="Aeris <lovelypintes@gmail.com>"
+)
+
 # ── Upload limits ────────────────────────────────────────────────────────────
 # nginx already caps request bodies at 50 MB; these keep a single oversized
 # field or file from being buffered into memory. Evidence frames are far

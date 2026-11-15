@@ -1,7 +1,7 @@
 import { useState, useEffect, useRef } from 'react';
 import {
   Container, Grid, Paper, Text, Title, Avatar, Divider,
-  Stack, Group, Switch, Box, LoadingOverlay, rem, FileButton, Badge, Button, Anchor,
+  Stack, Group, Switch, Box, rem, FileButton, Badge, Button, Anchor,
   Menu, UnstyledButton, Image, Loader, Skeleton,
 } from '@mantine/core';
 import { Bell, Camera, Check, CheckShield, ChevronDown, ChevronLeft, GlobeAlt } from '@boxicons/react';
@@ -23,8 +23,7 @@ const ORANGE = '#FF6B00';
 export default function ProfilePage() {
   const navigate = useNavigate();
   const { user: authUser, setUser } = useAuth();
-  const [loading, setLoading] = useState(true);
-  const [updating, setUpdating] = useState(false);
+  const [updatingField, setUpdatingField] = useState<string | null>(null);
   const [userData, setUserData] = useState<User | null>(null);
   const fileResetRef = useRef<() => void | null>(null);
 
@@ -48,13 +47,11 @@ export default function ProfilePage() {
       setUserData(res.data);
     } catch (err) {
       console.error('Failed to fetch profile', err);
-    } finally {
-      setLoading(false);
     }
   };
 
   const handlePreferenceUpdate = async (field: string, value: any) => {
-    setUpdating(true);
+    setUpdatingField(field);
     try {
       const res = await authAPI.updateProfile({ [field]: value });
       setUserData(res.data);
@@ -62,7 +59,7 @@ export default function ProfilePage() {
     } catch (err) {
       console.error('Update failed', err);
     } finally {
-      setUpdating(false);
+      setUpdatingField(null);
     }
   };
 
@@ -104,7 +101,7 @@ export default function ProfilePage() {
       alert('Profile picture exceeds the maximum allowed file size (5 MB).');
       return;
     }
-    setUpdating(true);
+    setUpdatingField('profile_picture');
     try {
       const formData = new FormData();
       formData.append('profile_picture', file);
@@ -114,7 +111,7 @@ export default function ProfilePage() {
     } catch (err) {
       console.error('Upload failed', err);
     } finally {
-      setUpdating(false);
+      setUpdatingField(null);
     }
   };
 
@@ -182,8 +179,6 @@ export default function ProfilePage() {
 
   return (
     <Container size="xl" py="xl" style={{ backgroundColor: 'var(--mantine-color-body)', minHeight: '100vh' }}>
-      <LoadingOverlay visible={loading} overlayProps={{ blur: 1 }} />
-
       {/* PageHeader */}
       <Box mb="xl">
         <Group gap="xs" align="center">
@@ -243,7 +238,11 @@ export default function ProfilePage() {
                         border: '3px solid white',
                       }}
                     >
-                      <Camera width={18} height={18} color="white" />
+                      {updatingField === 'profile_picture' ? (
+                        <Loader size={16} color="white" aria-label="Uploading photo" />
+                      ) : (
+                        <Camera width={18} height={18} color="white" />
+                      )}
                     </Box>
                   )}
                 </FileButton>
@@ -346,7 +345,6 @@ export default function ProfilePage() {
 
             {/* PREFERENCES */}
             <Paper withBorder radius={15} p={30}>
-              <LoadingOverlay visible={updating} overlayProps={{ blur: 1 }} />
               <Title order={4} fw={700}>PREFERENCES</Title>
               <Text size="xs" c="dimmed" mb="xl">
                 Customize your notification and display settings.
@@ -364,12 +362,16 @@ export default function ProfilePage() {
                       <Text size="xs" c="dimmed">Get alerts about important updates</Text>
                     </Stack>
                   </Group>
-                  <Switch
-                    color="orange"
-                    size="md"
-                    checked={userData.receive_notifications}
-                    onChange={(e) => handleNotificationToggle(e.currentTarget.checked)}
-                  />
+                  {updatingField === 'receive_notifications' ? (
+                    <Loader size="sm" color="orange" aria-label="Saving notifications" />
+                  ) : (
+                    <Switch
+                      color="orange"
+                      size="md"
+                      checked={userData.receive_notifications}
+                      onChange={(e) => handleNotificationToggle(e.currentTarget.checked)}
+                    />
+                  )}
                 </Group>
 
                 <Group justify="space-between">
@@ -410,6 +412,7 @@ export default function ProfilePage() {
                   <Menu position="bottom-end" withArrow width={220}>
                     <Menu.Target>
                       <UnstyledButton
+                        disabled={updatingField === 'preferred_language'}
                         style={{
                           width: '100%',
                           maxWidth: 220,
@@ -426,7 +429,11 @@ export default function ProfilePage() {
                         }}
                       >
                         <Text fz="sm" fw={500}>{userData.preferred_language}</Text>
-                        <ChevronDown width={16} height={16} color="var(--mantine-color-dimmed)" />
+                        {updatingField === 'preferred_language' ? (
+                          <Loader size="xs" color="orange" aria-label="Saving language" />
+                        ) : (
+                          <ChevronDown width={16} height={16} color="var(--mantine-color-dimmed)" />
+                        )}
                       </UnstyledButton>
                     </Menu.Target>
                     <Menu.Dropdown>

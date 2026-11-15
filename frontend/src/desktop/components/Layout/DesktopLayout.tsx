@@ -7,6 +7,7 @@ import { authAPI } from '../../../shared/services/api';
 import { parseThrottleSeconds } from '../../../shared/utils/authErrors';
 import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 import { AdminVerificationModal } from './AdminVerificationModal';
+import { LogoutConfirmModal } from '../../../shared/components/profile/LogoutConfirmModal';
 import { 
   Avatar, Box, Group, Menu, Text, UnstyledButton, Badge,
   useMantineColorScheme, useComputedColorScheme, Container
@@ -32,6 +33,7 @@ export default function DesktopLayout() {
   const computedColorScheme = useComputedColorScheme('light', { getInitialValueInEffect: true });
 
   const [sudoModalOpened, setSudoModalOpened] = useState(false);
+  const [logoutOpened, setLogoutOpened] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
@@ -180,6 +182,12 @@ export default function DesktopLayout() {
   return (
     <Box style={{ minHeight: 'calc(100vh - var(--aeris-titlebar-height, 0px))', backgroundColor: 'var(--mantine-color-body)', display: 'flex', flexDirection: 'column' }}>
 
+      <LogoutConfirmModal
+        opened={logoutOpened}
+        onClose={() => setLogoutOpened(false)}
+        onConfirm={logout}
+      />
+
       <AdminVerificationModal
         opened={sudoModalOpened}
         onClose={() => setSudoModalOpened(false)}
@@ -194,8 +202,14 @@ export default function DesktopLayout() {
       <Box
         component="header"
         style={{
+          position: 'sticky',
+          // Parks under the fixed Electron title strip (0px in the web build).
+          top: 'var(--aeris-titlebar-height, 0px)',
+          // Below the title bar (z-index 100) so it never covers the window controls.
+          zIndex: 50,
           height: 80,
-          backgroundColor: 'var(--mantine-color-scheme-outline)',
+          // Opaque and theme-aware: white in light mode, dark body in dark mode.
+          backgroundColor: 'var(--mantine-color-body)',
           borderBottom: '1px solid var(--mantine-color-default-border)',
           display: 'flex',
           alignItems: 'center'
@@ -335,7 +349,7 @@ export default function DesktopLayout() {
                   {computedColorScheme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                 </Menu.Item>
                 <Menu.Divider />
-                <Menu.Item leftSection={<DoorOpen size="sm" />} color="orange" onClick={logout}>Logout</Menu.Item>
+                <Menu.Item leftSection={<DoorOpen size="sm" />} color="orange" onClick={() => setLogoutOpened(true)}>Logout</Menu.Item>
               </Menu.Dropdown>
             </Menu>
             </Group>

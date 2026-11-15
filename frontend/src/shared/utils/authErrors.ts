@@ -98,9 +98,14 @@ export function mapLoginError(err: any): LoginErrorResult {
     if (typeof data.detail === 'string') return { bannerError: data.detail };
   }
 
-  // Bad credentials (or disabled account — detail passes through).
-  // FR-LG-008/NFR-LG-009 deliberately return ONE combined message; we show it
-  // below the password field since the wrong credential is never revealed.
+  // No account for the submitted email. The login view reports this
+  // separately from a wrong password so the page can flag the email field.
+  if (status === 404 && typeof data?.detail === 'string') {
+    return { fieldError: { field: 'email', message: data.detail } };
+  }
+
+  // Wrong password for an existing account (or a disabled account — detail
+  // passes through). Shown below the password field.
   if (status === 401 || status === 403) {
     if (typeof data?.detail === 'string' && data.detail.includes('disabled')) {
       return { bannerError: data.detail };
@@ -113,9 +118,17 @@ export function mapLoginError(err: any): LoginErrorResult {
     };
   }
 
-  // Backend unreachable / crashed
+  // Backend unreachable / crashed. A 5xx can also mean the backend accepted
+  // the credentials but could not complete a dependent step (e.g. the 2FA
+  // email could not be delivered), so prefer its own message when it sent one.
   if (!err.response || (status !== undefined && status >= 500)) {
-    return { bannerError: AUTH_MESSAGES.SERVICE_UNAVAILABLE };
+    const detail = data?.detail;
+    return {
+      bannerError:
+        typeof detail === 'string' && detail.trim()
+          ? detail
+          : AUTH_MESSAGES.SERVICE_UNAVAILABLE,
+    };
   }
 
   if (typeof data?.detail === 'string') return { bannerError: data.detail };
