@@ -56,7 +56,7 @@ export default function MessagesPage() {
       .filter((message) => {
         if (seen.has(message.id)) return false;
         seen.add(message.id);
-        return message.incident_data?.status !== 'Resolved';
+        return message.incident_data?.status !== 'Resolved' && message.incident_data?.status !== 'Dismissed';
       })
       .sort(
         (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime()

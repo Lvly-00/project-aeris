@@ -78,7 +78,8 @@ export default function MessageHistoryPage() {
             .filter((m) => {
                 if (seen.has(m.id)) return false;
                 seen.add(m.id);
-                return m.incident_data?.status === 'Resolved';
+                const status = m.incident_data?.status;
+                return status === 'Resolved' || status === 'Dismissed';
             })
             .sort(
                 (a, b) =>
