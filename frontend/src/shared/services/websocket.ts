@@ -84,8 +84,14 @@ export class WebSocketService {
     }
 
     try {
+      /*
+       * The token goes in the subprotocol, not the URL: a copied request URL
+       * (browser history, proxy logs, a screenshot) must never expose a
+       * usable access token. Servers echo this value during the handshake.
+       */
       const socket = new WebSocket(
-        `${wsBaseUrl}${WS_PATH}?token=${encodeURIComponent(token)}`
+        `${wsBaseUrl}${WS_PATH}`,
+        [`jwt.${token}`]
       );
       this.ws = socket;
 

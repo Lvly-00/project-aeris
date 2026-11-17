@@ -54,6 +54,14 @@ export interface Camera {
 }
 
 export type IncidentType = 'Fire' | 'Smoke' | 'Vehicle_Accident';
+
+export type DismissReason =
+  | 'false_positive'
+  | 'wrong_type'
+  | 'duplicate'
+  | 'camera_issue'
+  | 'test'
+  | 'other';
 export type Severity = 'Low' | 'Medium' | 'High' | 'Critical';
 export type IncidentStatus = 'Detected' | 'Verified' | 'Dispatched' | 'Resolved' | 'Dismissed';
 
@@ -79,6 +87,9 @@ export interface Incident {
   verified_by_name?: string;
   dismissed_by: number | null;
   dismissed_by_name?: string;
+  /** Why an operator dismissed the incident (empty unless status is Dismissed). */
+  dismiss_reason?: DismissReason | '';
+  dismiss_notes?: string;
   evidence_image: string | null;
   evidence_gallery: string[];
   duration: string;

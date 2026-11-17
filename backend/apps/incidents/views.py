@@ -639,6 +639,8 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
         new_status = serializer.validated_data["status"]
         notes = serializer.validated_data.get("notes", "")
+        dismiss_reason = serializer.validated_data.get("dismiss_reason", "")
+        dismiss_notes = (serializer.validated_data.get("dismiss_notes", "") or "").strip()
         user = request.user
         now = timezone.now()
 
@@ -673,6 +675,15 @@ class IncidentViewSet(viewsets.ModelViewSet):
         elif new_status == "Dismissed":
             incident.dismissed_at = now
             incident.dismissed_by = user
+            incident.dismiss_reason = dismiss_reason
+            incident.dismiss_notes = dismiss_notes
+        elif new_status == "Detected":
+            # Reopening undoes the dismissal, so a stored reason no longer
+            # describes an incident that is back in the active list.
+            incident.dismissed_at = None
+            incident.dismissed_by = None
+            incident.dismiss_reason = ""
+            incident.dismiss_notes = ""
 
         incident.save()
 
@@ -683,16 +694,22 @@ class IncidentViewSet(viewsets.ModelViewSet):
             "Resolved": AuditLog.Action.INCIDENT_RESOLVED,
         }.get(new_status)
         if transition_action is not None:
+            audit_details = {
+                "from_status": current_status,
+                "notes": notes or None,
+            }
+            if new_status == "Dismissed":
+                # The reason is the point of the prompt: keep it in the audit
+                # trail alongside the incident row itself.
+                audit_details["dismiss_reason"] = dismiss_reason
+                audit_details["dismiss_notes"] = dismiss_notes or None
             write_audit(
                 request,
                 transition_action,
                 user=user,
                 resource_type="Incident",
                 resource_id=incident.pk,
-                details={
-                    "from_status": current_status,
-                    "notes": notes or None,
-                },
+                details=audit_details,
             )
 
         # Notes are recorded as timeline entries (review_notes was removed).

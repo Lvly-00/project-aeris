@@ -1,10 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
-import { Text } from '@mantine/core';
+import { Box, Button, Group, Modal, Stack, Text, ThemeIcon, rem } from '@mantine/core';
 import { Check, Envelope } from '@boxicons/react';
 
-import { AppModal } from './modals/AppModal';
-import { ModalFooter } from './modals/ModalFooter';
-import { ModalHeader } from './modals/ModalHeader';
 import { VerificationCodeForm } from './verification/VerificationCodeForm';
 import { VerificationCodeSending } from './verification/VerificationCodeSending';
 import { VerificationCodeSuccess } from './verification/VerificationCodeSuccess';
@@ -41,8 +38,9 @@ export interface VerificationCodeModalProps {
 }
 
 /**
- * Owns the code request, the countdown and the verification call. The header
- * frame is shared, and the form and success copy live in ./verification.
+ * Owns the code request, the countdown and the verification call. The sheet is
+ * one centered column — icon disc, heading, the address, the slots, the action
+ * and a quiet way back — so it reads the same on a desktop window and a phone.
  */
 export default function VerificationCodeModal({
   opened,
@@ -178,77 +176,112 @@ export default function VerificationCodeModal({
 
   const maskedEmail = maskEmail(email);
   const heading = verified ? 'Verification successful' : sending ? 'Sending your code' : title;
-  const description = verified ? undefined : (
-    <>
-      <Text component="span" inherit>
-        {sending
-          ? 'Sending a 6-digit verification code to'
-          : 'A 6-digit verification code has been sent to'}
-      </Text>
-      <Text
-        component="span"
-        inherit
-        fw={700}
-        c="var(--mantine-color-text)"
-        style={{ display: 'block', marginTop: 2 }}
-      >
-        {maskedEmail}
-      </Text>
-    </>
-  );
 
   return (
-    <AppModal
+    <Modal
       opened={opened}
       onClose={handleClose}
+      centered
       size="md"
-      label={heading}
+      radius="lg"
+      padding={0}
+      withCloseButton={false}
       closeOnClickOutside={!loading}
-      header={
-        <ModalHeader
-          title={heading}
-          description={description}
-          icon={verified ? <Check width={22} height={22} /> : <Envelope width={22} height={22} />}
-          onClose={handleClose}
-          closeDisabled={loading}
-          layout="stacked"
-          iconVariant="soft"
-          divider={false}
-        />
-      }
-      footer={
-        <ModalFooter
-          onCancel={verified || loading ? undefined : handleClose}
-          cancelLabel={cancelLabel}
-          confirmLabel={verified ? 'Continue' : verifyLabel}
-          confirmLoading={loading}
-          confirmDisabled={
-            !verified && (sending || countdown <= 0 || code.length < 6)
-          }
-          onConfirm={verified ? onVerified : handleVerify}
-          cancelVariant="text"
-          align="end"
-          divider={false}
-        />
-      }
+      closeOnEscape={!loading}
+      aria-label={heading}
+      zIndex={1100}
+      yOffset="1rem"
+      xOffset="0.75rem"
+      overlayProps={{ color: '#000', backgroundOpacity: 0.72 }}
+      styles={{
+        content: {
+          overflow: 'hidden',
+          maxWidth: `min(${rem(440)}, calc(100vw - 1.5rem))`,
+        },
+        body: {
+          padding: 0,
+        },
+      }}
     >
-      {sending ? (
-        <VerificationCodeSending />
-      ) : verified ? (
-        <VerificationCodeSuccess message={subtitle} />
-      ) : (
-        <VerificationCodeForm
-          code={code}
-          onCodeChange={setCode}
-          error={error}
-          verifying={loading}
-          resending={resending}
-          countdown={countdown}
-          resendTimer={resendTimer}
-          onResend={handleResend}
-          resendable={resendable}
-        />
-      )}
-    </AppModal>
+      <Stack align="center" gap={0} p={{ base: 'lg', sm: 'xl' }}>
+        <ThemeIcon size={96} radius="50%" variant="light" color="orange">
+          {verified ? (
+            <Check width={42} height={42} color="var(--mantine-color-orange-6)" />
+          ) : (
+            <Envelope width={42} height={42} color="var(--mantine-color-orange-6)" />
+          )}
+        </ThemeIcon>
+
+        <Text component="h2" fz={{ base: rem(22), sm: rem(26) }} fw={700} ta="center" lh={1.25} mt="lg">
+          {heading}
+        </Text>
+
+        {sending || !verified ? (
+          <Stack gap={2} align="center" mt={10}>
+            <Text fz={rem(14)} c="dimmed" ta="center" lh={1.6}>
+              {sending
+                ? 'Sending a 6-digit verification code to'
+                : 'A 6-digit verification code has been sent to'}
+            </Text>
+            <Text fz={rem(14)} fw={700} ta="center" lh={1.6} c="var(--mantine-color-text)">
+              {maskedEmail}
+            </Text>
+          </Stack>
+        ) : null}
+
+        <Box w="100%" mt="lg">
+          {sending ? (
+            <VerificationCodeSending />
+          ) : verified ? (
+            <VerificationCodeSuccess message={subtitle} />
+          ) : (
+            <VerificationCodeForm
+              code={code}
+              onCodeChange={setCode}
+              error={error}
+              verifying={loading}
+              resending={resending}
+              countdown={countdown}
+              resendTimer={resendTimer}
+              onResend={handleResend}
+              resendable={resendable}
+            />
+          )}
+        </Box>
+
+        <Group grow gap="sm" mt="xl" w="100%" wrap="nowrap">
+          <Button
+            variant="default"
+            h={48}
+            radius="md"
+            fw={600}
+            onClick={handleClose}
+            disabled={loading}
+            styles={{
+              root: {
+                borderColor: 'var(--mantine-color-default-border)',
+                color: 'var(--mantine-color-text)',
+                fontSize: rem(15),
+              },
+            }}
+          >
+            {cancelLabel}
+          </Button>
+
+          <Button
+            h={48}
+            radius="md"
+            color="orange"
+            fw={700}
+            style={{ fontSize: rem(16) }}
+            loading={loading}
+            disabled={!verified && (sending || countdown <= 0 || code.length < 6)}
+            onClick={verified ? onVerified : handleVerify}
+          >
+            {verified ? 'Continue' : verifyLabel}
+          </Button>
+        </Group>
+      </Stack>
+    </Modal>
   );
 }

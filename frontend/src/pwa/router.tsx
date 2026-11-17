@@ -1,10 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../shared/hooks/useAuth'; // Your hook path
-import { LoadingOverlay, Box } from '@mantine/core';
 
 // Layouts
 import { AdminLayout } from './components/Layout/AdminLayout';
 import { TanodLayout } from './components/Layout/TanodLayout';
+import { PwaShellSkeleton } from './components/Layout/PwaShellSkeleton';
 
 // Pages
 import DashboardPage from './pages/admin/DashboardPage';
@@ -25,7 +25,7 @@ import ProfilePage from './pages/ProfilePage';
 function RoleGuard({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) {
     const { user, isAuthenticated, loading } = useAuth();
 
-    if (loading) return <LoadingOverlay visible zIndex={1000} />;
+    if (loading) return <PwaShellSkeleton />;
 
     if (!isAuthenticated) {
         return <Navigate to="/login" replace />;
@@ -47,11 +47,7 @@ export default function PwaRouter() {
     const { isAuthenticated, user, loading } = useAuth();
 
     if (loading) {
-        return (
-            <Box h="100vh" pos="relative">
-                <LoadingOverlay visible />
-            </Box>
-        );
+        return <PwaShellSkeleton />;
     }
 
     const userRole = user?.role?.toLowerCase();

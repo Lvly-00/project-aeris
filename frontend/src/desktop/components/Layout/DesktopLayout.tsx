@@ -8,7 +8,7 @@ import { parseThrottleSeconds } from '../../../shared/utils/authErrors';
 import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 import { AdminVerificationModal } from './AdminVerificationModal';
 import { LogoutConfirmModal } from '../../../shared/components/profile/LogoutConfirmModal';
-import { 
+import {
   Avatar, Box, Group, Menu, Text, UnstyledButton, Badge,
   useMantineColorScheme, useComputedColorScheme, Container
 } from '@mantine/core';
@@ -55,14 +55,14 @@ export default function DesktopLayout() {
       .then((v) => {
         if (!cancelled) setAppVersion(v);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     desktopApi
       .getUpdateStatus()
       .then((s) => {
         if (!cancelled) setUpdateStatus(s);
       })
-      .catch(() => {});
+      .catch(() => { });
 
     const unsubscribe = desktopApi.onUpdateStatus((s) => setUpdateStatus(s));
     return () => {
@@ -264,94 +264,58 @@ export default function DesktopLayout() {
 
             {/* User Profile Section */}
             <Group gap={12} wrap="nowrap" align="center">
-              {/* Update button — shown in the header when an update is ready */}
-              {desktopApi?.isDesktop && (updateStatus.status === 'available' || updateStatus.status === 'downloading' || updateStatus.status === 'downloaded') && (
-                <UnstyledButton
-                  onClick={
-                    updateStatus.status === 'downloaded'
-                      ? () => desktopApi.installUpdate()
-                      : updateStatus.status === 'available'
-                        ? downloadUpdate
-                        : undefined
-                  }
-                  disabled={updateStatus.status === 'downloading'}
-                  style={{
-                    display: 'flex',
-                    alignItems: 'center',
-                    gap: 6,
-                    padding: '6px 12px',
-                    borderRadius: 8,
-                    backgroundColor: 'var(--mantine-color-orange-light)',
-                    color: 'var(--mantine-color-orange-filled)',
-                    fontWeight: 600,
-                    fontSize: 13,
-                    whiteSpace: 'nowrap',
-                    opacity: updateStatus.status === 'downloading' ? 0.7 : 1,
-                    cursor: updateStatus.status === 'downloading' ? 'default' : 'pointer',
-                  }}
-                >
-                  {updateStatus.status === 'downloaded' ? (
-                    <><RefreshCw width={14} height={14} /> Restart to install{(updateStatus as any).version ? ` v${(updateStatus as any).version}` : ''}</>
-                  ) : updateStatus.status === 'downloading' ? (
-                    <><RefreshCw width={14} height={14} /> Downloading… {Math.round(updateStatus.percent)}%</>
-                  ) : (
-                    <><ArrowDownCircle width={14} height={14} /> Update available</>
-                  )}
-                </UnstyledButton>
-              )}
-
               <Menu position="bottom-end" withArrow width={220}>
-              <Menu.Target>
-                <UnstyledButton>
-                  <Group gap={12}>
-                    <Avatar
-                      size={45}
-                      radius="xl"
-                      src={resolveMediaUrl(user?.profile_picture)}
-                      style={{ border: '1px solid var(--mantine-color-default-border)' }}
-                    >
-                      {user?.first_name?.[0]}
-                    </Avatar>
-                    <Box visibleFrom="xs">
-                      <Text fz={16} fw={700} lh={1.2} style={{ color: 'var(--mantine-color-text)' }}>
-                        {user?.full_name || "User Name"}
-                      </Text>
-                      <Badge
-                        mt={4}
-                        size="sm"
-                        variant="filled"
-                        color={viewMode === 'Admin' ? 'orange' : 'gray'}
-                        tt="uppercase"
-                        fw={600}
-                        style={{ letterSpacing: 0.6 }}
+                <Menu.Target>
+                  <UnstyledButton>
+                    <Group gap={12}>
+                      <Avatar
+                        size={45}
+                        radius="xl"
+                        src={resolveMediaUrl(user?.profile_picture)}
+                        style={{ border: '1px solid var(--mantine-color-default-border)' }}
                       >
-                        {viewMode === 'Admin' ? 'Chief' : 'Operator'} Mode
-                      </Badge>
-                    </Box>
-                    <ChevronDown size="sm" color="var(--mantine-color-dimmed)" style={{ marginLeft: 5 }} />
-                  </Group>
-                </UnstyledButton>
-              </Menu.Target>
+                        {user?.first_name?.[0]}
+                      </Avatar>
+                      <Box visibleFrom="xs">
+                        <Text fz={16} fw={700} lh={1.2} style={{ color: 'var(--mantine-color-text)' }}>
+                          {user?.full_name || "User Name"}
+                        </Text>
+                        <Badge
+                          mt={4}
+                          size="sm"
+                          variant="filled"
+                          color={viewMode === 'Admin' ? 'orange' : 'gray'}
+                          tt="uppercase"
+                          fw={600}
+                          style={{ letterSpacing: 0.6 }}
+                        >
+                          {viewMode === 'Admin' ? 'Chief' : 'Operator'} Mode
+                        </Badge>
+                      </Box>
+                      <ChevronDown size="sm" color="var(--mantine-color-dimmed)" style={{ marginLeft: 5 }} />
+                    </Group>
+                  </UnstyledButton>
+                </Menu.Target>
 
-              <Menu.Dropdown>
-                <Menu.Item leftSection={<User size="sm" />} onClick={() => navigate('/desktop/profile')} disabled={isAdminLocked}>Profile</Menu.Item>
-                <Menu.Item leftSection={<Cog size="sm" />} onClick={() => navigate('/desktop/settings')} disabled={isAdminLocked}>Settings</Menu.Item>
-                <Menu.Divider />
-                {user?.role === 'CCTV Chief' && (
-                  <Menu.Item
-                    leftSection={<Toggles size="sm" />}
-                    onClick={() => handleModeToggle(viewMode === 'Operator')}
-                  >
-                    Switch to {viewMode === 'Admin' ? 'Operator' : 'Chief'}
+                <Menu.Dropdown>
+                  <Menu.Item leftSection={<User size="sm" />} onClick={() => navigate('/desktop/profile')} disabled={isAdminLocked}>Profile</Menu.Item>
+                  <Menu.Item leftSection={<Cog size="sm" />} onClick={() => navigate('/desktop/settings')} disabled={isAdminLocked}>Settings</Menu.Item>
+                  <Menu.Divider />
+                  {user?.role === 'CCTV Chief' && (
+                    <Menu.Item
+                      leftSection={<Toggles size="sm" />}
+                      onClick={() => handleModeToggle(viewMode === 'Operator')}
+                    >
+                      Switch to {viewMode === 'Admin' ? 'Operator' : 'Chief'}
+                    </Menu.Item>
+                  )}
+                  <Menu.Item leftSection={computedColorScheme === 'dark' ? <Sun size="sm" /> : <Moon size="sm" />} onClick={toggleTheme}>
+                    {computedColorScheme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                   </Menu.Item>
-                )}
-                <Menu.Item leftSection={computedColorScheme === 'dark' ? <Sun size="sm" /> : <Moon size="sm" />} onClick={toggleTheme}>
-                  {computedColorScheme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                </Menu.Item>
-                <Menu.Divider />
-                <Menu.Item leftSection={<DoorOpen size="sm" />} color="orange" onClick={() => setLogoutOpened(true)}>Logout</Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
+                  <Menu.Divider />
+                  <Menu.Item leftSection={<DoorOpen size="sm" />} color="orange" onClick={() => setLogoutOpened(true)}>Logout</Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
             </Group>
 
           </Group>

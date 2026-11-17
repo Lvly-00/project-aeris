@@ -1,10 +1,28 @@
-from django.core.management.base import BaseCommand
+import os
+
+from django.core.management.base import BaseCommand, CommandError
 from django.contrib.auth import get_user_model
 from apps.lookups.models import Role
 
 User = get_user_model()
 
-DEFAULT_PASSWORD = "Barangay2026!"
+# ---------------------------------------------------------------------------
+# No credential belongs in source control: the seeded password comes from the
+# SEED_USERS_PASSWORD env var (or --password) and is always hashed by
+# UserManager.create_user, exactly like a password set through the API.
+# ---------------------------------------------------------------------------
+PASSWORD_ENV_VAR = "SEED_USERS_PASSWORD"
+
+
+def _require_password(options) -> str:
+    """Return the seed password from --password or the environment."""
+    value = (options.get("password") or os.environ.get(PASSWORD_ENV_VAR, "")).strip()
+    if not value:
+        raise CommandError(
+            f"Set {PASSWORD_ENV_VAR} in your .env or pass --password; "
+            "seed accounts are never created with a password baked into the code."
+        )
+    return value
 
 OPERATOR_NAMES = [
     ("Alvin", "Santos"), ("Bianca", "Reyes"), ("Carl", "Dela Cruz"),
@@ -42,12 +60,15 @@ class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
             "--password",
-            default=DEFAULT_PASSWORD,
-            help="Password assigned to every seeded user",
+            default=None,
+            help=(
+                "Password assigned to every seeded user; defaults to the "
+                f"{PASSWORD_ENV_VAR} environment variable"
+            ),
         )
 
     def handle(self, *args, **options):
-        password = options["password"]
+        password = _require_password(options)
         ensure_roles()
 
         operator_role = Role.objects.get(name="CCTV Operator")

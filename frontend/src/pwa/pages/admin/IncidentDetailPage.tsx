@@ -1,3 +1,4 @@
+import { useState } from 'react';
 import {
   ActionIcon,
   Badge,
@@ -23,6 +24,7 @@ import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 import { STATUS_BADGE_COLORS as STATUS_COLOR } from '../../../shared/utils/constants';
 import { IncidentActions } from '../../components/incidents/IncidentActions';
 import { IncidentClosedNotice } from '../../components/incidents/IncidentClosedNotice';
+import { DismissIncidentModal } from '../../components/incidents/DismissIncidentModal';
 import { IncidentContact } from '../../components/incidents/IncidentContact';
 import { IncidentDetailSheet } from '../../components/incidents/IncidentDetailSheet';
 import { IncidentDetailSkeleton } from '../../components/incidents/IncidentDetailSkeleton';
@@ -36,7 +38,7 @@ import {
   statusStepIndex,
   incidentTypeColor,
 } from '../../components/incidents/incidentMeta';
-import type { Camera, Incident, IncidentStatus } from '../../../shared/types';
+import type { Camera, DismissReason, Incident, IncidentStatus } from '../../../shared/types';
 
 /**
  * One incident, end to end: the frame that triggered it, the record behind the
@@ -97,15 +99,28 @@ export default function IncidentDetailPage() {
   });
   const callContact = emergencyContacts[0];
 
+  const [dismissOpened, setDismissOpened] = useState(false);
+
   const statusMutation = useMutation({
-    mutationFn: (newStatus: IncidentStatus) =>
-      incidentsAPI.statusTransition(incidentId, newStatus),
+    mutationFn: ({
+      status: nextStatus,
+      dismiss_reason,
+      dismiss_notes,
+    }: {
+      status: IncidentStatus;
+      dismiss_reason?: DismissReason;
+      dismiss_notes?: string;
+    }) =>
+      incidentsAPI.statusTransition(incidentId, nextStatus, {
+        dismiss_reason,
+        dismiss_notes,
+      }),
 
     /*
      * Optimistic update: repaint the UI in the same tick as the click,
      * before the network round-trip finishes.
      */
-    onMutate: async (newStatus) => {
+    onMutate: async ({ status: newStatus }) => {
       await queryClient.cancelQueries({ queryKey: ['incident', incidentId] });
       const previous = queryClient.getQueryData(['incident', incidentId]);
       queryClient.setQueryData(['incident', incidentId], (old: Incident | undefined) =>
@@ -264,6 +279,16 @@ export default function IncidentDetailPage() {
         confidenceColor={meterColor}
       />
 
+      {isDismissed && (
+        <IncidentClosedNotice
+          status="Dismissed"
+          statusColor={statusColor}
+          closedAt={incident.dismissed_at}
+          reason={incident.dismiss_reason}
+          notes={incident.dismiss_notes}
+        />
+      )}
+
       <IncidentProgress
         steps={steps}
         active={statusStepIndex(status)}
@@ -274,9 +299,33 @@ export default function IncidentDetailPage() {
 
       <IncidentActions
         actions={actions}
-        pendingStatus={statusMutation.variables}
+        pendingStatus={statusMutation.variables?.status}
         isPending={statusMutation.isPending}
-        onAction={(next) => statusMutation.mutate(next)}
+        onAction={(next) => {
+          if (next === 'Dismissed') {
+            setDismissOpened(true);
+            return;
+          }
+          statusMutation.mutate({ status: next });
+        }}
+      />
+
+      <DismissIncidentModal
+        opened={dismissOpened}
+        onClose={() => setDismissOpened(false)}
+        loading={statusMutation.isPending}
+        onConfirm={async (reason, notes) => {
+          try {
+            await statusMutation.mutateAsync({
+              status: 'Dismissed',
+              dismiss_reason: reason,
+              dismiss_notes: notes,
+            });
+            setDismissOpened(false);
+          } catch {
+            // onError already shows the failure; keep the modal open to retry.
+          }
+        }}
       />
     </Container>
   );

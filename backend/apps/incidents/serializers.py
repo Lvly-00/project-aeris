@@ -28,6 +28,7 @@ class IncidentSerializer(serializers.ModelSerializer):
             "dispatched_at", "responded_at", "resolved_at", "archived_at",
             "dismissed_at", "recorded_by", "recorded_by_name", "verified_by",
             "verified_by_name", "dismissed_by", "dismissed_by_name",
+            "dismiss_reason", "dismiss_notes",
             "evidence_image", "evidence_gallery", "duration", "created_at",
             "source", "detection_count",
         ]
@@ -35,6 +36,8 @@ class IncidentSerializer(serializers.ModelSerializer):
             "id", "detected_at", "verified_at", "dispatched_at", "responded_at",
             "resolved_at", "archived_at", "dismissed_at", "created_at",
             "source", "detection_count",
+            # Written only by the status transition that dismisses the incident.
+            "dismiss_reason", "dismiss_notes",
         ]
 
     def get_recorded_by_name(self, obj):
@@ -93,12 +96,33 @@ class IncidentListSerializer(serializers.ModelSerializer):
             # The incidents list renders the captured frame as a thumbnail,
             # so the list payload has to carry the image URL too.
             "evidence_image",
+            # History shows why a dismissed incident was closed.
+            "dismiss_reason",
         ]
 
 
 class IncidentStatusUpdateSerializer(serializers.Serializer):
     status = serializers.ChoiceField(choices=[])
     notes = serializers.CharField(required=False, allow_blank=True)
+    dismiss_reason = serializers.ChoiceField(
+        choices=Incident.DismissReason.choices, required=False, allow_blank=True
+    )
+    dismiss_notes = serializers.CharField(required=False, allow_blank=True)
+
+    def validate(self, attrs):
+        if attrs.get("status") == "Dismissed":
+            reason = (attrs.get("dismiss_reason") or "").strip()
+            notes = (attrs.get("dismiss_notes") or "").strip()
+            if not reason:
+                raise serializers.ValidationError(
+                    {"dismiss_reason": "Choose a reason for dismissing this incident."}
+                )
+            # "Other" is only meaningful with an explanation.
+            if reason == Incident.DismissReason.OTHER and not notes:
+                raise serializers.ValidationError(
+                    {"dismiss_notes": "Describe the reason for dismissing this incident."}
+                )
+        return attrs
 
     def __init__(self, *args, **kwargs):
         super().__init__(*args, **kwargs)

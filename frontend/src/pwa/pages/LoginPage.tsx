@@ -14,6 +14,7 @@ import {
     Anchor,
     Image,
     Center,
+    Loader,
     rem,
     UnstyledButton,
     useComputedColorScheme
@@ -30,6 +31,8 @@ export default function LoginPage() {
     const isDark = useComputedColorScheme('light') === 'dark';
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
+    // signingIn=true shows the full-page branded overlay while navigation fires.
+    const [signingIn, setSigningIn] = useState(false);
     const [installPrompt, setInstallPrompt] = useState<any>(null);
     const [installed, setInstalled] = useState(
         () =>
@@ -144,6 +147,7 @@ export default function LoginPage() {
                 return;
             }
 
+            setSigningIn(true);
             navigate('/', {
                 replace: true,
             });
@@ -420,10 +424,11 @@ export default function LoginPage() {
                 onVerify={async (code) => {
                     await verify2FALogin(twoFAEmail, code, rememberMe);
                 }}
-                onVerified={() => navigate('/', { replace: true })}
+            onVerified={() => { setSigningIn(true); navigate('/', { replace: true }); }}
                 title="Verify it's you"
                 subtitle="You're verified. Opening your dashboard."
                 verifyLabel="Continue to dashboard"
+                cancelLabel="Back to Log in"
                 codeSentOnOpen
                 resendable={false}
             />
@@ -615,6 +620,34 @@ export default function LoginPage() {
                             Maybe later
                         </Button>
                     </Box>
+                </Box>
+            )}
+
+            {/* ── Facebook-style full-page signing-in overlay ───────────── */}
+            {signingIn && (
+                <Box
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 9999,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        gap: rem(24),
+                        backgroundColor: 'var(--mantine-color-body)',
+                        animation: 'aeris-fade-in 180ms ease forwards',
+                    }}
+                >
+                    <style>{`
+                        @keyframes aeris-fade-in {
+                            from { opacity: 0; }
+                            to   { opacity: 1; }
+                        }
+                    `}</style>
+                    <Image src="/icon.png" alt="Aeris" w={96} />
+                    <Loader color="#FA5401" size="md" />
+                    <Text c="dimmed" fz="sm" fw={500}>Signing you in…</Text>
                 </Box>
             )}
         </Box>

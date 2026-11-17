@@ -14,6 +14,7 @@ import {
   Anchor,
   Image,
   Center,
+  Loader,
   rem,
   useComputedColorScheme,
 } from '@mantine/core';
@@ -31,6 +32,9 @@ export default function LoginPage() {
   const { login, verify2FALogin, setUser, user } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  // signingIn=true shows the full-page branded overlay while the token is
+  // being exchanged and the navigation is about to fire.
+  const [signingIn, setSigningIn] = useState(false);
   const [twoFAOpen, setTwoFAOpen] = useState(false);
   const [twoFAEmail, setTwoFAEmail] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -99,6 +103,8 @@ export default function LoginPage() {
         return;
       }
 
+      // Show the branded overlay while React flushes the navigation.
+      setSigningIn(true);
       navigate('/desktop/cameras', { replace: true });
     } catch (err: any) {
       const mapped = mapLoginError(err);
@@ -273,14 +279,44 @@ export default function LoginPage() {
             setError(AUTH_MESSAGES.DESKTOP_TANOD_BLOCKED);
             return;
           }
+          setSigningIn(true);
           navigate('/desktop/cameras', { replace: true });
         }}
         title="Verify it's you"
         subtitle="You're verified. Continuing to your dashboard."
         verifyLabel="Continue to dashboard"
+        cancelLabel="Back to Log in"
         codeSentOnOpen
         resendable={false}
       />
+
+      {/* ── Facebook-style full-page signing-in overlay ───────────────────── */}
+      {signingIn && (
+        <Box
+          style={{
+            position: 'fixed',
+            inset: 0,
+            zIndex: 9999,
+            display: 'flex',
+            flexDirection: 'column',
+            alignItems: 'center',
+            justifyContent: 'center',
+            gap: rem(24),
+            backgroundColor: 'var(--mantine-color-body)',
+            animation: 'aeris-fade-in 180ms ease forwards',
+          }}
+        >
+          <style>{`
+            @keyframes aeris-fade-in {
+              from { opacity: 0; }
+              to   { opacity: 1; }
+            }
+          `}</style>
+          <Image src="/icon.png" alt="Aeris" w={96} />
+          <Loader color="#FA5401" size="md" />
+          <Text c="dimmed" fz="sm" fw={500}>Signing you in…</Text>
+        </Box>
+      )}
     </Box>
   );
 }

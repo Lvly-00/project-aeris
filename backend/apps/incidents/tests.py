@@ -140,7 +140,7 @@ class IncidentGroupingTests(IncidentTestBase):
 
         self.client.patch(
             STATUS_URL.format(id=incident_id),
-            {"status": "Dismissed"},
+            {"status": "Dismissed", "dismiss_reason": "false_positive"},
             format="json",
         )
 
@@ -440,7 +440,7 @@ class IncidentGroupingTests(IncidentTestBase):
         first = self.detect(self.camera)
         self.client.patch(
             STATUS_URL.format(id=first.data["id"]),
-            {"status": "Dismissed"},
+            {"status": "Dismissed", "dismiss_reason": "false_positive"},
             format="json",
         )
         second = self.detect(self.camera)
@@ -451,7 +451,7 @@ class IncidentGroupingTests(IncidentTestBase):
 
     def test_by_camera_omits_closed_incidents(self):
         incident = self.detect(self.camera).data["id"]
-        self.client.patch(STATUS_URL.format(id=incident), {"status": "Dismissed"}, format="json")
+        self.client.patch(STATUS_URL.format(id=incident), {"status": "Dismissed", "dismiss_reason": "false_positive"}, format="json")
 
         res = self.client.get(BY_CAMERA_URL)
         self.assertEqual(res.data, [])
@@ -549,7 +549,7 @@ class IncidentGroupingTests(IncidentTestBase):
     def test_delete_by_camera_leaves_closed_incidents_untouched(self):
         closed = self.detect().data["id"]
         self.client.patch(
-            STATUS_URL.format(id=closed), {"status": "Dismissed"}, format="json"
+            STATUS_URL.format(id=closed), {"status": "Dismissed", "dismiss_reason": "false_positive"}, format="json"
         )
         self.detect(source="simulation")
 
@@ -599,7 +599,7 @@ class DashboardStatsTests(IncidentTestBase):
         self.detect(camera=self.other_camera, incident_type="Smoke", source="simulation")
         closed = self.detect(source="simulation").data["id"]
         self.client.patch(
-            STATUS_URL.format(id=closed), {"status": "Dismissed"}, format="json"
+            STATUS_URL.format(id=closed), {"status": "Dismissed", "dismiss_reason": "false_positive"}, format="json"
         )
 
         res = self.client.get(DASHBOARD_URL)
@@ -787,7 +787,7 @@ class CameraDeletionCascadeTests(IncidentTestBase):
         # Detections arrive via create-from-detection, which writes no timeline
         # row; a status transition does. Detected -> Dismissed is allowed.
         res = self.client.patch(
-            STATUS_URL.format(id=incident), {"status": "Dismissed"}, format="json"
+            STATUS_URL.format(id=incident), {"status": "Dismissed", "dismiss_reason": "false_positive"}, format="json"
         )
         self.assertEqual(res.status_code, 200)
 
@@ -944,3 +944,48 @@ class CameraBulkDeletionTests(IncidentTestBase):
 
         self.assertEqual(res.status_code, 404)
         self.assertEqual(Camera.objects.count(), 2)
+
+
+class DismissalReasonTests(IncidentTestBase):
+    """Dismissing an incident records why it was closed."""
+
+    def test_dismissal_requires_a_reason(self):
+        incident = self.detect().data["id"]
+
+        res = self.client.patch(
+            STATUS_URL.format(id=incident), {"status": "Dismissed"}, format="json"
+        )
+
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("dismiss_reason", res.data)
+
+    def test_dismissal_stores_reason_and_notes(self):
+        incident = self.detect().data["id"]
+
+        res = self.client.patch(
+            STATUS_URL.format(id=incident),
+            {
+                "status": "Dismissed",
+                "dismiss_reason": "camera_issue",
+                "dismiss_notes": "Lens is fogged",
+            },
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, 200)
+        row = Incident.objects.get(pk=incident)
+        self.assertEqual(row.dismiss_reason, "camera_issue")
+        self.assertEqual(row.dismiss_notes, "Lens is fogged")
+        self.assertEqual(res.data["dismiss_reason"], "camera_issue")
+
+    def test_other_reason_requires_a_description(self):
+        incident = self.detect().data["id"]
+
+        res = self.client.patch(
+            STATUS_URL.format(id=incident),
+            {"status": "Dismissed", "dismiss_reason": "other"},
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("dismiss_notes", res.data)

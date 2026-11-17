@@ -227,6 +227,10 @@ export const camerasAPI = {
   updateStatus: (id: number, status: string) =>
     api.patch(`/cameras/${id}/status/`, { status }),
   snapshot: (id: number) => api.get(`/cameras/${id}/snapshot/`),
+  // Short-lived, camera-scoped ticket for <video>/<img> sources: a media
+  // element cannot send an Authorization header, and the account token must
+  // never appear in a URL.
+  streamTicket: (id: number) => api.post(`/cameras/${id}/stream-ticket/`),
 };
 
 export const incidentsAPI = {
@@ -238,8 +242,11 @@ export const incidentsAPI = {
   update: (id: number, data: any) => api.put(`/incidents/${id}/`, data),
   delete: (id: number) => api.delete(`/incidents/${id}/`),
   deleteAll: () => api.delete('/incidents/delete_all/'),
-  statusTransition: (id: number, status: string) =>
-    api.patch(`/incidents/${id}/status/`, { status }),
+  statusTransition: (
+    id: number,
+    status: string,
+    extra: { dismiss_reason?: string; dismiss_notes?: string } = {}
+  ) => api.patch(`/incidents/${id}/status/`, { status, ...extra }),
   dashboardStats: () => api.get('/incidents/dashboard-stats/'),
   byCamera: () => api.get('/incidents/by-camera/'),
 

@@ -5,9 +5,11 @@ Every endpoint that emails a verification code must report a failure when the
 provider refuses the message (``send_email`` returns ``False``) instead of
 answering as if the code had been delivered.
 """
+import re
 from unittest.mock import patch
 
 from django.core.cache import cache
+from django.test import override_settings
 from rest_framework import status
 from rest_framework.test import APITestCase
 
@@ -50,6 +52,35 @@ class EmailDeliveryFailureTests(APITestCase):
         self.assertNotIn("requires_2fa", response.data)
         self.assertIn("could not send", response.data["detail"].lower())
         send_email.assert_called_once()
+
+    @patch(SEND_EMAIL, return_value=True)
+    def test_login_code_email_uses_the_branded_template(self, send_email):
+        self.client.post(
+            "/api/accounts/login/",
+            {"email": self.user.email, "password": PASSWORD},
+            format="json",
+        )
+
+        sent = send_email.call_args.kwargs
+        code = re.search(r"\b\d{6}\b", sent["text_content"]).group(0)
+        self.assertTrue(sent["subject"].startswith(code))
+        self.assertIn(code, sent["html_content"])
+        self.assertIn("Best regards", sent["text_content"])
+        self.assertIn("Barangay Sampaloc", sent["text_content"])
+
+    @override_settings(PUBLIC_APP_URL="https://app.example.test")
+    @patch(SEND_EMAIL, return_value=True)
+    def test_code_email_loads_the_mark_from_the_public_origin(self, send_email):
+        self.client.post(
+            "/api/accounts/login/",
+            {"email": self.user.email, "password": PASSWORD},
+            format="json",
+        )
+
+        html = send_email.call_args.kwargs["html_content"]
+        self.assertIn(
+            "https://app.example.test/icons/icon-192.png", html
+        )
 
     @patch(SEND_EMAIL, return_value=False)
     def test_password_reset_reports_delivery_failure(self, send_email):

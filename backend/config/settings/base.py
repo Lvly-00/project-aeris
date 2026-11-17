@@ -96,6 +96,18 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "apps.accounts.validators.CommonPasswordListValidator"},
 ]
 
+# ── Security headers (safe without TLS) ──────────────────────────────────────
+# Applied in every environment, including the desktop app and local dev, so a
+# stray response can never be sniffed as another type, framed by another site,
+# or leak the full URL to a third party. TLS-only settings (HSTS, SSL redirect,
+# secure cookies) live in settings/production.py.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+
 # ── Internationalisation ──────────────────────────────────────────────────────
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Manila"
@@ -213,6 +225,12 @@ LOGGING = {
 VAPID_PUBLIC_KEY = config("VAPID_PUBLIC_KEY", default="")
 VAPID_PRIVATE_KEY = config("VAPID_PRIVATE_KEY", default="")
 VAPID_CLAIMS_SUB = config("VAPID_CLAIMS_SUB", default="mailto:admin@example.com")
+
+# ── Public app origin ────────────────────────────────────────────────────────
+# Absolute origin of the deployed web app. Outbound emails use it for the
+# AERIS mark (and future links); relative URLs do not load in email clients.
+# Leave it empty and the email shows a text wordmark instead of an image.
+PUBLIC_APP_URL = config("PUBLIC_APP_URL", default="")
 
 # ── Internal service-to-service key (/internal/ endpoints) ───────────────
 # Must match INTERNAL_API_KEY in the AI service's environment.

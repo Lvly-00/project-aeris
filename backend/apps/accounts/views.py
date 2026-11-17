@@ -22,6 +22,7 @@ from apps.incidents.views import broadcast_stats_changed
 from .models import PasswordResetCode, EmailChangeCode, TwoFactorCode, TrustedDevice
 from .permissions import CanManageUsers
 from .email import send_email
+from .email_templates import render_code_email
 from .serializers import (
     UserSerializer,
     RegisterSerializer,
@@ -356,11 +357,18 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_throttles(self):
         # Stricter per-client rate limit on authentication endpoints (FR-LG-009,
         # NFR-LG-007) — protects against brute force and credential stuffing.
-        if self.action == "verify_password":
-            # Admin verification has its own independent 5/min bucket.
+        if self.action in (
+            # Admin verification and every endpoint that checks a 6-digit code
+            # share one IP-keyed 5/min bucket: a wrong code is cheap to try, so
+            # guessing must cost the same as guessing a password.
+            "verify_password",
+            "two_factor_verify",
+            "email_change_verify",
+        ):
             return [VerifyPasswordRateThrottle()]
         if self.action in (
             "login",
+            "login_verify_2fa",
             "password_reset",
             "password_reset_verify",
             "password_reset_confirm",
@@ -457,28 +465,22 @@ class UserViewSet(viewsets.ModelViewSet):
                 logger.info("[DEV] 2FA login code for %s: %s", user.email, code)
 
             try:
-                html_body = (
-                    "<p>Hello,</p>"
-                    "<p>Use the verification code below to complete your login:</p>"
-                    f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
-                    f'margin:16px 0">{code}</p>'
-                    f"<p>This code expires in "
-                    f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
-                    "If you did not attempt to log in, you can safely "
-                    "ignore this email.</p>"
-                )
-                text_body = (
-                    "Hello,\n\n"
-                    "Use the verification code below to complete your login:\n\n"
-                    f"{code}\n\n"
-                    f"This code expires in "
-                    f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
-                    "If you did not attempt to log in, you can safely "
-                    "ignore this email.\n"
+                html_body, text_body = render_code_email(
+                    first_name=user.first_name,
+                    intro=(
+                        "Enter this code to continue logging in without a "
+                        "password:"
+                    ),
+                    code=code,
+                    expiry_minutes=self.TWO_FACTOR_CODE_TTL_SECONDS // 60,
+                    ignore_note=(
+                        "If you didn't attempt to log in, you can safely "
+                        "ignore this email."
+                    ),
                 )
                 sent = send_email(
                     to_email=user.email,
-                    subject="Your AERIS login verification code",
+                    subject=f"{code} - Your AERIS login code",
                     html_content=html_body,
                     text_content=text_body,
                 )
@@ -590,28 +592,19 @@ class UserViewSet(viewsets.ModelViewSet):
         if settings.DEBUG:
             logger.info("[DEV] Password reset code for %s: %s", user.email, code)
         try:
-            html_body = (
-                "<p>Hello,</p>"
-                "<p>Use the verification code below to reset your AERIS password:</p>"
-                f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
-                f'margin:16px 0">{code}</p>'
-                f"<p>This code expires in "
-                f"{PASSWORD_RESET_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request a password reset, you can safely "
-                "ignore this email.</p>"
-            )
-            text_body = (
-                "Hello,\n\n"
-                "Use the verification code below to reset your AERIS password:\n\n"
-                f"{code}\n\n"
-                f"This code expires in "
-                f"{PASSWORD_RESET_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request a password reset, you can safely "
-                "ignore this email.\n"
+            html_body, text_body = render_code_email(
+                first_name=user.first_name,
+                intro="Enter this code to reset your AERIS password:",
+                code=code,
+                expiry_minutes=PASSWORD_RESET_CODE_TTL_SECONDS // 60,
+                ignore_note=(
+                    "If you didn't request a password reset, you can safely "
+                    "ignore this email."
+                ),
             )
             sent = send_email(
                 to_email=user.email,
-                subject="Your AERIS password reset code",
+                subject=f"{code} - Your AERIS password reset code",
                 html_content=html_body,
                 text_content=text_body,
             )
@@ -954,28 +947,19 @@ class UserViewSet(viewsets.ModelViewSet):
             logger.info("[DEV] Email change code for %s: %s", user.email, code)
 
         try:
-            html_body = (
-                "<p>Hello,</p>"
-                "<p>Use the verification code below to confirm your email address change:</p>"
-                f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
-                f'margin:16px 0">{code}</p>'
-                f"<p>This code expires in "
-                f"{self.EMAIL_CHANGE_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request this change, you can safely "
-                "ignore this email.</p>"
-            )
-            text_body = (
-                "Hello,\n\n"
-                "Use the verification code below to confirm your email address change:\n\n"
-                f"{code}\n\n"
-                f"This code expires in "
-                f"{self.EMAIL_CHANGE_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request this change, you can safely "
-                "ignore this email.\n"
+            html_body, text_body = render_code_email(
+                first_name=user.first_name,
+                intro="Enter this code to confirm your AERIS email change:",
+                code=code,
+                expiry_minutes=self.EMAIL_CHANGE_CODE_TTL_SECONDS // 60,
+                ignore_note=(
+                    "If you didn't request this change, you can safely "
+                    "ignore this email."
+                ),
             )
             sent = send_email(
                 to_email=user.email,
-                subject="Verify your AERIS email change",
+                subject=f"{code} - Verify your AERIS email change",
                 html_content=html_body,
                 text_content=text_body,
             )
@@ -1171,28 +1155,22 @@ class UserViewSet(viewsets.ModelViewSet):
             logger.info("[DEV] 2FA code for %s: %s", user.email, code)
 
         try:
-            html_body = (
-                "<p>Hello,</p>"
-                "<p>Use the verification code below to verify your identity:</p>"
-                f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
-                f'margin:16px 0">{code}</p>'
-                f"<p>This code expires in "
-                f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request this, you can safely "
-                "ignore this email.</p>"
-            )
-            text_body = (
-                "Hello,\n\n"
-                "Use the verification code below to verify your identity:\n\n"
-                f"{code}\n\n"
-                f"This code expires in "
-                f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request this, you can safely "
-                "ignore this email.\n"
+            html_body, text_body = render_code_email(
+                first_name=user.first_name,
+                intro=(
+                    "Enter this code to finish turning on two-factor "
+                    "authentication:"
+                ),
+                code=code,
+                expiry_minutes=self.TWO_FACTOR_CODE_TTL_SECONDS // 60,
+                ignore_note=(
+                    "If you didn't request this, you can safely ignore this "
+                    "email."
+                ),
             )
             sent = send_email(
                 to_email=user.email,
-                subject="Your AERIS verification code",
+                subject=f"{code} - Your AERIS verification code",
                 html_content=html_body,
                 text_content=text_body,
             )

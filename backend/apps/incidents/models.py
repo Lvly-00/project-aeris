@@ -14,6 +14,20 @@ class Incident(models.Model):
         SIMULATION = "simulation", "Simulation"
         MANUAL = "manual", "Manual"
 
+    class DismissReason(models.TextChoices):
+        """Why an operator closed an incident without acting on it.
+
+        Captured so false positives can be analysed later (which cameras and
+        incident types raise the most noise).
+        """
+
+        FALSE_POSITIVE = "false_positive", "False positive / no incident"
+        WRONG_TYPE = "wrong_type", "Wrong incident type"
+        DUPLICATE = "duplicate", "Duplicate of another incident"
+        CAMERA_ISSUE = "camera_issue", "Camera or location issue"
+        TEST = "test", "Test or maintenance"
+        OTHER = "other", "Other"
+
     incident_type = models.ForeignKey(
         "lookups.IncidentType",
         on_delete=models.PROTECT,
@@ -68,6 +82,11 @@ class Incident(models.Model):
         blank=True,
         related_name="dismissed_incidents",
     )
+    # Set together with dismissed_at/dismissed_by by the status endpoint.
+    dismiss_reason = models.CharField(
+        max_length=30, choices=DismissReason.choices, blank=True, default=""
+    )
+    dismiss_notes = models.TextField(blank=True, default="")
     evidence_image = models.ImageField(
         upload_to="evidence/", blank=True, null=True
     )
