@@ -4,6 +4,7 @@ import { useWebSocket } from './shared/hooks/useWebSocket';
 import { ErrorBoundary } from '../src/desktop/components/common/ErrorBoundary';
 import AgreementModal from './shared/components/AgreementModal';
 import PushPermissionPrompt from './shared/components/PushPermissionPrompt';
+import OfflineOverlay from './shared/components/OfflineOverlay';
 import { authAPI } from './shared/services/api';
 import DesktopTitleBar from './desktop/components/TitleBar/DesktopTitleBar';
 
@@ -42,6 +43,10 @@ export default function App() {
         <AgreementGate />
         <PushPermissionPrompt />
         <AppRouter />
+        {/* Offline overlay — covers the full screen on any page when the
+            device loses network. Sits outside the router so it is always
+            reachable regardless of the current route. */}
+        <OfflineOverlay />
       </AuthProvider>
     </ErrorBoundary>
   );

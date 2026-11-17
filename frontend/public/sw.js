@@ -12,13 +12,14 @@
  *     is closed. Tapping opens the relevant incident detail page.
  */
 
-const CACHE_NAME = 'aeris-static-v2';
+const CACHE_NAME = 'aeris-static-v3';
 
 const APP_SHELL = [
   '/',
   '/pwa',
   '/manifest.webmanifest',
   '/index.html',
+  '/offline.html',
   '/icons/icon-120.png',
   '/icons/icon-152.png',
   '/icons/icon-167.png',
@@ -68,14 +69,19 @@ self.addEventListener('activate', (event) => {
 
 async function offlineResponse() {
   const cache = await caches.open(CACHE_NAME);
+  // Try to serve the full React app shell first (best case — React mounts
+  // and the OfflineOverlay component takes over).  Fall back to the
+  // standalone offline.html which provides the same visual offline screen
+  // without needing React, for the rare case where index.html was never
+  // cached (e.g. very first install with no prior network visit).
   return (
     (await cache.match('/index.html')) ||
     (await cache.match('/')) ||
-    new Response('Offline', {
-      status: 503,
-      statusText: 'Offline',
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    })
+    (await cache.match('/offline.html')) ||
+    new Response(
+      '<!DOCTYPE html><html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><p>You are currently offline.</p></body></html>',
+      { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    )
   );
 }
 

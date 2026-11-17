@@ -446,7 +446,6 @@ class UserViewSet(viewsets.ModelViewSet):
                 return Response({
                     "refresh": str(refresh),
                     "access": str(refresh.access_token),
-                    "user": UserSerializer(user, context={"request": request}).data,
                 })
 
             # New device — require 2FA.
@@ -514,7 +513,6 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-            "user": UserSerializer(user, context={"request": request}).data,
         })
 
     @action(detail=False, methods=["POST"], url_path="logout")
@@ -860,7 +858,6 @@ class UserViewSet(viewsets.ModelViewSet):
         return Response({
             "refresh": str(refresh),
             "access": str(refresh.access_token),
-            "user": UserSerializer(user, context={"request": request}).data,
         })
 
     @action(detail=False, methods=["POST"], url_path="verify-password")

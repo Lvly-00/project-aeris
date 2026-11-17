@@ -14,7 +14,6 @@ import {
   Anchor,
   Image,
   Center,
-  Loader,
   rem,
   useComputedColorScheme,
 } from '@mantine/core';
@@ -32,9 +31,6 @@ export default function LoginPage() {
   const { login, verify2FALogin, setUser, user } = useAuth();
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
-  // signingIn=true shows the full-page branded overlay while the token is
-  // being exchanged and the navigation is about to fire.
-  const [signingIn, setSigningIn] = useState(false);
   const [twoFAOpen, setTwoFAOpen] = useState(false);
   const [twoFAEmail, setTwoFAEmail] = useState('');
   const [rememberMe, setRememberMe] = useState(false);
@@ -94,18 +90,18 @@ export default function LoginPage() {
         return;
       }
 
-      // Barangay Tanod accounts use the mobile app — block them from desktop.
-      if (result?.user?.role === 'Barangay Tanod') {
+      // Only CCTV Chief accounts may use the desktop app.
+      // Operators and Tanods must use the mobile app.
+      if (result?.user?.role !== 'CCTV Chief') {
         clearTokens();
         setUser(null);
-        setError(AUTH_MESSAGES.DESKTOP_TANOD_BLOCKED);
+        setError(AUTH_MESSAGES.DESKTOP_OPERATOR_BLOCKED);
         setLoading(false);
         return;
       }
 
-      // Show the branded overlay while React flushes the navigation.
-      setSigningIn(true);
-      navigate('/desktop/cameras', { replace: true });
+      // No navigate() needed — setUser() inside login() flips isAuthenticated,
+      // and the router's login-route guard redirects automatically.
     } catch (err: any) {
       const mapped = mapLoginError(err);
       if (mapped.fieldError) {
@@ -272,15 +268,14 @@ export default function LoginPage() {
           await verify2FALogin(twoFAEmail, code, rememberMe);
         }}
         onVerified={() => {
-          if (user?.role === 'Barangay Tanod') {
+          if (user?.role !== 'CCTV Chief') {
             clearTokens();
             setUser(null);
             setTwoFAOpen(false);
-            setError(AUTH_MESSAGES.DESKTOP_TANOD_BLOCKED);
+            setError(AUTH_MESSAGES.DESKTOP_OPERATOR_BLOCKED);
             return;
           }
-          setSigningIn(true);
-          navigate('/desktop/cameras', { replace: true });
+          // verify2FALogin() already called setUser() — router handles redirect.
         }}
         title="Verify it's you"
         subtitle="You're verified. Continuing to your dashboard."
@@ -289,34 +284,6 @@ export default function LoginPage() {
         codeSentOnOpen
         resendable={false}
       />
-
-      {/* ── Facebook-style full-page signing-in overlay ───────────────────── */}
-      {signingIn && (
-        <Box
-          style={{
-            position: 'fixed',
-            inset: 0,
-            zIndex: 9999,
-            display: 'flex',
-            flexDirection: 'column',
-            alignItems: 'center',
-            justifyContent: 'center',
-            gap: rem(24),
-            backgroundColor: 'var(--mantine-color-body)',
-            animation: 'aeris-fade-in 180ms ease forwards',
-          }}
-        >
-          <style>{`
-            @keyframes aeris-fade-in {
-              from { opacity: 0; }
-              to   { opacity: 1; }
-            }
-          `}</style>
-          <Image src="/icon.png" alt="Aeris" w={96} />
-          <Loader color="#FA5401" size="md" />
-          <Text c="dimmed" fz="sm" fw={500}>Signing you in…</Text>
-        </Box>
-      )}
     </Box>
   );
 }

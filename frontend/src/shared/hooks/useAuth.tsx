@@ -150,19 +150,28 @@ export function AuthProvider({
     // (sessionStorage).
     setTokens(response.data.access, response.data.refresh, Boolean(data?.remember));
 
-    setUser(response.data.user);
-
     // Always start in Operator mode.
     setViewMode('Operator');
-    return { user: response.data.user };
+
+    // Fire a follow-up GET /profile/ — same pattern as Facebook: the login
+    // response carries only the tokens; a separate async fetch loads the user
+    // object. Once setUser() runs, isAuthenticated flips to true and the
+    // router redirects automatically — the login page disappears without the
+    // component needing to call navigate() at all.
+    const profile = await authAPI.getProfile();
+    setUser(profile.data);
+
+    return { user: profile.data };
   };
 
   const verify2FALogin = async (email: string, code: string, remember?: boolean) => {
     const deviceId = await getDeviceId();
     const response = await authAPI.verify2FALogin(email, code, deviceId);
     setTokens(response.data.access, response.data.refresh, Boolean(remember));
-    setUser(response.data.user);
     setViewMode('Operator');
+    // Same pattern: fetch profile separately after storing tokens.
+    const profile = await authAPI.getProfile();
+    setUser(profile.data);
   };
 
   return (

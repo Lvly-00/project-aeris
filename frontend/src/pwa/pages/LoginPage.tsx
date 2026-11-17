@@ -14,7 +14,6 @@ import {
     Anchor,
     Image,
     Center,
-    Loader,
     rem,
     UnstyledButton,
     useComputedColorScheme
@@ -31,8 +30,6 @@ export default function LoginPage() {
     const isDark = useComputedColorScheme('light') === 'dark';
     const [error, setError] = useState('');
     const [loading, setLoading] = useState(false);
-    // signingIn=true shows the full-page branded overlay while navigation fires.
-    const [signingIn, setSigningIn] = useState(false);
     const [installPrompt, setInstallPrompt] = useState<any>(null);
     const [installed, setInstalled] = useState(
         () =>
@@ -147,10 +144,8 @@ export default function LoginPage() {
                 return;
             }
 
-            setSigningIn(true);
-            navigate('/', {
-                replace: true,
-            });
+            // No navigate() needed — setUser() inside login() flips
+            // isAuthenticated and the router redirects automatically.
         } catch (err: any) {
             const mapped = mapLoginError(err);
             if (mapped.fieldError) {
@@ -183,9 +178,9 @@ export default function LoginPage() {
     return (
         <Box
             style={{
-                height: '100dvh', // Use Dynamic Viewport Height to prevent mobile scroll
+                height: '100dvh',
                 width: '100%',
-                overflow: 'hidden', // Disable scrolling
+                overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
                 backgroundColor: 'var(--mantine-color-body)',
@@ -424,7 +419,7 @@ export default function LoginPage() {
                 onVerify={async (code) => {
                     await verify2FALogin(twoFAEmail, code, rememberMe);
                 }}
-            onVerified={() => { setSigningIn(true); navigate('/', { replace: true }); }}
+            onVerified={() => { /* verify2FALogin() already called setUser() — router handles redirect. */ }}
                 title="Verify it's you"
                 subtitle="You're verified. Opening your dashboard."
                 verifyLabel="Continue to dashboard"
@@ -620,34 +615,6 @@ export default function LoginPage() {
                             Maybe later
                         </Button>
                     </Box>
-                </Box>
-            )}
-
-            {/* ── Facebook-style full-page signing-in overlay ───────────── */}
-            {signingIn && (
-                <Box
-                    style={{
-                        position: 'fixed',
-                        inset: 0,
-                        zIndex: 9999,
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        gap: rem(24),
-                        backgroundColor: 'var(--mantine-color-body)',
-                        animation: 'aeris-fade-in 180ms ease forwards',
-                    }}
-                >
-                    <style>{`
-                        @keyframes aeris-fade-in {
-                            from { opacity: 0; }
-                            to   { opacity: 1; }
-                        }
-                    `}</style>
-                    <Image src="/icon.png" alt="Aeris" w={96} />
-                    <Loader color="#FA5401" size="md" />
-                    <Text c="dimmed" fz="sm" fw={500}>Signing you in…</Text>
                 </Box>
             )}
         </Box>

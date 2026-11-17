@@ -22,6 +22,8 @@ export const AUTH_MESSAGES = {
     'We could not send a reset code. Please check the email and try again.',
   DESKTOP_TANOD_BLOCKED:
     'Desktop access is for CCTV Chief and Operator accounts only. Please use the mobile app to sign in.',
+  DESKTOP_OPERATOR_BLOCKED:
+    'Desktop access is for CCTV Chief accounts only. Please use the mobile app to sign in.',
 } as const;
 
 export interface LoginFieldError {
