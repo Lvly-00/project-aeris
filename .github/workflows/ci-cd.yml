@@ -467,7 +467,7 @@ jobs:
           pwsh -NoProfile -ExecutionPolicy Bypass -File ./scripts/build-desktop.ps1 `
             -IncludeAi -Publish `
             -ServerUrl http://localhost:8005 `
-            -BackendUrl https://project-aeris.onrender.com 2>&1 |
+            -BackendUrl https://project-aeris-09w4.onrender.com 2>&1 |
             Tee-Object -FilePath desktop-build.log
           $code = $LASTEXITCODE
           if ($code -eq 0) { exit 0 }
@@ -512,7 +512,7 @@ jobs:
           Write-Host "First attempt failed; rebuilding with -Compression store." -ForegroundColor Yellow
           ./scripts/build-desktop.ps1 -IncludeAi -Publish -Compression store `
             -ServerUrl http://localhost:8005 `
-            -BackendUrl https://project-aeris.onrender.com
+            -BackendUrl https://project-aeris-09w4.onrender.com
 
       # Covers both a failure the retry cannot help with and a retry that ran
       # and still failed. The pre-created release stays a draft in either case,

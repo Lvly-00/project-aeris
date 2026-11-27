@@ -10,7 +10,7 @@ const path = require('path');
 const url =
   process.env.AERIS_SERVER_URL || 'http://localhost:8005';
 const backendUrl =
-  process.env.AERIS_BACKEND_URL || 'https://project-aeris.onrender.com';
+  process.env.AERIS_BACKEND_URL || 'https://project-aeris-09w4.onrender.com';
 
 const target = path.join(__dirname, '..', 'electron', 'server-url.json');
 fs.writeFileSync(

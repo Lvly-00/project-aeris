@@ -4,7 +4,7 @@
  * The desktop app ships with (or starts up alongside) the AI service, which
  * serves BOTH the built SPA and the /ai route set on ONE local origin
  * (http://localhost:8005 by default). The API and WebSocket always target the
- * deployed backend (https://project-aeris.onrender.com) — see resolveBackendUrl().
+ * deployed backend (https://project-aeris-09w4.onrender.com) — see resolveBackendUrl().
  * The app window simply loads that local bundle origin.
  *
  * App origin resolution order:
@@ -18,7 +18,7 @@
  * Backend origin resolution order (used for absolute asset / media URLs):
  *   1. AERIS_BACKEND_URL environment variable
  *   2. server-url.json "backendUrl" field (baked at build time)
- *   3. Default: https://project-aeris.onrender.com
+ *   3. Default: https://project-aeris-09w4.onrender.com
  *
  * Development mode (`npm run dev:desktop`) loads the Vite dev server, whose
  * proxies forward /api, /ws and /ai to localhost services.
@@ -39,7 +39,7 @@ const isMac = process.platform === 'darwin';
 const DEV_FRONTEND_URL = 'http://localhost:5173';
 const DEV_BACKEND_URL = 'http://localhost:8000';
 const DEFAULT_BUNDLE_URL = 'http://localhost:8005';
-const DEFAULT_BACKEND_URL = 'https://project-aeris.onrender.com';
+const DEFAULT_BACKEND_URL = 'https://project-aeris-09w4.onrender.com';
 
 let mainWindow = null;
 let tray = null;

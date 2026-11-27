@@ -6,7 +6,7 @@
     The desktop app is a BUNDLE: it loads the local ai-service origin
     (http://localhost:8005), which serves BOTH the built SPA and /ai/*.
     The API and WebSocket point at the deployed backend
-    (https://project-aeris.onrender.com).
+    (https://project-aeris-09w4.onrender.com).
 
     This script:
       1. Bakes electron/server-url.json        -> { url, backendUrl }
@@ -19,7 +19,7 @@
 
 .PARAMETER BackendUrl
     The deployed backend origin for /api + WebSocket/media. Default
-    https://project-aeris.onrender.com.
+    https://project-aeris-09w4.onrender.com.
 
 .PARAMETER IncludeAi
     Also build the AI service into a self-contained PyInstaller sidecar and
@@ -51,7 +51,7 @@ $ErrorActionPreference = "Stop"
 
 # Bundled deployment values.
 $DefaultBundleUrl = "http://localhost:8005"              # local ai-service origin (SPA + /ai)
-$DefaultBackendUrl = "https://project-aeris.onrender.com" # deployed API/WS backend
+$DefaultBackendUrl = "https://project-aeris-09w4.onrender.com" # deployed API/WS backend
 
 $rootDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $frontendDir = Join-Path $rootDir "frontend"
