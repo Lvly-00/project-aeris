@@ -120,7 +120,7 @@ class EmailDeliveryFailureTests(APITestCase):
 
 
 class LoginAccountLookupTests(APITestCase):
-    """The login page can tell an unknown email apart from a wrong password."""
+    """Login never reveals whether an email address is registered."""
 
     @classmethod
     def setUpTestData(cls):
@@ -136,15 +136,15 @@ class LoginAccountLookupTests(APITestCase):
     def setUp(self):
         cache.clear()
 
-    def test_unknown_email_reports_missing_account(self):
+    def test_unknown_email_uses_the_combined_message(self):
         response = self.client.post(
             "/api/accounts/login/",
             {"email": "nobody@example.com", "password": PASSWORD},
             format="json",
         )
 
-        self.assertEqual(response.status_code, status.HTTP_404_NOT_FOUND)
-        self.assertIn("no account is registered", response.data["detail"].lower())
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["detail"], "Invalid email or password.")
 
     def test_wrong_password_keeps_the_combined_message(self):
         response = self.client.post(
