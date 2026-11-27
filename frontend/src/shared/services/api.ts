@@ -1,9 +1,7 @@
 import axios from 'axios';
 import {
   getAccessToken,
-  getRefreshToken,
-  persistAccessToken,
-  persistRefreshToken,
+  setAccessToken,
   clearTokens,
 } from '../utils/tokenStorage';
 
@@ -31,8 +29,32 @@ function redirectToExpiredLogin(): void {
   window.location.href = `${isPwa ? '/login' : '/desktop/login'}?expired=1`;
 }
 
+/**
+ * Refresh the access token using the HttpOnly refresh cookie. Plain axios is
+ * intentional: going through `api` here would re-enter the response
+ * interceptor and recurse on a failed refresh.
+ */
+async function refreshAccessToken(): Promise<string> {
+  const response = await axios.post(
+    `${import.meta.env.VITE_BACKEND_URL}/api/auth/token/refresh/`,
+    {},
+    {
+      withCredentials: true,
+      // Required by the backend: forces a CORS preflight so a cross-site
+      // form cannot rotate the HttpOnly refresh cookie.
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    }
+  );
+
+  const newAccess = response.data.access;
+  setAccessToken(newAccess);
+  return newAccess;
+}
+
 const api = axios.create({
   baseURL: API_BASE_URL,
+  // Send the HttpOnly refresh cookie on every request (cross-origin too).
+  withCredentials: true,
   headers: {
     'Content-Type': 'application/json',
   },
@@ -103,7 +125,7 @@ api.interceptors.response.use(
 
     /**
      * Normal authenticated request returned 401.
-     * Try refreshing the access token.
+     * Try refreshing the access token via the HttpOnly refresh cookie.
      */
     if (
       error.response?.status === 401 &&
@@ -112,27 +134,9 @@ api.interceptors.response.use(
       originalRequest._retry = true;
 
       try {
-        const refresh = getRefreshToken();
-
-        if (!refresh) {
-          // Nothing stored to refresh with, so there is no session to keep.
-          clearTokens();
-          redirectToExpiredLogin();
-          return Promise.reject(new Error('No refresh token'));
-        }
-
-        // Use plain axios to avoid interceptor loop.
-        const response = await axios.post(
-          `${import.meta.env.VITE_BACKEND_URL}/api/auth/token/refresh/`,
-          {
-            refresh,
-          }
-        );
-
-        const newAccess = response.data.access;
-        const newRefresh = response.data.refresh;
-        persistAccessToken(newAccess);
-        if (newRefresh) persistRefreshToken(newRefresh);
+        // Plain axios + credentials sends the cookie without re-entering
+        // this interceptor; a failed refresh is handled in the catch below.
+        const newAccess = await refreshAccessToken();
 
         originalRequest.headers.Authorization =
           `Bearer ${newAccess}`;
@@ -163,16 +167,13 @@ api.interceptors.response.use(
 export const authAPI = {
   login: (data: { email: string; password: string; device_id?: string }) =>
     api.post('/accounts/login/', data),
-  verify2FALogin: (email: string, code: string, device_id?: string) =>
-    api.post('/accounts/login-verify-2fa/', { email, code, device_id }),
+  verify2FALogin: (email: string, code: string, device_id?: string, remember?: boolean) =>
+    api.post('/accounts/login-verify-2fa/', { email, code, device_id, remember }),
   // Bounded so an unreachable/slow backend cannot leave the sign-out
-  // confirmation spinning forever.
+  // confirmation spinning forever. The refresh cookie is sent automatically
+  // by `api` (withCredentials), so the body can be empty.
   logout: () =>
-    api.post(
-      '/accounts/logout/',
-      { refresh: getRefreshToken() ?? undefined },
-      { timeout: 5000 }
-    ),
+    api.post('/accounts/logout/', {}, { timeout: 5000 }),
   requestPasswordReset: (email: string) =>
     api.post('/accounts/password-reset/', { email }),
   verifyPasswordResetCode: (email: string, code: string) =>
@@ -183,8 +184,17 @@ export const authAPI = {
     api.post('/accounts/verify-password/', { password }),
   acceptAgreement: () =>
     api.post('/accounts/accept-agreement/'),
-  refresh: (refresh: string) =>
-    api.post('/auth/token/refresh/', { refresh }),
+  // The refresh token is an HttpOnly cookie. Plain axios keeps this call out
+  // of the `api` interceptors; the legacy argument is ignored.
+  refresh: (_refresh?: string) =>
+    axios.post(
+      `${import.meta.env.VITE_BACKEND_URL}/api/auth/token/refresh/`,
+      {},
+      {
+        withCredentials: true,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      }
+    ),
   register: (data: any) =>
     api.post('/accounts/register/', data),
   getProfile: () =>

@@ -1,75 +1,25 @@
 /**
- * Remember-Me-aware token storage (FR-LG-002 / NFR-LG-002).
+ * In-memory access token storage (NFR-LG-002).
  *
- * - Remember Me checked  → tokens persist in localStorage (trusted device).
- * - Remember Me unchecked→ tokens live in sessionStorage only, so closing
- *   the browser/tab ends the session.
+ * - The refresh token is now an HttpOnly cookie owned by the backend, so it
+ *   is never visible to (or writable by) JavaScript.
+ * - The access token lives only in this module-level variable. It disappears
+ *   on a full page reload, where a silent cookie refresh restores the session.
+ *   Nothing token-related is ever written to localStorage/sessionStorage.
  */
 
-const ACCESS_KEY = 'access_token';
-const REFRESH_KEY = 'refresh_token';
-
-function stores(): Storage[] {
-  return typeof window !== 'undefined' ? [localStorage, sessionStorage] : [];
-}
+let accessToken: string | null = null;
 
 export function getAccessToken(): string | null {
-  for (const store of stores()) {
-    const token = store.getItem(ACCESS_KEY);
-    if (token) return token;
-  }
-  return null;
+  return accessToken;
 }
 
-export function getRefreshToken(): string | null {
-  for (const store of stores()) {
-    const token = store.getItem(REFRESH_KEY);
-    if (token) return token;
-  }
-  return null;
+export function setAccessToken(token: string): void {
+  accessToken = token;
 }
 
-/** Writes tokens into the requested storage, clearing the other one first. */
-export function setTokens(access: string, refresh: string, remember: boolean): void {
-  clearTokens();
-  const store = remember ? localStorage : sessionStorage;
-  store.setItem(ACCESS_KEY, access);
-  store.setItem(REFRESH_KEY, refresh);
-}
-
-/**
- * Persists a rotated access token into whichever storage currently holds
- * the session (keeps Remember-Me semantics across token rotation).
- */
-export function persistAccessToken(access: string): void {
-  for (const store of stores()) {
-    if (store.getItem(REFRESH_KEY)) {
-      store.setItem(ACCESS_KEY, access);
-      return;
-    }
-  }
-}
-
-/**
- * Persists a rotated refresh token into whichever storage currently holds
- * the session. SimpleJWT rotates refresh tokens, so the new one must be
- * saved or the next refresh (and the whole session) fails.
- */
-export function persistRefreshToken(refresh: string): void {
-  for (const store of stores()) {
-    if (store.getItem(REFRESH_KEY) || store.getItem(ACCESS_KEY)) {
-      store.setItem(REFRESH_KEY, refresh);
-      return;
-    }
-  }
-  localStorage.setItem(REFRESH_KEY, refresh);
-}
-
-/** Removes every trace of the session from both storages. */
+/** Drops the in-memory token and any non-auth view preference on sign-out. */
 export function clearTokens(): void {
-  for (const store of stores()) {
-    store.removeItem(ACCESS_KEY);
-    store.removeItem(REFRESH_KEY);
-  }
+  accessToken = null;
   localStorage.removeItem('viewMode');
 }

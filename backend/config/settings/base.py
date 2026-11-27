@@ -187,7 +187,16 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "AI-Powered Incident Detection System",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Serve Swagger/ReDoc assets from the installed package instead of an
+    # unpinned CDN. This removes a third-party script from the docs pages.
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
 }
+
+# Interactive API docs and the Django admin are useful locally but should not
+# be advertised on a public deployment. Both are opt-in via environment.
+EXPOSE_API_DOCS = config("EXPOSE_API_DOCS", default=False, cast=bool)
+EXPOSE_DJANGO_ADMIN = config("EXPOSE_DJANGO_ADMIN", default=False, cast=bool)
 
 # ── Redis & Celery ────────────────────────────────────────────────────────────
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")

@@ -11,7 +11,7 @@ import {
 
 import { authAPI } from '../services/api';
 import { User } from '../types';
-import { getAccessToken, setTokens, clearTokens } from '../utils/tokenStorage';
+import { setAccessToken, clearTokens } from '../utils/tokenStorage';
 import { getDeviceId } from '../utils/device';
 
 interface AuthContextType {
@@ -67,13 +67,10 @@ export function AuthProvider({
 
   const logout = useCallback(async () => {
     try {
-      // Backend blacklists the refresh token (FR-LG-012).
       await authAPI.logout();
     } catch (error) {
       console.error('Logout failed:', error);
     } finally {
-      // Remove the push subscription from the backend before clearing tokens,
-      // so we don't leave orphaned subscription rows on the server.
       if ('serviceWorker' in navigator && 'PushManager' in window) {
         try {
           const { unsubscribeFromPush } = await import('../services/pushNotifications');
@@ -95,15 +92,19 @@ export function AuthProvider({
   }, []);
 
   useEffect(() => {
-    const token = getAccessToken();
-
-    if (!token) {
-      setLoading(false);
-      return;
-    }
-
+    /*
+     * The refresh token is an HttpOnly cookie, so there is no client-side
+     * token to inspect first — always attempt a silent refresh. A missing or
+     * expired cookie simply means "not signed in": drop the in-memory token
+     * and continue with NO redirect (the API interceptor handles the
+     * expired-session redirect for real authenticated requests).
+     */
     authAPI
-      .getProfile()
+      .refresh()
+      .then((res) => {
+        setAccessToken(res.data.access);
+        return authAPI.getProfile();
+      })
       .then((res) => {
         setUser(res.data);
         // If the user has already granted push permission in a previous session,
@@ -122,16 +123,16 @@ export function AuthProvider({
         }
       })
       .catch(() => {
-        // Stored token is dead/expired: drop it silently. Do NOT call
-        // logout() here — it hard-navigates to login, which would hijack
-        // public pages like /forgot-password mid-flow.
+        // No refresh cookie / expired cookie: there is no session to restore.
+        // Do NOT call logout() here — it hard-navigates to login, which would
+        // hijack public pages like /forgot-password mid-flow.
         clearTokens();
         setUser(null);
       })
       .finally(() => {
         setLoading(false);
       });
-  }, [logout]);
+  }, []);
 
   const login = async (data: any) => {
     // If credentials are wrong, this throws.
@@ -145,10 +146,10 @@ export function AuthProvider({
       return { requires_2fa: true, email: response.data.email };
     }
 
-    // FR-LG-002 — Remember Me keeps the session on this trusted device
-    // (localStorage); otherwise it ends when the browser session closes
-    // (sessionStorage).
-    setTokens(response.data.access, response.data.refresh, Boolean(data?.remember));
+    // FR-LG-002 — `remember` goes to the backend, which decides how long the
+    // HttpOnly refresh cookie lives. Only the short-lived access token comes
+    // back in the body and is kept in memory.
+    setAccessToken(response.data.access);
 
     // Always start in Operator mode.
     setViewMode('Operator');
@@ -166,8 +167,8 @@ export function AuthProvider({
 
   const verify2FALogin = async (email: string, code: string, remember?: boolean) => {
     const deviceId = await getDeviceId();
-    const response = await authAPI.verify2FALogin(email, code, deviceId);
-    setTokens(response.data.access, response.data.refresh, Boolean(remember));
+    const response = await authAPI.verify2FALogin(email, code, deviceId, remember);
+    setAccessToken(response.data.access);
     setViewMode('Operator');
     // Same pattern: fetch profile separately after storing tokens.
     const profile = await authAPI.getProfile();

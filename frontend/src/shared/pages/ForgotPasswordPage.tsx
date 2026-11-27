@@ -69,7 +69,8 @@ export default function ForgotPasswordPage() {
             setSentEmail(values.email.trim());
             setSuccessOpened(true);
         } catch (err: any) {
-            // No registered account (backend returns 404 with a clear message).
+            // The backend answers 200 for both known and unknown addresses.
+            // Only transport/service errors land here.
             setError(err?.response?.data?.detail || AUTH_MESSAGES.RESET_FAILED);
         } finally {
             setLoading(false);

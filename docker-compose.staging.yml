@@ -1,0 +1,44 @@
+# Staging stack — runs the production images with the :staging tag and
+# config.settings.staging. Use on top of docker-compose.yml:
+#
+#   cp .env.staging.example .env          # fill in staging secrets first
+#   docker compose -f docker-compose.yml -f docker-compose.staging.yml up -d
+#
+# Staging reuses the same service names as production so the existing nginx
+# config and health checks apply unchanged. To run staging and production on the
+# same host, set a different COMPOSE_PROJECT_NAME (e.g. aeris-staging) so
+# containers, networks and volumes don't collide.
+version: '3.8'
+
+x-backend-env: &backend-env
+  DJANGO_SETTINGS_MODULE: config.settings.staging
+  DJANGO_ENV: staging
+  DB_HOST: db
+  DB_PORT: "3306"
+  USE_MYSQL: "True"
+  REDIS_URL: redis://redis:6379/0
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/0
+
+services:
+  backend:
+    environment:
+      <<: *backend-env
+    command: >
+      sh -c "python manage.py flush --no-input &&
+             python manage.py migrate --noinput &&
+             python manage.py collectstatic --noinput &&
+             python manage.py seed_lookups &&
+             python manage.py seed_default_admin &&
+             python manage.py seed_users &&
+             daphne -b 0.0.0.0 -p 8000 config.asgi:application"
+
+  celery:
+    environment:
+      <<: *backend-env
+    command: celery -A config worker -l info --concurrency 2
+
+  ai-service:
+    environment:
+      BACKEND_API_URL: http://backend:8000/api
+      DEVICE: ${DEVICE:-cpu}

@@ -10,7 +10,7 @@ export const AUTH_MESSAGES = {
   MISSING_EMAIL: 'Email Address is required.',
   MISSING_PASSWORD: 'Password is required.',
   INVALID_EMAIL: 'Invalid email.',
-  INVALID_CREDENTIALS: 'Invalid password.',
+  INVALID_CREDENTIALS: 'Invalid email or password.',
   SERVICE_UNAVAILABLE: 'Unable to sign in right now. Please try again later.',
   SESSION_EXPIRED: 'Your session has expired. Please log in again.',
   RATE_LIMITED: 'Too many requests. Please wait a moment and try again.',
@@ -100,23 +100,20 @@ export function mapLoginError(err: any): LoginErrorResult {
     if (typeof data.detail === 'string') return { bannerError: data.detail };
   }
 
-  // No account for the submitted email. The login view reports this
-  // separately from a wrong password so the page can flag the email field.
-  if (status === 404 && typeof data?.detail === 'string') {
-    return { fieldError: { field: 'email', message: data.detail } };
+  // Unknown email and wrong password are intentionally indistinguishable
+  // (the backend returns one generic 401). Never flag a specific field here.
+  if (status === 401) {
+    return { bannerError: AUTH_MESSAGES.INVALID_CREDENTIALS };
   }
 
-  // Wrong password for an existing account (or a disabled account — detail
-  // passes through). Shown below the password field.
-  if (status === 401 || status === 403) {
-    if (typeof data?.detail === 'string' && data.detail.includes('disabled')) {
-      return { bannerError: data.detail };
-    }
+  // 403 is reserved for explicit policy blocks (disabled account, desktop
+  // role restrictions) whose detail is safe to show.
+  if (status === 403) {
     return {
-      fieldError: {
-        field: 'password',
-        message: AUTH_MESSAGES.INVALID_CREDENTIALS,
-      },
+      bannerError:
+        typeof data?.detail === 'string' && data.detail.trim()
+          ? data.detail
+          : AUTH_MESSAGES.INVALID_CREDENTIALS,
     };
   }
 
@@ -134,10 +131,5 @@ export function mapLoginError(err: any): LoginErrorResult {
   }
 
   if (typeof data?.detail === 'string') return { bannerError: data.detail };
-  return {
-    fieldError: {
-      field: 'password',
-      message: AUTH_MESSAGES.INVALID_CREDENTIALS,
-    },
-  };
+  return { bannerError: AUTH_MESSAGES.INVALID_CREDENTIALS };
 }

@@ -26,12 +26,15 @@ from django.views.static import serve
 from config.views.ai_proxy import ai_proxy
 
 urlpatterns = [
-    path("admin/", admin.site.urls),
     # Internal service-to-service endpoints (network-restricted + key-checked)
     path("internal/", include("config.urls.internal")),
     # All public API endpoints
     path("api/", include("config.urls.api_v1")),
 ]
+
+# Django admin is opt-in — never advertise it on a public deployment by default.
+if settings.EXPOSE_DJANGO_ADMIN:
+    urlpatterns.append(path("admin/", admin.site.urls))
 
 # Media files in DEBUG mode (development only)
 if settings.DEBUG:

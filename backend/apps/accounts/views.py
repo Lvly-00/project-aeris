@@ -15,6 +15,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from config.auth_cookies import delete_refresh_cookie, get_refresh_token, set_refresh_cookie
+
 from apps.audit.models import AuditLog
 from apps.audit.services import write_audit
 from apps.incidents.views import broadcast_stats_changed
@@ -51,6 +53,12 @@ def _hash_code(code: str) -> str:
 
 def _generate_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _remember_requested(request) -> bool:
+    """`remember` is a client hint, not part of the login serializers."""
+    data = request.data
+    return bool(data.get("remember")) if hasattr(data, "get") else False
 
 
 class LoginRateThrottle(AnonRateThrottle):
@@ -390,7 +398,7 @@ class UserViewSet(viewsets.ModelViewSet):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        email = serializer.validated_data["email"].strip().lower()
+        email = serializer.validated_data["email"].strip()
         password = serializer.validated_data["password"]
 
         user = authenticate(request, email=email, password=password)
@@ -401,19 +409,9 @@ class UserViewSet(viewsets.ModelViewSet):
             # limit (5 requests/minute → HTTP 429 "time out").
             known_user = User.objects.filter(email__iexact=email).first()
             _audit_action(known_user, request, AuditLog.Action.LOGIN_FAILED, {"email": email})
-            # A missing account is reported distinctly so the login page can
-            # flag the email field. This gives up NFR-LG-009's combined
-            # message for unknown emails; a wrong password still returns the
-            # generic 401 below.
-            if known_user is None:
-                return Response(
-                    {
-                        "detail": (
-                            "No account is registered with that email address."
-                        )
-                    },
-                    status=status.HTTP_404_NOT_FOUND,
-                )
+            # Enumeration-safe response: an unknown email and a wrong password
+            # are indistinguishable to the caller. The failed attempt is still
+            # audited above with the submitted address for internal review.
             return Response(
                 {"detail": "Invalid email or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -443,10 +441,9 @@ class UserViewSet(viewsets.ModelViewSet):
                     last_used_at=timezone.now()
                 )
                 _audit_action(user, request, AuditLog.Action.LOGIN, {"method": "trusted_device"})
-                return Response({
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                })
+                response = Response({"access": str(refresh.access_token)})
+                set_refresh_cookie(response, refresh, _remember_requested(request))
+                return response
 
             # New device — require 2FA.
             # Invalidate any outstanding 2FA codes.
@@ -510,17 +507,18 @@ class UserViewSet(viewsets.ModelViewSet):
         refresh = RefreshToken.for_user(user)
         _audit_action(user, request, AuditLog.Action.LOGIN, {})
 
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-        })
+        response = Response({"access": str(refresh.access_token)})
+        set_refresh_cookie(response, refresh, _remember_requested(request))
+        return response
 
     @action(detail=False, methods=["POST"], url_path="logout")
     def logout(self, request):
         # FR-LG-012 — invalidate the session: blacklist the refresh token so it
         # can never be exchanged for a new access token again. Remaining access
         # tokens expire naturally (30-minute lifetime).
-        refresh_token = (
+        # Prefer the HttpOnly cookie; accept the old JSON field for existing
+        # clients. A missing/invalid token must never break logout.
+        refresh_token = get_refresh_token(request) or (
             request.data.get("refresh") if isinstance(request.data, dict) else None
         )
         if refresh_token:
@@ -528,9 +526,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 RefreshToken(refresh_token).blacklist()
             except TokenError:
                 pass  # token already expired/blacklisted — nothing to invalidate
+            except Exception:
+                logger.warning("Could not blacklist refresh token on logout")
 
         _audit_action(request.user, request, AuditLog.Action.LOGOUT, {})
-        return Response({"detail": "Logged out successfully"})
+        response = Response({"detail": "Logged out successfully"})
+        delete_refresh_cookie(response)
+        return response
 
     @action(
         detail=False,
@@ -557,23 +559,18 @@ class UserViewSet(viewsets.ModelViewSet):
             user = User.objects.filter(email__iexact=requested_for).first()
 
         if user is None:
-            # No registered account for this email — surface an error instead of
-            # silently sending a (non-existent) code (FR-LG-003).
+            # Enumeration-safe: always answer as if the reset was accepted.
+            # Record the reason internally for audit, but never disclose
+            # whether the address exists.
             _audit_action(
                 None,
                 request,
                 AuditLog.Action.PASSWORD_RESET_REQUESTED,
                 {"requested_for": requested_for, "reason": "account_not_found"},
             )
-            return Response(
-                {
-                    "detail": (
-                        "No account is registered with that email address. "
-                        "Please check the email or create an account first."
-                    )
-                },
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            return Response({
+                "detail": "Password reset instructions have been sent to your email address."
+            })
 
         # Invalidate any outstanding codes before issuing a fresh one.
         user.password_reset_codes.filter(is_used=False).update(is_used=True)
@@ -855,10 +852,9 @@ class UserViewSet(viewsets.ModelViewSet):
         _audit_action(user, request, AuditLog.Action.LOGIN, {"method": "2fa"})
         _audit_action(user, request, AuditLog.Action.TWO_FACTOR_VERIFIED, {})
 
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-        })
+        response = Response({"access": str(refresh.access_token)})
+        set_refresh_cookie(response, refresh, _remember_requested(request))
+        return response
 
     @action(detail=False, methods=["POST"], url_path="verify-password")
     def verify_password(self, request):
