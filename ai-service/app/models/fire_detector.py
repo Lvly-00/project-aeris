@@ -136,3 +136,72 @@ class SimpleFireDetector:
             if overlap > self.VEHICLE_OVERLAP_THRESHOLD:
                 return True
         return False
+
+# import logging
+# import time
+# import numpy as np
+# from typing import List
+# from ultralytics import YOLO
+# from decouple import config
+# import os
+
+# from ..models.yolo_detector import Detection
+
+# logger = logging.getLogger(__name__)
+
+
+# FIRE_CLASS_MAP = {
+#     "fire": "Fire",
+#     "smoke": "Smoke",
+# }
+
+# class FireDetector:
+#     def __init__(self):
+#         model_path = config("FIRE_SMOKE_MODEL_PATH", default="models/fire_smoke_detector/best.pt")
+#         if not os.path.isabs(model_path):
+#             model_path = os.path.join(os.getcwd(), model_path)
+
+#         self.conf_threshold = float(config("FIRE_CONF_THRESHOLD", default="0.5"))
+
+#         logger.info("Loading fire/smoke model from %s", model_path)
+#         self.model = YOLO(model_path)
+#         logger.info("Fire/smoke model loaded. Classes: %s", self.model.names)
+
+#     def detect(self, frame: np.ndarray, camera_id: int, yolo_detections=None) -> List[Detection]:
+#         if frame is None:
+#             return []
+
+#         results = self.model(frame, conf=self.conf_threshold, verbose=False)
+#         detections = []
+
+#         if not results:
+#             return detections
+
+#         result = results[0]
+#         if result.boxes is None:
+#             return detections
+
+#         timestamp = time.time()
+#         for i in range(len(result.boxes)):
+#             xyxy = result.boxes.xyxy[i].tolist()
+#             conf = float(result.boxes.conf[i])
+#             cls_id = int(result.boxes.cls[i])
+#             raw_label = self.model.names.get(cls_id, "").lower()
+
+#             incident_type = FIRE_CLASS_MAP.get(raw_label)
+#             if incident_type is None:
+#                 continue  # skip classes we don't care about
+
+#             detections.append(Detection(
+#                 camera_id=camera_id,
+#                 incident_type=incident_type,
+#                 confidence=round(conf, 3),
+#                 bbox=xyxy,
+#                 timestamp=timestamp,
+#             ))
+#             logger.info("Camera %d: %s detected conf=%.3f", camera_id, incident_type, conf)
+
+#         return detections
+
+# # Keep old name as alias so nothing else breaks
+# SimpleFireDetector = FireDetector

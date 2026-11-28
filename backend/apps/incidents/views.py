@@ -92,6 +92,14 @@ def find_open_incident(camera, lock=False, incident_type=None):
     camera keeps folding new detections into it instead of raising a new
     alert. Simulations are deliberately excluded — they are test alerts, so
     they must not occupy a camera's live slot and mask real detections.
+
+    One incident is kept open per camera at a time, regardless of detection
+    type. If Fire and Smoke both trigger on the same camera, the second
+    detection is folded into the already-open Fire incident rather than
+    creating a separate Smoke incident. The incident_type filter is kept as
+    a parameter for callers that need type-scoped lookups (e.g. tests), but
+    the production create_from_detection path does not pass it so that all
+    types share the same camera slot.
     """
     if camera is None:
         return None
@@ -181,6 +189,10 @@ def broadcast_notification(notification):
     Push a notification to the user it is addressed to. Every notification
     has a recipient, so it is sent to that user's private group
     (user_{id}) — admins and tanods never receive each other's toasts.
+
+    Also delivers a Web Push (background) notification to every device the
+    recipient has subscribed from, so the alert reaches them even when the
+    app is not open in the browser.
     """
     try:
         recipient = getattr(notification, "recipient", None)
@@ -189,13 +201,42 @@ def broadcast_notification(notification):
         channel_layer = get_channel_layer()
         recipient_id = getattr(notification, "recipient_id", None)
         group = f"user_{recipient_id}" if recipient_id else "incidents"
+
+        serialized = NotificationSerializer(notification).data
         async_to_sync(channel_layer.group_send)(
             group,
             {
                 "type": "user_notification_new",
-                "payload": NotificationSerializer(notification).data,
+                "payload": serialized,
             },
         )
+
+        # Background (Web Push) — fires even when the tab is closed.
+        if recipient is not None:
+            incident_id = getattr(notification, "incident_id", None)
+            # Build a deep-link URL appropriate for the recipient's role.
+            # Admins/operators land on the incident detail page;
+            # tanods land on their dispatch messages list for that incident.
+            role_name = getattr(getattr(recipient, "role", None), "name", "")
+            if role_name in ("CCTV Chief", "CCTV Operator"):
+                url = f"/pwa/admin/incidents/{incident_id}" if incident_id else "/pwa"
+            else:
+                url = f"/pwa/tanod/messages?incident={incident_id}" if incident_id else "/pwa/tanod/messages"
+            try:
+                from apps.notifications.views import push_to_user
+                push_to_user(
+                    recipient,
+                    {
+                        "title": notification.title,
+                        "message": notification.message or "",
+                        "priority": notification.priority,
+                        "incident_id": incident_id,
+                        "notification_id": notification.pk,
+                        "url": url,
+                    },
+                )
+            except Exception as push_err:
+                logger.warning("[PUSH] push_to_user error: %s", push_err)
     except Exception as e:
         logger.error(f"WebSocket Notification Broadcast Failed: {e}")
 
@@ -209,7 +250,11 @@ def create_incident_notification(incident):
     priority = (
         "High" if incident.confidence_score >= 0.8 else "Medium"
     )
-    alert_type = NotificationType.objects.get(name="Alert")
+    try:
+        alert_type = NotificationType.objects.get(name="Alert")
+    except NotificationType.DoesNotExist:
+        logger.warning("NotificationType 'Alert' not found — skipping incident notification")
+        return None
     type_name = incident.incident_type.name
 
     # Skip users who have opted out of notifications (receive_notifications=False).
@@ -464,7 +509,7 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
         with transaction.atomic():
             open_incident = (
-                find_open_incident(camera, lock=True, incident_type=type_obj)
+                find_open_incident(camera, lock=True)
                 if group_repeats
                 else None
             )
@@ -503,6 +548,11 @@ class IncidentViewSet(viewsets.ModelViewSet):
                     context={"request": request},
                 ).data
 
+                # Broadcast the update so connected clients see the rising
+                # detection count and confidence in real time instead of
+                # waiting for the next poll cycle.
+                broadcast_incident("incident_update", data)
+
                 return Response(
                     {**data, "grouped": True},
                     status=status.HTTP_200_OK,
@@ -519,6 +569,15 @@ class IncidentViewSet(viewsets.ModelViewSet):
                 source=source,
                 evidence_image=evidence,
             )
+
+            # The Incident save above reads the file to upload it to Cloudinary.
+            # Seek back to 0 so record_detection_hit can upload the same bytes
+            # again for the Detection row without getting an empty stream.
+            if evidence is not None and hasattr(evidence, 'seek'):
+                try:
+                    evidence.seek(0)
+                except Exception:
+                    evidence = None
 
             recorded = 0
             for index in range(repeat):
@@ -562,7 +621,10 @@ class IncidentViewSet(viewsets.ModelViewSet):
             data
         )
 
-        create_incident_notification(incident)
+        try:
+            create_incident_notification(incident)
+        except Exception as e:
+            logger.error(f"create_incident_notification failed (incident {incident.pk}): {e}")
 
         return Response(
             {**data, "grouped": False},
@@ -577,6 +639,8 @@ class IncidentViewSet(viewsets.ModelViewSet):
 
         new_status = serializer.validated_data["status"]
         notes = serializer.validated_data.get("notes", "")
+        dismiss_reason = serializer.validated_data.get("dismiss_reason", "")
+        dismiss_notes = (serializer.validated_data.get("dismiss_notes", "") or "").strip()
         user = request.user
         now = timezone.now()
 
@@ -611,6 +675,15 @@ class IncidentViewSet(viewsets.ModelViewSet):
         elif new_status == "Dismissed":
             incident.dismissed_at = now
             incident.dismissed_by = user
+            incident.dismiss_reason = dismiss_reason
+            incident.dismiss_notes = dismiss_notes
+        elif new_status == "Detected":
+            # Reopening undoes the dismissal, so a stored reason no longer
+            # describes an incident that is back in the active list.
+            incident.dismissed_at = None
+            incident.dismissed_by = None
+            incident.dismiss_reason = ""
+            incident.dismiss_notes = ""
 
         incident.save()
 
@@ -621,16 +694,22 @@ class IncidentViewSet(viewsets.ModelViewSet):
             "Resolved": AuditLog.Action.INCIDENT_RESOLVED,
         }.get(new_status)
         if transition_action is not None:
+            audit_details = {
+                "from_status": current_status,
+                "notes": notes or None,
+            }
+            if new_status == "Dismissed":
+                # The reason is the point of the prompt: keep it in the audit
+                # trail alongside the incident row itself.
+                audit_details["dismiss_reason"] = dismiss_reason
+                audit_details["dismiss_notes"] = dismiss_notes or None
             write_audit(
                 request,
                 transition_action,
                 user=user,
                 resource_type="Incident",
                 resource_id=incident.pk,
-                details={
-                    "from_status": current_status,
-                    "notes": notes or None,
-                },
+                details=audit_details,
             )
 
         # Notes are recorded as timeline entries (review_notes was removed).

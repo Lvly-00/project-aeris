@@ -99,6 +99,16 @@ class CameraManager:
         self._auto_register_locks: Dict[int, threading.Lock] = {}
         self._auto_register_lock = threading.Lock()
 
+        # Why each camera last failed to produce a frame, kept even for cameras
+        # that never registered. The frame route reports this so the operator
+        # learns the real cause instead of being told the file is unreadable.
+        self._last_errors: Dict[int, dict] = {}
+        self._errors_lock = threading.Lock()
+
+        # Cameras whose MP4 feeder thread is already looping their file.
+        self._mp4_feeders: set = set()
+        self._feeders_lock = threading.Lock()
+
         logger.info(
             "CameraManager initialised (detector=%s, accident_detector=%s)",
             "ready" if self._detector else "not loaded",
@@ -158,10 +168,18 @@ class CameraManager:
         frame_reader.start()
         detection_worker.start()
 
+        # An MP4 frame reader waits for uploaded frames, so the file has to be
+        # pumped in by a feeder. Registering the camera is the only thing the
+        # API and the frontend do, so start it here rather than only on the
+        # backend-lookup path.
+        if stream_type == "MP4":
+            self._start_mp4_feeder(camera_id, source)
+
         with self._cameras_lock:
             if camera_id in self._cameras:
                 self._cameras[camera_id].status = CameraStatus.DETECTING
 
+        self.set_camera_error(camera_id, None)
         logger.info("Camera %d: Registered and started", camera_id)
         return True
 
@@ -260,6 +278,10 @@ class CameraManager:
                     timeout=5,
                 )
                 if resp.status_code != 200:
+                    self.set_camera_error(
+                        camera_id,
+                        f"Camera lookup failed: the Aeris backend returned HTTP {resp.status_code}",
+                    )
                     return False
                 cam = resp.json()
                 # Django's CameraInfoView returns "stream_url" (internal.py).
@@ -267,9 +289,15 @@ class CameraManager:
                 rtsp_url = cam.get("stream_url") or cam.get("rtsp_url") or ""
                 stream_type = (cam.get("stream_type") or "RTSP").upper()
                 if not cam.get("is_active", True):
+                    self.set_camera_error(
+                        camera_id, "This camera is marked inactive, so nothing is reading it",
+                    )
                     logger.info("Camera %d: inactive, skipping auto-register", camera_id)
                     return False
                 if not rtsp_url:
+                    self.set_camera_error(
+                        camera_id, "This camera has no saved source path to read",
+                    )
                     logger.warning(
                         "Camera %d: internal API returned no stream_url (keys=%s)",
                         camera_id, sorted(cam.keys()),
@@ -279,19 +307,13 @@ class CameraManager:
                 if success:
                     with self._auto_register_lock:
                         self._auto_registered.add(camera_id)
+                    self.set_camera_error(camera_id, None)
                     logger.info("Camera %d: Auto-registered (%s, type=%s)", camera_id, rtsp_url, stream_type)
-                    # For MP4 cameras, kick off a frame-feeder loop
-                    if stream_type == "MP4":
-                        import threading as _threading
-                        from ..core.mp4_feeder import start_mp4_feeder
-                        _threading.Thread(
-                            target=start_mp4_feeder,
-                            args=(camera_id, rtsp_url, self),
-                            name=f"mp4-feeder-{camera_id}",
-                            daemon=True,
-                        ).start()
                 return success
             except Exception as e:
+                self.set_camera_error(
+                    camera_id, f"Could not reach the Aeris backend to look up this camera: {e}",
+                )
                 logger.warning("Camera %d: Auto-register failed: %s", camera_id, e)
                 return False
 
@@ -315,6 +337,40 @@ class CameraManager:
             return None
         return state.frame_reader.get_jpeg()
 
+    def _start_mp4_feeder(self, camera_id: int, source: str) -> None:
+        """Loop an MP4 file into the camera's frame buffer (one thread per camera)."""
+        with self._feeders_lock:
+            if camera_id in self._mp4_feeders:
+                return
+            self._mp4_feeders.add(camera_id)
+
+        from ..core.mp4_feeder import start_mp4_feeder
+
+        threading.Thread(
+            target=start_mp4_feeder,
+            args=(camera_id, source, self),
+            name=f"mp4-feeder-{camera_id}",
+            daemon=True,
+        ).start()
+
+    def set_camera_error(self, camera_id: int, message: Optional[str], kind: str = "service") -> None:
+        """Remember (or clear) why a camera is not producing frames.
+
+        kind is "file" when the source file itself could not be read, and
+        "service" when the AI service could not do its job (unreachable
+        backend, failed lookup). The operator must not see the two confused.
+        """
+        with self._errors_lock:
+            if message:
+                self._last_errors[camera_id] = {"message": message, "kind": kind}
+            else:
+                self._last_errors.pop(camera_id, None)
+
+    def get_camera_error(self, camera_id: int) -> Optional[dict]:
+        """Last failure reason for a camera, or None if it is not failing."""
+        with self._errors_lock:
+            return self._last_errors.get(camera_id)
+
     def get_detection(self, camera_id: int) -> Optional[CachedDetection]:
         """Get the latest cached detection for a camera."""
         return self._cache.get(camera_id)
@@ -333,6 +389,7 @@ class CameraManager:
             "source": state.source,
             "stream_type": state.stream_type,
             "status": state.status.value,
+            "error": self.get_camera_error(camera_id),
             "connected": fr.state == ReaderState.RUNNING,
             "detecting": dw.is_running and not dw.is_paused,
             "fps": round(fr.fps, 1),

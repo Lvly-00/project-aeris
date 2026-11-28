@@ -1,10 +1,10 @@
 import { Routes, Route, Navigate } from 'react-router-dom';
 import { useAuth } from '../shared/hooks/useAuth'; // Your hook path
-import { LoadingOverlay, Box } from '@mantine/core';
 
 // Layouts
 import { AdminLayout } from './components/Layout/AdminLayout';
 import { TanodLayout } from './components/Layout/TanodLayout';
+import { PwaShellSkeleton } from './components/Layout/PwaShellSkeleton';
 
 // Pages
 import DashboardPage from './pages/admin/DashboardPage';
@@ -14,6 +14,7 @@ import IncidentDetailPage from './pages/admin/IncidentDetailPage';
 import HistoryPage from './pages/admin/HistoryPage';
 import MessagePage from './pages/tanod/MessagePage';
 import MessageDetailsPage from './pages/tanod/MessageDetailsPage';
+import MessageHistoryPage from './pages/tanod/MessageHistoryPage';
 import LoginPage from './pages/LoginPage';
 import ProfilePage from './pages/ProfilePage';
 
@@ -24,10 +25,10 @@ import ProfilePage from './pages/ProfilePage';
 function RoleGuard({ children, allowedRoles }: { children: React.ReactNode; allowedRoles: string[] }) {
     const { user, isAuthenticated, loading } = useAuth();
 
-    if (loading) return <LoadingOverlay visible zIndex={1000} />;
+    if (loading) return <PwaShellSkeleton />;
 
     if (!isAuthenticated) {
-        return <Navigate to="/pwa/login" replace />;
+        return <Navigate to="/login" replace />;
     }
 
     // Normalize role check (handling case sensitivity)
@@ -36,7 +37,7 @@ function RoleGuard({ children, allowedRoles }: { children: React.ReactNode; allo
 
     if (!currentRole || !allowedRoles.includes(currentRole)) {
         // If they are in the wrong area, push them to their correct home
-        return <Navigate to={isAdminRole ? "/pwa/admin" : "/pwa/tanod"} replace />;
+        return <Navigate to={isAdminRole ? "/admin" : "/tanod"} replace />;
     }
 
     return <>{children}</>;
@@ -46,11 +47,7 @@ export default function PwaRouter() {
     const { isAuthenticated, user, loading } = useAuth();
 
     if (loading) {
-        return (
-            <Box h="100vh" pos="relative">
-                <LoadingOverlay visible />
-            </Box>
-        );
+        return <PwaShellSkeleton />;
     }
 
     const userRole = user?.role?.toLowerCase();
@@ -63,7 +60,7 @@ export default function PwaRouter() {
                 path="login"
                 element={
                     isAuthenticated ? (
-                        <Navigate to={isAdminRole ? "/pwa/admin" : "/pwa/tanod"} replace />
+                        <Navigate to={isAdminRole ? "/admin" : "/tanod"} replace />
                     ) : (
                         <LoginPage />
                     )
@@ -101,7 +98,7 @@ export default function PwaRouter() {
                 <Route path="messages" element={<MessagePage />} />
                 {/* <Route path="messages/:id" element={<MessageDetailsPage />} /> */}
                 <Route path="messages/:id" element={<MessageDetailsPage />} />
-
+                <Route path="history" element={<MessageHistoryPage />} />
                 <Route path="profile" element={<ProfilePage />} />
             </Route>
 
@@ -116,7 +113,7 @@ export default function PwaRouter() {
                 }
             />
 
-            <Route path="*" element={<Navigate to="/pwa" replace />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
     );
 }

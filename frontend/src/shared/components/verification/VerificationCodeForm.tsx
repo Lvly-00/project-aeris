@@ -20,8 +20,9 @@ interface VerificationCodeFormProps {
 }
 
 /**
- * The code entry itself: six fluid boxes, the expiry clock, the resend link,
- * and a hint band — the only things a person needs while waiting for an email.
+ * The code entry itself: six slots, the expiry clock, the resend line, and the
+ * hint band — everything a person needs while waiting on an email, and nothing
+ * else competing with the action below it.
  */
 export function VerificationCodeForm({
   code,
@@ -41,14 +42,13 @@ export function VerificationCodeForm({
   const timerColor = isDark ? 'var(--mantine-color-red-4)' : 'var(--mantine-color-red-6)';
 
   return (
-    <Stack gap={rem(12)} align="center">
+    <Stack gap="md" align="center">
       <PinInput
         length={6}
-        size="md"
         type="number"
         oneTimeCode
         placeholder=""
-        gap={rem(6)}
+        gap={rem(8)}
         value={code}
         onChange={onCodeChange}
         disabled={verifying}
@@ -62,15 +62,15 @@ export function VerificationCodeForm({
             flex: '1 1 0',
             minWidth: 0,
             width: 'auto',
-            maxWidth: rem(52),
+            maxWidth: rem(54),
           },
           input: {
             width: '100%',
-            height: rem(50),
-            fontSize: rem(18),
+            height: rem(54),
+            fontSize: rem(20),
             fontWeight: 700,
             fontVariantNumeric: 'tabular-nums',
-            borderRadius: rem(10),
+            borderRadius: rem(12),
             borderColor: expired ? 'var(--mantine-color-default-border)' : undefined,
             backgroundColor: expired ? 'var(--mantine-color-default)' : undefined,
             transition: 'border-color 120ms ease, box-shadow 120ms ease',
@@ -101,12 +101,12 @@ export function VerificationCodeForm({
         )}
       </Text>
 
-      <Group gap={4} justify="center" wrap="wrap">
-        <Text fz={rem(13)} c="dimmed" ta="center">
-          Didn&rsquo;t receive the code?
-        </Text>
+      {resendable && (
+        <Group gap={4} justify="center" wrap="wrap">
+          <Text fz={rem(13)} c="dimmed" ta="center">
+            Didn&rsquo;t receive the code?
+          </Text>
 
-        {resendable ? (
           <Anchor
             component="button"
             type="button"
@@ -114,8 +114,8 @@ export function VerificationCodeForm({
             disabled={waiting || verifying}
             underline="never"
             fz={rem(13)}
-            fw={600}
-            c={waiting || verifying ? 'dimmed' : accent}
+            fw={700}
+            c="var(--mantine-color-text)"
             aria-label={
               waiting
                 ? `Resend code available in ${resendTimer} seconds`
@@ -126,22 +126,13 @@ export function VerificationCodeForm({
               border: 0,
               background: 'none',
               font: 'inherit',
+              opacity: waiting || verifying ? 0.55 : 1,
               cursor: waiting || verifying ? 'not-allowed' : 'pointer',
             }}
           >
             {resending ? 'Sending…' : waiting ? `Resend code (${resendTimer}s)` : 'Resend code'}
           </Anchor>
-        ) : (
-          <Text fz={rem(13)} c="dimmed" ta="center">
-            Close this and sign in again for a new one.
-          </Text>
-        )}
-      </Group>
-
-      {verifying && (
-        <Text fz={rem(13)} fw={600} c={accent} ta="center" aria-live="polite">
-          Checking your code…
-        </Text>
+        </Group>
       )}
 
       <Divider w="100%" color="var(--mantine-color-default-border)" />
@@ -150,27 +141,27 @@ export function VerificationCodeForm({
         <Alert
           id="verification-help"
           variant="light"
-          color="orange"
+          color="red"
           radius="md"
           w="100%"
           icon={<AlertCircle width={18} height={18} />}
           aria-live="polite"
-          styles={{ message: { fontSize: rem(13), lineHeight: 1.45 } }}
+          styles={{ message: { fontSize: rem(13), lineHeight: 1.5 } }}
         >
           {error}
         </Alert>
       ) : (
         <Box
+          id="verification-help"
           w="100%"
           role="note"
           style={{
             display: 'flex',
             alignItems: 'flex-start',
             gap: rem(10),
-            padding: `${rem(12)} ${rem(14)}`,
+            padding: `${rem(14)} ${rem(16)}`,
             borderRadius: rem(10),
             backgroundColor: 'var(--mantine-color-orange-light)',
-            border: '1px solid var(--mantine-color-orange-light-hover)',
           }}
         >
           <InfoCircle
@@ -180,7 +171,7 @@ export function VerificationCodeForm({
             color={accent}
             style={{ flexShrink: 0, marginTop: rem(1) }}
           />
-          <Text id="verification-help" fz={rem(13)} lh={1.5} c="var(--mantine-color-text)">
+          <Text fz={rem(13)} lh={1.55} c="var(--mantine-color-text)">
             Please check your inbox and spam folder for the verification code.
           </Text>
         </Box>

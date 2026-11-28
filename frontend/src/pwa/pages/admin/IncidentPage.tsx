@@ -51,7 +51,7 @@ export default function IncidentsPage() {
   /*
    * Active incidents, kept fresh three ways:
    *   1. refetch on mount (navigating back from the detail page)
-   *   2. 10s polling safety net
+   *   2. 5s polling safety net
    *   3. WebSocket events invalidate this key instantly
    */
   const { data: incidents = [], isLoading: loading } = useQuery({
@@ -77,7 +77,7 @@ export default function IncidentsPage() {
     staleTime: 0,
     refetchOnMount: 'always',
     refetchOnWindowFocus: true,
-    refetchInterval: 10000,
+    refetchInterval: 5000,
   });
 
   /*
@@ -195,10 +195,6 @@ export default function IncidentsPage() {
               </Menu.Target>
 
               <Menu.Dropdown>
-                {/* <Menu.Label>
-                  Global Actions
-                </Menu.Label> */}
-
                 <Menu.Item
                   color="red"
                   leftSection={<Trash  width={ 16 } height={ 16 } />}
@@ -216,19 +212,6 @@ export default function IncidentsPage() {
           <Text c="dimmed">
             Monitor and manage active incidents.
           </Text>
-
-          {/* {!loading && incidents.length > 0 && (
-            <Badge
-              size="sm"
-              variant="light"
-              color="orange"
-              radius="sm"
-              tt="none"
-              styles={{ label: { fontWeight: 700 } }}
-            >
-              {incidents.length} active
-            </Badge>
-          )} */}
         </Group>
       </Stack>
 
@@ -340,7 +323,7 @@ export default function IncidentsPage() {
                   onClick={(item) =>
                     selectMode
                       ? toggleSelect(item.id)
-                      : navigate(`/pwa/admin/incidents/${item.id}`)
+                      : navigate(`/admin/incidents/${item.id}`)
                   }
                 />
               </Box>

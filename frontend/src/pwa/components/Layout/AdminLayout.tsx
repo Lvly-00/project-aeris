@@ -11,10 +11,10 @@ import { onWebSocketMessage } from '../../../shared/services/websocket';
 import { NotificationsModal } from '../NotificationsModal';
 
 const navData = [
-    { icon: Home, label: 'Dashboard', path: '/pwa/admin/dashboard' },
-    { icon: SirenAlt, label: 'Incidents', path: '/pwa/admin/incidents' },
-    { icon: Clipboard, label: 'History', path: '/pwa/admin/history' },
-    { icon: User, label: 'Profile', path: '/pwa/admin/profile', isAvatar: true },
+    { icon: Home, label: 'Dashboard', path: '/admin/dashboard' },
+    { icon: SirenAlt, label: 'Incidents', path: '/admin/incidents' },
+    { icon: Clipboard, label: 'History', path: '/admin/history' },
+    { icon: User, label: 'Profile', path: '/admin/profile', isAvatar: true },
 ];
 
 export function AdminLayout() {
@@ -30,7 +30,7 @@ export function AdminLayout() {
     const activeColor = 'var(--mantine-color-orange-filled)';
     const inactiveColor = 'var(--mantine-color-dimmed)';
 
-    const isProfilePage = location.pathname === '/pwa/profile' || location.pathname.startsWith('/pwa/profile/');
+    const isProfilePage = location.pathname === '/profile' || location.pathname.startsWith('/profile/');
 
     useEffect(() => {
         const fetchShellData = async () => {
@@ -149,9 +149,9 @@ export function AdminLayout() {
                          * to the incidents list.
                          */
                         const onIncidentDetail = location.pathname.startsWith(
-                            '/pwa/admin/incidents/'
+                            '/admin/incidents/'
                         );
-                        navigate(`/pwa/admin/incidents/${n.incident}`, {
+                        navigate(`/admin/incidents/${n.incident}`, {
                             replace: onIncidentDetail,
                         });
                     }

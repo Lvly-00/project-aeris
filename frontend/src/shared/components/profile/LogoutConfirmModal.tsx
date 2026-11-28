@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Power } from '@boxicons/react';
 
-import { ConfirmModal } from '../../../shared/components/modals/ConfirmModal';
+import { ConfirmModal } from '../modals/ConfirmModal';
 
 interface LogoutConfirmModalProps {
   opened: boolean;
@@ -45,7 +45,7 @@ export function LogoutConfirmModal({ opened, onClose, onConfirm }: LogoutConfirm
       description="You will need to sign in again to see incidents, dispatch messages, and camera feeds."
       icon={<Power width={22} height={22} />}
       confirmLabel={signingOut ? 'Logging out…' : 'Log out'}
-      confirmIcon={<Power width={16} height={16} />}
+      // confirmIcon={<Power width={16} height={16} />}
       cancelLabel="Stay signed in"
       closeOnClickOutside={!signingOut}
     />

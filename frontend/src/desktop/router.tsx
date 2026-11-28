@@ -55,9 +55,10 @@ export default function DesktopRouter() {
     );
   }
 
-  // Barangay Tanod accounts use the mobile app only. This also catches a
-  // persisted tanod session when the desktop app reopens.
-  if (isAuthenticated && user?.role === 'Barangay Tanod') {
+  // Barangay Tanod and CCTV Operator accounts use the mobile app only.
+  // Only CCTV Chief accounts may access the desktop app.
+  // This also catches a persisted non-chief session when the desktop app reopens.
+  if (isAuthenticated && user?.role !== 'CCTV Chief') {
     return <Navigate to="/desktop/unauthorized" replace />;
   }
 

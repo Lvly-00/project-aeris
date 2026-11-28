@@ -15,12 +15,12 @@ import PersonalInformationSection from '../components/profile/PersonalInformatio
 import PreferencesSection from '../components/profile/PreferencesSection';
 import LegalSection from '../components/profile/LegalSection';
 import ProfileSkeleton from '../components/profile/ProfileSkeleton';
-import { LogoutConfirmModal } from '../components/profile/LogoutConfirmModal';
+import { LogoutConfirmModal } from '../../shared/components/profile/LogoutConfirmModal';
 import { useProfileAccent } from '../components/profile/profileTheme';
 
 export default function ProfilePage() {
   const [user, setUser] = useState<User | null>(null);
-  const [updating, setUpdating] = useState(false);
+  const [updatingField, setUpdatingField] = useState<string | null>(null);
   const [uploading, setUploading] = useState(false);
   const [photoError, setPhotoError] = useState<string | null>(null);
   const { logout, setUser: setAuthUser } = useAuth();
@@ -53,7 +53,7 @@ export default function ProfilePage() {
   }, []);
 
   const handleUpdate = async (field: string, value: unknown) => {
-    setUpdating(true);
+    setUpdatingField(field);
     try {
       const res = await authAPI.updateProfile({ [field]: value });
       setUser(res.data);
@@ -61,7 +61,7 @@ export default function ProfilePage() {
     } catch (err) {
       console.error('Update failed', err);
     } finally {
-      setUpdating(false);
+      setUpdatingField(null);
     }
   };
 
@@ -71,7 +71,10 @@ export default function ProfilePage() {
       setNotifConsentOpened(true);
       return;
     }
-    // Turning off takes effect immediately
+    // Turning off: unsubscribe from push and update the account preference.
+    import('../../shared/services/pushNotifications').then(({ unsubscribeFromPush }) => {
+      unsubscribeFromPush().catch(() => {});
+    });
     handleUpdate('receive_notifications', false);
   };
 
@@ -161,7 +164,7 @@ export default function ProfilePage() {
 
           <PreferencesSection
             user={user}
-            updating={updating}
+            updatingField={updatingField}
             onNotificationToggle={handleNotificationToggle}
             onTwoFactorClick={openTwoFactorModal}
             onLanguageChange={(language) => handleUpdate('preferred_language', language)}

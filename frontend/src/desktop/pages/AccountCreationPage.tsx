@@ -1,17 +1,61 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import { useQuery, useQueryClient } from '@tanstack/react-query';
 import {
     Stack, Button, Paper, Tabs, Text, TextInput, Group,
     Table, ScrollArea, Avatar, Box, Badge, ActionIcon, Menu,
-    Pagination, Center, useMantineTheme, Checkbox, Modal, Container, Loader
+    Pagination, Center, useMantineTheme, Checkbox, Modal, Container, Tooltip
 } from '@mantine/core';
-import { DotsVerticalRounded, Eye, Pencil, Plus, Search, Trash } from '@boxicons/react';
+import { notifications } from '@mantine/notifications';
+import { DotsVerticalRounded, Eye, Pencil, Plus, RefreshCw, Search, Trash } from '@boxicons/react';
 import { PageHeader } from '../components/Layout/PageHeader';
 import { SkeletonTableRows } from '../components/common/SkeletonTableRows';
 import { authAPI } from '../../shared/services/api';
 import { resolveMediaUrl } from '../../shared/utils/mediaUrl';
 import { UserFormModal } from '../components/common/UserFormModal';
 import { DeleteUserModal } from '../components/common/DeleteUserModal';
+
+/** Translate a raw Axios error from any account operation into a human-readable string. */
+function extractAccountError(error: any, fallback = 'Operation failed.'): string {
+    const data = error?.response?.data;
+    if (!data) return fallback;
+
+    // Field-level serializer errors
+    if (data.email) return Array.isArray(data.email) ? data.email[0] : data.email;
+    if (data.password) return Array.isArray(data.password) ? data.password[0] : data.password;
+    if (data.password2) return Array.isArray(data.password2) ? data.password2[0] : data.password2;
+    if (data.first_name) return Array.isArray(data.first_name) ? data.first_name[0] : data.first_name;
+    if (data.last_name) return Array.isArray(data.last_name) ? data.last_name[0] : data.last_name;
+    if (data.role) return Array.isArray(data.role) ? data.role[0] : data.role;
+    if (data.non_field_errors)
+        return Array.isArray(data.non_field_errors) ? data.non_field_errors[0] : data.non_field_errors;
+
+    // View-level error key
+    if (data.error) return data.error;
+
+    // DRF default detail key
+    if (data.detail) return data.detail;
+
+    return fallback;
+}
+
+/** Extract field-level errors from the backend response for display inside the form. */
+export function extractFieldErrors(error: any): Record<string, string> {
+    const data = error?.response?.data;
+    if (!data || typeof data !== 'object') return {};
+
+    const FIELD_KEYS = ['email', 'password', 'password2', 'first_name', 'last_name', 'role'];
+    const fieldErrors: Record<string, string> = {};
+
+    for (const key of FIELD_KEYS) {
+        if (data[key]) {
+            fieldErrors[key] = Array.isArray(data[key]) ? data[key][0] : data[key];
+        }
+    }
+
+    return fieldErrors;
+}
+
+const AUTO_REFRESH_INTERVAL_MS = 30_000; // 30 seconds
 
 export default function UserManagement() {
     const theme = useMantineTheme();
@@ -26,6 +70,12 @@ export default function UserManagement() {
     const [deleteOpened, setDeleteOpened] = useState(false);
     const [selectedUser, setSelectedUser] = useState<any>(null);
     const [isViewing, setIsViewing] = useState(false);
+    const [formFieldErrors, setFormFieldErrors] = useState<Record<string, string>>({});
+
+    // Manual refresh loading state (separate from mutation loading)
+    const [refreshing, setRefreshing] = useState(false);
+    // Guard against concurrent refresh requests
+    const refreshInProgress = useRef(false);
 
     // Mass delete selection
     const [selectedIds, setSelectedIds] = useState<number[]>([]);
@@ -37,13 +87,50 @@ export default function UserManagement() {
             const usersRes = await authAPI.getUsers();
             return Array.isArray(usersRes.data) ? usersRes.data : usersRes.data.results || [];
         },
+        // Automatic background refresh every 30 seconds.
+        // React Query skips the refetch if another fetch is already in-flight,
+        // preventing duplicate/overlapping requests.
+        refetchInterval: AUTO_REFRESH_INTERVAL_MS,
+        // Keep stale data visible while a background refetch is running.
+        staleTime: 10_000,
+        // Also refresh when the user returns to the tab.
+        refetchOnWindowFocus: true,
     });
 
     useEffect(() => { setActivePage(1); }, [searchQuery, activeTab]);
 
+    /**
+     * Invalidates the 'users' query and clears the selection.
+     * React Query deduplicates concurrent invalidations, so calling this
+     * during an already-running fetch is safe.
+     */
     const refreshUsers = () => {
         setSelectedIds([]);
         return queryClient.invalidateQueries({ queryKey: ['users'] });
+    };
+
+    /** Manual refresh — triggered by the refresh button. */
+    const handleManualRefresh = async () => {
+        if (refreshInProgress.current) return;
+        refreshInProgress.current = true;
+        setRefreshing(true);
+        try {
+            await queryClient.refetchQueries({ queryKey: ['users'] });
+            notifications.show({
+                title: 'Refreshed',
+                message: 'Account list is up to date.',
+                color: 'green',
+            });
+        } catch {
+            notifications.show({
+                title: 'Refresh Failed',
+                message: 'Could not load the latest account data. The current list is still displayed.',
+                color: 'red',
+            });
+        } finally {
+            setRefreshing(false);
+            refreshInProgress.current = false;
+        }
     };
 
     const filteredUsers = useMemo(() => {
@@ -74,15 +161,48 @@ export default function UserManagement() {
         );
     };
 
-    const handleCreateOrUpdate = async (values: any) => {
+    const handleCreateOrUpdate = async (values: any): Promise<Record<string, string> | void> => {
         setLoading(true);
+        setFormFieldErrors({});
         try {
-            if (selectedUser) await authAPI.updateUser(selectedUser.id, values);
-            else await authAPI.register(values);
+            if (selectedUser) {
+                await authAPI.updateUser(selectedUser.id, values);
+                notifications.show({
+                    title: 'User Updated',
+                    message: `${values.first_name || values.email}'s account has been updated.`,
+                    color: 'green',
+                });
+            } else {
+                await authAPI.register(values);
+                notifications.show({
+                    title: 'User Created',
+                    message: `Account for ${values.first_name || values.email} has been created.`,
+                    color: 'green',
+                });
+            }
             setFormOpened(false);
             refreshUsers();
-        } catch (error: any) { console.error(error); }
-        finally { setLoading(false); }
+        } catch (error: any) {
+            const fieldErrors = extractFieldErrors(error);
+            if (Object.keys(fieldErrors).length > 0) {
+                // Surface field errors inside the form
+                setFormFieldErrors(fieldErrors);
+                return fieldErrors;
+            }
+
+            // Non-field errors go to a notification
+            const message = extractAccountError(
+                error,
+                selectedUser ? 'Failed to update account.' : 'Failed to create account.'
+            );
+            notifications.show({
+                title: selectedUser ? 'Update Failed' : 'Create Failed',
+                message,
+                color: 'red',
+            });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleDelete = async () => {
@@ -90,9 +210,22 @@ export default function UserManagement() {
         try {
             await authAPI.deleteUser(selectedUser.id);
             setDeleteOpened(false);
+            notifications.show({
+                title: 'User Deleted',
+                message: `${selectedUser?.full_name || selectedUser?.email} has been removed.`,
+                color: 'red',
+            });
             refreshUsers();
-        } catch (error) { console.error(error); }
-        finally { setLoading(false); }
+        } catch (error: any) {
+            const message = extractAccountError(error, 'Failed to delete account.');
+            notifications.show({
+                title: 'Delete Failed',
+                message,
+                color: 'red',
+            });
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleBulkDelete = async () => {
@@ -102,16 +235,43 @@ export default function UserManagement() {
                 selectedIds.map((id) => authAPI.deleteUser(id))
             );
             const failed = results.filter((r) => r.status === 'rejected').length;
+            const succeeded = results.length - failed;
 
-            if (failed > 0 && failed === selectedIds.length) {
-                console.error('[USER MGMT] All bulk deletes failed');
+            if (failed > 0 && failed === results.length) {
+                notifications.show({
+                    title: 'Bulk Delete Failed',
+                    message: 'None of the selected accounts could be deleted. Please check permissions.',
+                    color: 'red',
+                });
                 return;
             }
 
             setBulkDeleteOpened(false);
             refreshUsers();
-        } catch (error) { console.error(error); }
-        finally { setLoading(false); }
+
+            if (failed > 0) {
+                notifications.show({
+                    title: 'Partial Delete',
+                    message: `${succeeded} account${succeeded !== 1 ? 's' : ''} deleted. ${failed} could not be removed.`,
+                    color: 'orange',
+                });
+            } else {
+                notifications.show({
+                    title: 'Users Deleted',
+                    message: `${succeeded} account${succeeded !== 1 ? 's' : ''} removed successfully.`,
+                    color: 'red',
+                });
+            }
+        } catch (error: any) {
+            const message = extractAccountError(error, 'Bulk delete failed.');
+            notifications.show({
+                title: 'Bulk Delete Failed',
+                message,
+                color: 'red',
+            });
+        } finally {
+            setLoading(false);
+        }
     };
 
     return (
@@ -121,23 +281,44 @@ export default function UserManagement() {
                 title="User Management"
                 subtitle="Manage user accounts and role assignments."
                 actions={
-                    <Button
-                        leftSection={<Plus width={18} height={18} />}
-                        color="orange"
-                        radius="md"
-                        h={40}
-                        onClick={() => { setSelectedUser(null); setIsViewing(false); setFormOpened(true); }}
-                    >
-                        ADD NEW USER
-                    </Button>
+                    <Group gap="sm">
+                        <Tooltip label="Refresh account list" position="bottom" withArrow>
+                            <ActionIcon
+                                variant="default"
+                                size="lg"
+                                radius="md"
+                                aria-label="Refresh account list"
+                                loading={refreshing}
+                                disabled={refreshing}
+                                onClick={handleManualRefresh}
+                                style={{ width: 40, height: 40 }}
+                            >
+                                <RefreshCw width={18} height={18} />
+                            </ActionIcon>
+                        </Tooltip>
+                        <Button
+                            leftSection={<Plus width={18} height={18} />}
+                            color="orange"
+                            radius="md"
+                            h={40}
+                            onClick={() => { setSelectedUser(null); setFormFieldErrors({}); setIsViewing(false); setFormOpened(true); }}
+                        >
+                            ADD NEW USER
+                        </Button>
+                    </Group>
                 }
             />
 
             <UserFormModal
-                opened={formOpened} onClose={() => setFormOpened(false)}
-                onSubmit={handleCreateOrUpdate} initialValues={selectedUser}
-                loading={loading} isEdit={!!selectedUser && !isViewing} isView={!!selectedUser && isViewing}
+                opened={formOpened}
+                onClose={() => { setFormOpened(false); setFormFieldErrors({}); }}
+                onSubmit={handleCreateOrUpdate}
+                initialValues={selectedUser}
+                loading={loading}
+                isEdit={!!selectedUser && !isViewing}
+                isView={!!selectedUser && isViewing}
                 onEdit={() => setIsViewing(false)}
+                serverFieldErrors={formFieldErrors}
             />
 
             <DeleteUserModal
@@ -407,7 +588,7 @@ export default function UserManagement() {
                                                         <Menu.Item leftSection={<Eye width={18} height={18} />} onClick={() => { setSelectedUser(user); setIsViewing(true); setFormOpened(true); }}>
                                                             View User
                                                         </Menu.Item>
-                                                        <Menu.Item leftSection={<Pencil width={18} height={18} />} onClick={() => { setSelectedUser(user); setIsViewing(false); setFormOpened(true); }}>
+                                                        <Menu.Item leftSection={<Pencil width={18} height={18} />} onClick={() => { setSelectedUser(user); setFormFieldErrors({}); setIsViewing(false); setFormOpened(true); }}>
                                                             Edit User
                                                         </Menu.Item>
                                                         <Menu.Item leftSection={<Trash width={18} height={18} />} onClick={() => { setSelectedUser(user); setDeleteOpened(true); }} color="red">

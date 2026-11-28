@@ -38,7 +38,7 @@ class IncidentConsumer(AsyncJsonWebsocketConsumer):
             self.channel_name,
         )
 
-        await self.accept()
+        await self.accept(subprotocol=self.scope.get("aeris_subprotocol"))
 
         logger.info(
             "[WS] Incident socket connected | user=%s | channel=%s",

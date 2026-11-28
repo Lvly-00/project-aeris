@@ -96,6 +96,18 @@ AUTH_PASSWORD_VALIDATORS = [
     {"NAME": "apps.accounts.validators.CommonPasswordListValidator"},
 ]
 
+# ── Security headers (safe without TLS) ──────────────────────────────────────
+# Applied in every environment, including the desktop app and local dev, so a
+# stray response can never be sniffed as another type, framed by another site,
+# or leak the full URL to a third party. TLS-only settings (HSTS, SSL redirect,
+# secure cookies) live in settings/production.py.
+SECURE_CONTENT_TYPE_NOSNIFF = True
+X_FRAME_OPTIONS = "DENY"
+SECURE_REFERRER_POLICY = "strict-origin-when-cross-origin"
+SECURE_CROSS_ORIGIN_OPENER_POLICY = "same-origin"
+SESSION_COOKIE_HTTPONLY = True
+CSRF_COOKIE_HTTPONLY = True
+
 # ── Internationalisation ──────────────────────────────────────────────────────
 LANGUAGE_CODE = "en-us"
 TIME_ZONE = "Asia/Manila"
@@ -175,7 +187,16 @@ SPECTACULAR_SETTINGS = {
     "DESCRIPTION": "AI-Powered Incident Detection System",
     "VERSION": "1.0.0",
     "SERVE_INCLUDE_SCHEMA": False,
+    # Serve Swagger/ReDoc assets from the installed package instead of an
+    # unpinned CDN. This removes a third-party script from the docs pages.
+    "SWAGGER_UI_DIST": "SIDECAR",
+    "REDOC_DIST": "SIDECAR",
 }
+
+# Interactive API docs and the Django admin are useful locally but should not
+# be advertised on a public deployment. Both are opt-in via environment.
+EXPOSE_API_DOCS = config("EXPOSE_API_DOCS", default=False, cast=bool)
+EXPOSE_DJANGO_ADMIN = config("EXPOSE_DJANGO_ADMIN", default=False, cast=bool)
 
 # ── Redis & Celery ────────────────────────────────────────────────────────────
 REDIS_URL = config("REDIS_URL", default="redis://localhost:6379/0")
@@ -209,6 +230,23 @@ LOGGING = {
     },
 }
 
-# ── Internal service-to-service key (/internal/ endpoints) ───────────────────
+# ── Web Push (VAPID) ─────────────────────────────────────────────────────────
+VAPID_PUBLIC_KEY = config("VAPID_PUBLIC_KEY", default="")
+VAPID_PRIVATE_KEY = config("VAPID_PRIVATE_KEY", default="")
+VAPID_CLAIMS_SUB = config("VAPID_CLAIMS_SUB", default="mailto:admin@example.com")
+
+# ── Public app origin ────────────────────────────────────────────────────────
+# Absolute origin of the deployed web app. Outbound emails use it for the
+# AERIS mark (and future links); relative URLs do not load in email clients.
+# Leave it empty and the email shows a text wordmark instead of an image.
+PUBLIC_APP_URL = config("PUBLIC_APP_URL", default="")
+
+# ── Internal service-to-service key (/internal/ endpoints) ───────────────
 # Must match INTERNAL_API_KEY in the AI service's environment.
 INTERNAL_API_KEY = config("INTERNAL_API_KEY", default="")
+
+# ── AI service key (public ingest for AI services outside the Docker net) ────
+# Same value nginx injects as X-API-Key when it proxies /ai, and the key the
+# AI service itself validates. Used by /api/ai/ endpoints, which a desktop
+# install's local sidecar can reach even though nginx blocks /internal/.
+AI_SERVICE_API_KEY = config("AI_SERVICE_API_KEY", default="")

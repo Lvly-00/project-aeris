@@ -1,17 +1,27 @@
 import { useState, useEffect } from 'react';
 import { Outlet, useNavigate, useLocation, Link } from 'react-router-dom';
-import { Camera, ChevronDown, Cog, DoorOpen, History, Moon, PlusCircle, Toggles, Sun, User } from '@boxicons/react';
+import { ArrowDownCircle, Camera, ChevronDown, Cog, DoorOpen, History, Moon, PlusCircle, RefreshCw, Toggles, Sun, User } from '@boxicons/react';
+import { notifications } from '@mantine/notifications';
 import { useAuth } from '../../../shared/hooks/useAuth';
 import { authAPI } from '../../../shared/services/api';
 import { parseThrottleSeconds } from '../../../shared/utils/authErrors';
 import { resolveMediaUrl } from '../../../shared/utils/mediaUrl';
 import { AdminVerificationModal } from './AdminVerificationModal';
-import { 
+import { LogoutConfirmModal } from '../../../shared/components/profile/LogoutConfirmModal';
+import {
   Avatar, Box, Group, Menu, Text, UnstyledButton, Badge,
   useMantineColorScheme, useComputedColorScheme, Container
 } from '@mantine/core';
 
 const SUDO_PROTECTED_PATHS = ['/desktop/profile', '/desktop/settings', '/desktop/accounts', '/desktop/audit'];
+
+/** Mirrors the payloads main.cjs sends on `update-status`. */
+type DesktopUpdateStatus =
+  | { status: 'idle' }
+  | { status: 'checking' }
+  | { status: 'available' | 'current' | 'downloaded'; version?: string }
+  | { status: 'downloading'; percent: number }
+  | { status: 'error'; message?: string };
 
 export default function DesktopLayout() {
   const navigate = useNavigate();
@@ -23,10 +33,67 @@ export default function DesktopLayout() {
   const computedColorScheme = useComputedColorScheme('light', { getInitialValueInEffect: true });
 
   const [sudoModalOpened, setSudoModalOpened] = useState(false);
+  const [logoutOpened, setLogoutOpened] = useState(false);
   const [password, setPassword] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
   const [sudoThrottleSeconds, setSudoThrottleSeconds] = useState(0);
+
+  // Desktop-only update controls. They live in the account menu (not the title
+  // strip) so they survive the fallback to the native window frame, where the
+  // renderer draws no strip at all.
+  const desktopApi = window.electronAPI;
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  const [updateStatus, setUpdateStatus] = useState<DesktopUpdateStatus>({ status: 'idle' });
+
+  useEffect(() => {
+    if (!desktopApi?.isDesktop) return;
+    let cancelled = false;
+
+    desktopApi
+      .getVersion()
+      .then((v) => {
+        if (!cancelled) setAppVersion(v);
+      })
+      .catch(() => { });
+
+    desktopApi
+      .getUpdateStatus()
+      .then((s) => {
+        if (!cancelled) setUpdateStatus(s);
+      })
+      .catch(() => { });
+
+    const unsubscribe = desktopApi.onUpdateStatus((s) => setUpdateStatus(s));
+    return () => {
+      cancelled = true;
+      unsubscribe();
+    };
+  }, []);
+
+  const checkForUpdates = async () => {
+    if (!desktopApi?.checkForUpdates) return;
+    const result = await desktopApi.checkForUpdates();
+    if (!result.ok) {
+      notifications.show({
+        title: 'Update check failed',
+        message: result.message || 'Could not check for updates.',
+        color: 'red',
+      });
+    }
+  };
+
+  const downloadUpdate = async () => {
+    if (!desktopApi?.downloadUpdate) return;
+    const result = await desktopApi.downloadUpdate();
+    if (!result.ok) {
+      notifications.show({
+        title: 'Download failed',
+        message: result.message || 'Could not download the update.',
+        color: 'red',
+      });
+    }
+  };
 
   // FR-PPD-005: Countdown for admin-verification (429) cooldown while the
   // submit button is disabled — mirrors the login rate-limit behaviour.
@@ -115,6 +182,12 @@ export default function DesktopLayout() {
   return (
     <Box style={{ minHeight: 'calc(100vh - var(--aeris-titlebar-height, 0px))', backgroundColor: 'var(--mantine-color-body)', display: 'flex', flexDirection: 'column' }}>
 
+      <LogoutConfirmModal
+        opened={logoutOpened}
+        onClose={() => setLogoutOpened(false)}
+        onConfirm={logout}
+      />
+
       <AdminVerificationModal
         opened={sudoModalOpened}
         onClose={() => setSudoModalOpened(false)}
@@ -129,8 +202,14 @@ export default function DesktopLayout() {
       <Box
         component="header"
         style={{
+          position: 'sticky',
+          // Parks under the fixed Electron title strip (0px in the web build).
+          top: 'var(--aeris-titlebar-height, 0px)',
+          // Below the title bar (z-index 100) so it never covers the window controls.
+          zIndex: 50,
           height: 80,
-          backgroundColor: 'var(--mantine-color-scheme-outline)',
+          // Opaque and theme-aware: white in light mode, dark body in dark mode.
+          backgroundColor: 'var(--mantine-color-body)',
           borderBottom: '1px solid var(--mantine-color-default-border)',
           display: 'flex',
           alignItems: 'center'
@@ -184,58 +263,60 @@ export default function DesktopLayout() {
             </Group>
 
             {/* User Profile Section */}
-            <Menu position="bottom-end" withArrow width={220}>
-              <Menu.Target>
-                <UnstyledButton>
-                  <Group gap={12}>
-                    <Avatar
-                      size={45}
-                      radius="xl"
-                      src={resolveMediaUrl(user?.profile_picture)}
-                      style={{ border: '1px solid var(--mantine-color-default-border)' }}
-                    >
-                      {user?.first_name?.[0]}
-                    </Avatar>
-                    <Box visibleFrom="xs">
-                      <Text fz={16} fw={700} lh={1.2} style={{ color: 'var(--mantine-color-text)' }}>
-                        {user?.full_name || "User Name"}
-                      </Text>
-                      <Badge
-                        mt={4}
-                        size="sm"
-                        variant="filled"
-                        color={viewMode === 'Admin' ? 'orange' : 'gray'}
-                        tt="uppercase"
-                        fw={600}
-                        style={{ letterSpacing: 0.6 }}
+            <Group gap={12} wrap="nowrap" align="center">
+              <Menu position="bottom-end" withArrow width={220}>
+                <Menu.Target>
+                  <UnstyledButton>
+                    <Group gap={12}>
+                      <Avatar
+                        size={45}
+                        radius="xl"
+                        src={resolveMediaUrl(user?.profile_picture)}
+                        style={{ border: '1px solid var(--mantine-color-default-border)' }}
                       >
-                        {viewMode === 'Admin' ? 'Chief' : 'Operator'} Mode
-                      </Badge>
-                    </Box>
-                    <ChevronDown size="sm" color="var(--mantine-color-dimmed)" style={{ marginLeft: 5 }} />
-                  </Group>
-                </UnstyledButton>
-              </Menu.Target>
+                        {user?.first_name?.[0]}
+                      </Avatar>
+                      <Box visibleFrom="xs">
+                        <Text fz={16} fw={700} lh={1.2} style={{ color: 'var(--mantine-color-text)' }}>
+                          {user?.full_name || "User Name"}
+                        </Text>
+                        <Badge
+                          mt={4}
+                          size="sm"
+                          variant="filled"
+                          color={viewMode === 'Admin' ? 'orange' : 'gray'}
+                          tt="uppercase"
+                          fw={600}
+                          style={{ letterSpacing: 0.6 }}
+                        >
+                          {viewMode === 'Admin' ? 'Chief' : 'Operator'} Mode
+                        </Badge>
+                      </Box>
+                      <ChevronDown size="sm" color="var(--mantine-color-dimmed)" style={{ marginLeft: 5 }} />
+                    </Group>
+                  </UnstyledButton>
+                </Menu.Target>
 
-              <Menu.Dropdown>
-                <Menu.Item leftSection={<User size="sm" />} onClick={() => navigate('/desktop/profile')} disabled={isAdminLocked}>Profile</Menu.Item>
-                <Menu.Item leftSection={<Cog size="sm" />} onClick={() => navigate('/desktop/settings')} disabled={isAdminLocked}>Settings</Menu.Item>
-                <Menu.Divider />
-                {user?.role === 'CCTV Chief' && (
-                  <Menu.Item
-                    leftSection={<Toggles size="sm" />}
-                    onClick={() => handleModeToggle(viewMode === 'Operator')}
-                  >
-                    Switch to {viewMode === 'Admin' ? 'Operator' : 'Chief'}
+                <Menu.Dropdown>
+                  <Menu.Item leftSection={<User size="sm" />} onClick={() => navigate('/desktop/profile')} disabled={isAdminLocked}>Profile</Menu.Item>
+                  <Menu.Item leftSection={<Cog size="sm" />} onClick={() => navigate('/desktop/settings')} disabled={isAdminLocked}>Settings</Menu.Item>
+                  <Menu.Divider />
+                  {user?.role === 'CCTV Chief' && (
+                    <Menu.Item
+                      leftSection={<Toggles size="sm" />}
+                      onClick={() => handleModeToggle(viewMode === 'Operator')}
+                    >
+                      Switch to {viewMode === 'Admin' ? 'Operator' : 'Chief'}
+                    </Menu.Item>
+                  )}
+                  <Menu.Item leftSection={computedColorScheme === 'dark' ? <Sun size="sm" /> : <Moon size="sm" />} onClick={toggleTheme}>
+                    {computedColorScheme === 'dark' ? 'Light Mode' : 'Dark Mode'}
                   </Menu.Item>
-                )}
-                <Menu.Item leftSection={computedColorScheme === 'dark' ? <Sun size="sm" /> : <Moon size="sm" />} onClick={toggleTheme}>
-                  {computedColorScheme === 'dark' ? 'Light Mode' : 'Dark Mode'}
-                </Menu.Item>
-                <Menu.Divider />
-                <Menu.Item leftSection={<DoorOpen size="sm" />} color="orange" onClick={logout}>Logout</Menu.Item>
-              </Menu.Dropdown>
-            </Menu>
+                  <Menu.Divider />
+                  <Menu.Item leftSection={<DoorOpen size="sm" />} color="orange" onClick={() => setLogoutOpened(true)}>Logout</Menu.Item>
+                </Menu.Dropdown>
+              </Menu>
+            </Group>
 
           </Group>
         </Container>

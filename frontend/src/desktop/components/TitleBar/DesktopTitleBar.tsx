@@ -12,9 +12,15 @@ type UpdateStatus =
 const api = window.electronAPI;
 const isMac = api?.platform === 'darwin';
 
+// main.cjs rebuilds the window with the native frame when the page never drew
+// this strip (slow first paint, crashed renderer). Drawing the strip on top of
+// that frame is what produces two stacked headers, so the native frame owns
+// the chrome and this component stays out of the way.
+const usesNativeFrame = Boolean(api?.isDesktop && api.usesNativeFrame?.());
+
 // Applied at import time (before the first paint) so the reserved 40px strip
 // never flashes in after render. The web/PWA build never gets this class.
-if (api?.isDesktop) {
+if (api?.isDesktop && !usesNativeFrame) {
   document.documentElement.classList.add('electron-shell');
 }
 
@@ -79,7 +85,7 @@ export default function DesktopTitleBar() {
     };
   }, []);
 
-  if (!api?.isDesktop) return null;
+  if (!api?.isDesktop || usesNativeFrame) return null;
 
   const downloading = status.status === 'downloading';
   const showUpdate =

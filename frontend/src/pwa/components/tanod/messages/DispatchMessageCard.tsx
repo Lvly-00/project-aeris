@@ -12,6 +12,8 @@ interface DispatchMessageCardProps {
   /** When set, the card selects instead of navigating (delete mode). */
   onSelect?: () => void;
   selected?: boolean;
+  /** Render just the card body with no link wrapper (parent provides the link). */
+  linkless?: boolean;
 }
 
 /**
@@ -23,6 +25,7 @@ export function DispatchMessageCard({
   message,
   onSelect,
   selected = false,
+  linkless = false,
 }: DispatchMessageCardProps) {
   const navigate = useNavigate();
   const [hovered, setHovered] = useState(false);
@@ -146,7 +149,7 @@ export function DispatchMessageCard({
             }}
             onClick={(e) => {
               e.stopPropagation();
-              navigate(`/pwa/tanod/messages/${message.id}`, { replace: true });
+              navigate(`/tanod/messages/${message.id}`, { replace: true });
             }}
           />
         </Stack>
@@ -168,9 +171,13 @@ export function DispatchMessageCard({
     );
   }
 
+  if (linkless) {
+    return <>{body}</>;
+  }
+
   return (
     <Link
-      to={`/pwa/tanod/messages/${message.id}`}
+      to={`/tanod/messages/${message.id}`}
       aria-label={`Open message: ${message.title}${unread ? ', unread' : ''}`}
       style={{ display: 'block', color: 'inherit', textDecoration: 'none' }}
     >

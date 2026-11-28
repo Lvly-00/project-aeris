@@ -13,6 +13,7 @@ _env = _os.environ.get("DJANGO_ENV", "development").lower()
 _module_map = {
     "development": "config.settings.development",
     "production":  "config.settings.production",
+    "staging":     "config.settings.staging",
     "desktop":     "config.settings.desktop",
 }
 _target = _module_map.get(_env, "config.settings.development")

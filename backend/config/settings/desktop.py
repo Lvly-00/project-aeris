@@ -40,3 +40,7 @@ CORS_ALLOW_CREDENTIALS = True
 
 # ── Throttling — disable for desktop ─────────────────────────────────────────
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []  # noqa: F405
+
+# Local-only desktop mode keeps the developer conveniences available.
+EXPOSE_API_DOCS = True
+EXPOSE_DJANGO_ADMIN = True

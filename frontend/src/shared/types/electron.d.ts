@@ -18,6 +18,10 @@ declare global {
     electronAPI?: {
       getBackendUrl: () => string;
       getAiUrl: () => string;
+      /** True when the window uses the native frame (no custom title strip). */
+      usesNativeFrame: () => boolean;
+      /** Absolute path of a File chosen via <input type="file">. */
+      getPathForFile: (file: File) => string;
 
       isDesktop: boolean;
       platform: string;

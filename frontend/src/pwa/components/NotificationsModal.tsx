@@ -20,8 +20,14 @@ interface NotificationsModalProps {
 }
 
 /**
- * The tray shell: it owns the alert list and its unread count, and composes the
- * header, toolbar and list. Presentation lives in ./notifications.
+ * The notification tray.
+ *
+ * Loading strategy:
+ *  - Fetch the list once on the first open (not on every open).
+ *  - After that, the list is kept live by WebSocket pushes — a new
+ *    notification_new event prepends the item directly without a network
+ *    round-trip, so opening the modal again never triggers a reload.
+ *  - The unread badge in the header is updated the same way.
  */
 export function NotificationsModal({
   opened,
@@ -33,6 +39,12 @@ export function NotificationsModal({
   const [loading, setLoading] = useState(false);
   const [markingAll, setMarkingAll] = useState(false);
 
+  // Track whether we have already loaded the initial list so we don't
+  // re-fetch on subsequent opens. `loaded` is both a ref (for synchronous
+  // reads inside callbacks) and a piece of state (to trigger the WS
+  // subscription effect once the first fetch completes).
+  const [loaded, setLoaded] = useState(false);
+
   const refreshCount = useCallback(async () => {
     try {
       const res = await notificationsAPI.unreadCount();
@@ -42,9 +54,9 @@ export function NotificationsModal({
     }
   }, [onUnreadChange]);
 
-  /* Load notifications when the modal opens. */
+  // Load once — the first time the modal is opened.
   useEffect(() => {
-    if (!opened) return;
+    if (!opened || loaded) return;
 
     let cancelled = false;
 
@@ -53,19 +65,22 @@ export function NotificationsModal({
       try {
         const res = await notificationsAPI.list();
         const data = res.data.results || res.data || [];
-        if (!cancelled) setItems(data);
-        await refreshCount();
+        if (!cancelled) {
+          setItems(data);
+          setLoading(false);  // clear loading before setLoaded to avoid cancellation race
+          setLoaded(true);
+          refreshCount();     // fire-and-forget — badge update, not critical path
+        }
       } catch (error) {
         console.error('[NOTIFICATIONS] Failed to load:', error);
         if (!cancelled) {
+          setLoading(false);
           notifications.show({
             title: 'Error',
             message: 'Failed to load notifications',
             color: 'orange',
           });
         }
-      } finally {
-        if (!cancelled) setLoading(false);
       }
     };
 
@@ -74,14 +89,17 @@ export function NotificationsModal({
     return () => {
       cancelled = true;
     };
-  }, [opened, refreshCount]);
+  }, [opened, loaded, refreshCount]);
 
   /*
-   * Real-time updates: listen for notification_new over the single shared
-   * WebSocket (only while the tray is open).
+   * Real-time updates: listen for notification_new over the shared WebSocket.
+   * This subscription starts once the initial fetch completes (`loaded` state
+   * flips to true) and stays active regardless of whether the modal is open,
+   * so new items are queued into local state even while the modal is closed
+   * and appear instantly the next time the user opens it.
    */
   useEffect(() => {
-    if (!opened) return;
+    if (!loaded) return;
 
     return onWebSocketMessage((data) => {
       if (data.action !== 'notification_new' || !data.payload?.id) return;
@@ -92,7 +110,7 @@ export function NotificationsModal({
         return [data.payload, ...prev];
       });
     });
-  }, [opened]);
+  }, [loaded]);
 
   const unreadCount = items.filter((n) => !n.is_read).length;
 

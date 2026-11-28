@@ -30,7 +30,7 @@ export default function AppRouter() {
           PWA / MOBILE
          ========================= */}
       <Route
-        path="/pwa/*"
+        path="/*"
         element={
           <AppGuard target="pwa">
             <PwaRouter />
@@ -45,22 +45,6 @@ export default function AppRouter() {
       <Route path="/forgot-password" element={<ForgotPasswordPage />} />
       <Route path="/verification-code" element={<VerificationCodePage />} />
       <Route path="/reset-password" element={<ResetPasswordPage />} />
-
-      {/* =========================
-          DEFAULT
-         ========================= */}
-      <Route
-        path="/"
-        element={<Navigate to="/pwa" replace />}
-      />
-
-      {/* =========================
-          404
-         ========================= */}
-      <Route
-        path="*"
-        element={<Navigate to="/pwa" replace />}
-      />
 
     </Routes>
   );

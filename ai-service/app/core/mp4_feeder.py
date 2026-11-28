@@ -61,6 +61,9 @@ def start_mp4_feeder(camera_id: int, raw_path: str, manager) -> None:
     """
     resolved = _resolve_mp4_path(raw_path)
     if resolved is None:
+        manager.set_camera_error(
+            camera_id, f"Video file not found: {raw_path}", kind="file",
+        )
         logger.warning(
             "MP4 feeder camera %d: file not found: %s — detection disabled",
             camera_id, raw_path,
@@ -73,12 +76,20 @@ def start_mp4_feeder(camera_id: int, raw_path: str, manager) -> None:
     while True:
         cap = cv2.VideoCapture(file_path)
         if not cap.isOpened():
+            manager.set_camera_error(
+                camera_id,
+                f"Video file exists but could not be opened (unsupported or corrupt): {file_path}",
+                kind="file",
+            )
             logger.warning(
                 "MP4 feeder camera %d: cannot open %s, retrying in 5 s",
                 camera_id, file_path,
             )
             time.sleep(5)
             continue
+
+        # The file opened: any earlier read failure is stale.
+        manager.set_camera_error(camera_id, None)
 
         native_fps = cap.get(cv2.CAP_PROP_FPS) or 25.0
         # Cap at 30 fps to avoid pegging the CPU; detection runs at its own rate

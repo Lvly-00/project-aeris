@@ -25,7 +25,7 @@ export default function DashboardPage() {
       const res = await incidentsAPI.dashboardStats();
       return res.data;
     },
-    refetchInterval: 30000,
+    refetchInterval: 15000,
   });
 
   if (isError) {

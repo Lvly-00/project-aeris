@@ -6,6 +6,7 @@ import { Incident } from '../../../shared/types/index';
 import { STATUS_COLORS, STATUS_BADGE_COLORS, STATUS_LABELS, SEVERITY_COLORS } from '../../../shared/utils/constants';
 import { formatRelativeTime } from '../../../shared/utils/helpers';
 import { incidentTypeColor } from '../incidents/incidentMeta';
+import { dismissReasonLabel } from '../incidents/dismissReasons';
 
 interface IncidentCardProps {
     incident: Incident;
@@ -119,6 +120,13 @@ export const IncidentCard = ({ incident, onClick }: IncidentCardProps) => {
                     <Text size="sm" c="dimmed">
                         {formatRelativeTime(incident.detected_at)}
                     </Text>
+
+                    {/* History keeps the reason a dismissed incident closed. */}
+                    {incident.status === 'Dismissed' && dismissReasonLabel(incident.dismiss_reason) && (
+                        <Text size="xs" c="dimmed" lineClamp={1}>
+                            Reason: {dismissReasonLabel(incident.dismiss_reason)}
+                        </Text>
+                    )}
 
                     {/* AI Confidence Section */}
                     <Box mt={rem(8)}>

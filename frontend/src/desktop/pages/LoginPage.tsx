@@ -90,16 +90,18 @@ export default function LoginPage() {
         return;
       }
 
-      // Barangay Tanod accounts use the mobile app — block them from desktop.
-      if (result?.user?.role === 'Barangay Tanod') {
+      // Only CCTV Chief accounts may use the desktop app.
+      // Operators and Tanods must use the mobile app.
+      if (result?.user?.role !== 'CCTV Chief') {
         clearTokens();
         setUser(null);
-        setError(AUTH_MESSAGES.DESKTOP_TANOD_BLOCKED);
+        setError(AUTH_MESSAGES.DESKTOP_OPERATOR_BLOCKED);
         setLoading(false);
         return;
       }
 
-      navigate('/desktop/cameras', { replace: true });
+      // No navigate() needed — setUser() inside login() flips isAuthenticated,
+      // and the router's login-route guard redirects automatically.
     } catch (err: any) {
       const mapped = mapLoginError(err);
       if (mapped.fieldError) {
@@ -174,7 +176,7 @@ export default function LoginPage() {
             <Stack gap="md">
               <TextInput
                 label="Email"
-                placeholder="you@barangay.local"
+                placeholder="you@gmail.com"
                 size="md"
                 radius="md"
                 withAsterisk={false}
@@ -266,18 +268,19 @@ export default function LoginPage() {
           await verify2FALogin(twoFAEmail, code, rememberMe);
         }}
         onVerified={() => {
-          if (user?.role === 'Barangay Tanod') {
+          if (user?.role !== 'CCTV Chief') {
             clearTokens();
             setUser(null);
             setTwoFAOpen(false);
-            setError(AUTH_MESSAGES.DESKTOP_TANOD_BLOCKED);
+            setError(AUTH_MESSAGES.DESKTOP_OPERATOR_BLOCKED);
             return;
           }
-          navigate('/desktop/cameras', { replace: true });
+          // verify2FALogin() already called setUser() — router handles redirect.
         }}
         title="Verify it's you"
         subtitle="You're verified. Continuing to your dashboard."
         verifyLabel="Continue to dashboard"
+        cancelLabel="Back to Log in"
         codeSentOnOpen
         resendable={false}
       />

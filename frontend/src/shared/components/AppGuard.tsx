@@ -14,7 +14,7 @@ export default function AppGuard({
 
     // Browser/phone trying to access Desktop
     if (target === 'desktop' && !electron) {
-        return <Navigate to="/pwa" replace />;
+        return <Navigate to="/login" replace />;
     }
 
     // Electron accidentally accessing PWA

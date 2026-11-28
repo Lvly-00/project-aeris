@@ -1,0 +1,157 @@
+"""
+Focused coverage for transactional-email delivery failures.
+
+Every endpoint that emails a verification code must report a failure when the
+provider refuses the message (``send_email`` returns ``False``) instead of
+answering as if the code had been delivered.
+"""
+import re
+from unittest.mock import patch
+
+from django.core.cache import cache
+from django.test import override_settings
+from rest_framework import status
+from rest_framework.test import APITestCase
+
+from apps.lookups.models import Role
+
+from .models import User
+
+SEND_EMAIL = "apps.accounts.views.send_email"
+PASSWORD = "Str0ng!Passw0rd"
+
+
+class EmailDeliveryFailureTests(APITestCase):
+    @classmethod
+    def setUpTestData(cls):
+        # A data migration already seeds the roles, so reuse the existing row.
+        role, _ = Role.objects.get_or_create(name="CCTV Chief")
+        cls.user = User.objects.create_user(
+            email="chief@example.com",
+            password=PASSWORD,
+            first_name="Test",
+            last_name="Chief",
+            role=role,
+            two_factor_enabled=True,
+        )
+
+    def setUp(self):
+        # Login and password reset share a 5/minute throttle bucket; a fresh
+        # bucket per test keeps the requests below from being rate limited.
+        cache.clear()
+
+    @patch(SEND_EMAIL, return_value=False)
+    def test_login_2fa_reports_delivery_failure(self, send_email):
+        response = self.client.post(
+            "/api/accounts/login/",
+            {"email": self.user.email, "password": PASSWORD},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertNotIn("requires_2fa", response.data)
+        self.assertIn("could not send", response.data["detail"].lower())
+        send_email.assert_called_once()
+
+    @patch(SEND_EMAIL, return_value=True)
+    def test_login_code_email_uses_the_branded_template(self, send_email):
+        self.client.post(
+            "/api/accounts/login/",
+            {"email": self.user.email, "password": PASSWORD},
+            format="json",
+        )
+
+        sent = send_email.call_args.kwargs
+        code = re.search(r"\b\d{6}\b", sent["text_content"]).group(0)
+        self.assertTrue(sent["subject"].startswith(code))
+        self.assertIn(code, sent["html_content"])
+        self.assertIn("Best regards", sent["text_content"])
+        self.assertIn("Barangay Sampaloc", sent["text_content"])
+
+    @override_settings(PUBLIC_APP_URL="https://app.example.test")
+    @patch(SEND_EMAIL, return_value=True)
+    def test_code_email_loads_the_mark_from_the_public_origin(self, send_email):
+        self.client.post(
+            "/api/accounts/login/",
+            {"email": self.user.email, "password": PASSWORD},
+            format="json",
+        )
+
+        html = send_email.call_args.kwargs["html_content"]
+        self.assertIn(
+            "https://app.example.test/icons/icon-192.png", html
+        )
+
+    @patch(SEND_EMAIL, return_value=False)
+    def test_password_reset_reports_delivery_failure(self, send_email):
+        response = self.client.post(
+            "/api/accounts/password-reset/",
+            {"email": self.user.email},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertIn("could not send", response.data["detail"].lower())
+        send_email.assert_called_once()
+
+    @patch(SEND_EMAIL, return_value=False)
+    def test_two_factor_setup_reports_delivery_failure(self, send_email):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post("/api/accounts/2fa/send/", {}, format="json")
+
+        self.assertEqual(
+            response.status_code, status.HTTP_500_INTERNAL_SERVER_ERROR
+        )
+        self.assertIn("could not send", response.data["detail"].lower())
+        send_email.assert_called_once()
+
+    @patch(SEND_EMAIL, return_value=False)
+    def test_email_change_initiate_reports_delivery_failure(self, send_email):
+        self.client.force_authenticate(self.user)
+
+        response = self.client.post(
+            "/api/accounts/email-change/initiate/", {}, format="json"
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_503_SERVICE_UNAVAILABLE)
+        self.assertIn("could not send", response.data["detail"].lower())
+        send_email.assert_called_once()
+
+
+class LoginAccountLookupTests(APITestCase):
+    """Login never reveals whether an email address is registered."""
+
+    @classmethod
+    def setUpTestData(cls):
+        role, _ = Role.objects.get_or_create(name="CCTV Chief")
+        cls.user = User.objects.create_user(
+            email="chief@example.com",
+            password=PASSWORD,
+            first_name="Test",
+            last_name="Chief",
+            role=role,
+        )
+
+    def setUp(self):
+        cache.clear()
+
+    def test_unknown_email_uses_the_combined_message(self):
+        response = self.client.post(
+            "/api/accounts/login/",
+            {"email": "nobody@example.com", "password": PASSWORD},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["detail"], "Invalid email or password.")
+
+    def test_wrong_password_keeps_the_combined_message(self):
+        response = self.client.post(
+            "/api/accounts/login/",
+            {"email": self.user.email, "password": "WrongPassw0rd!"},
+            format="json",
+        )
+
+        self.assertEqual(response.status_code, status.HTTP_401_UNAUTHORIZED)
+        self.assertEqual(response.data["detail"], "Invalid email or password.")

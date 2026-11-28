@@ -10,7 +10,7 @@ export const AUTH_MESSAGES = {
   MISSING_EMAIL: 'Email Address is required.',
   MISSING_PASSWORD: 'Password is required.',
   INVALID_EMAIL: 'Invalid email.',
-  INVALID_CREDENTIALS: 'Invalid password.',
+  INVALID_CREDENTIALS: 'Invalid email or password.',
   SERVICE_UNAVAILABLE: 'Unable to sign in right now. Please try again later.',
   SESSION_EXPIRED: 'Your session has expired. Please log in again.',
   RATE_LIMITED: 'Too many requests. Please wait a moment and try again.',
@@ -22,6 +22,8 @@ export const AUTH_MESSAGES = {
     'We could not send a reset code. Please check the email and try again.',
   DESKTOP_TANOD_BLOCKED:
     'Desktop access is for CCTV Chief and Operator accounts only. Please use the mobile app to sign in.',
+  DESKTOP_OPERATOR_BLOCKED:
+    'Desktop access is for CCTV Chief accounts only. Please use the mobile app to sign in.',
 } as const;
 
 export interface LoginFieldError {
@@ -98,31 +100,36 @@ export function mapLoginError(err: any): LoginErrorResult {
     if (typeof data.detail === 'string') return { bannerError: data.detail };
   }
 
-  // Bad credentials (or disabled account — detail passes through).
-  // FR-LG-008/NFR-LG-009 deliberately return ONE combined message; we show it
-  // below the password field since the wrong credential is never revealed.
-  if (status === 401 || status === 403) {
-    if (typeof data?.detail === 'string' && data.detail.includes('disabled')) {
-      return { bannerError: data.detail };
-    }
+  // Unknown email and wrong password are intentionally indistinguishable
+  // (the backend returns one generic 401). Never flag a specific field here.
+  if (status === 401) {
+    return { bannerError: AUTH_MESSAGES.INVALID_CREDENTIALS };
+  }
+
+  // 403 is reserved for explicit policy blocks (disabled account, desktop
+  // role restrictions) whose detail is safe to show.
+  if (status === 403) {
     return {
-      fieldError: {
-        field: 'password',
-        message: AUTH_MESSAGES.INVALID_CREDENTIALS,
-      },
+      bannerError:
+        typeof data?.detail === 'string' && data.detail.trim()
+          ? data.detail
+          : AUTH_MESSAGES.INVALID_CREDENTIALS,
     };
   }
 
-  // Backend unreachable / crashed
+  // Backend unreachable / crashed. A 5xx can also mean the backend accepted
+  // the credentials but could not complete a dependent step (e.g. the 2FA
+  // email could not be delivered), so prefer its own message when it sent one.
   if (!err.response || (status !== undefined && status >= 500)) {
-    return { bannerError: AUTH_MESSAGES.SERVICE_UNAVAILABLE };
+    const detail = data?.detail;
+    return {
+      bannerError:
+        typeof detail === 'string' && detail.trim()
+          ? detail
+          : AUTH_MESSAGES.SERVICE_UNAVAILABLE,
+    };
   }
 
   if (typeof data?.detail === 'string') return { bannerError: data.detail };
-  return {
-    fieldError: {
-      field: 'password',
-      message: AUTH_MESSAGES.INVALID_CREDENTIALS,
-    },
-  };
+  return { bannerError: AUTH_MESSAGES.INVALID_CREDENTIALS };
 }

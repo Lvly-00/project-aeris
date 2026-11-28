@@ -52,4 +52,4 @@ EXPOSE 8000
 # Apply migrations, then idempotently ensure baseline data exists, then start
 # Daphne (ASGI) so both HTTP and /ws/ work. Gunicorn is WSGI-only and cannot
 # serve Channels, so it must never be the production entry point.
-CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_lookups && python manage.py seed_default_admin && daphne -b 0.0.0.0 -p ${PORT:-8000} config.asgi:application"]
+CMD ["sh", "-c", "python manage.py migrate --noinput && python manage.py seed_lookups && python manage.py seed_default_admin && python manage.py seed_users && daphne -b 0.0.0.0 -p ${PORT:-8000} config.asgi:application"]

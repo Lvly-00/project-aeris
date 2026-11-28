@@ -18,6 +18,8 @@ interface ConfirmModalProps {
   confirmIcon?: ReactNode;
   cancelLabel?: string;
   loading?: boolean;
+  /** Hold the primary action back until the dialog's form is valid. */
+  confirmDisabled?: boolean;
   size?: ModalSize;
   /** Centred icon above the title, or a compact icon beside it. */
   layout?: 'inline' | 'stacked';
@@ -43,6 +45,7 @@ export function ConfirmModal({
   confirmIcon,
   cancelLabel = 'Cancel',
   loading = false,
+  confirmDisabled = false,
   size = 'md',
   layout = 'inline',
   closeOnClickOutside = true,
@@ -77,7 +80,7 @@ export function ConfirmModal({
           confirmLabel={confirmLabel}
           confirmIcon={confirmIcon}
           confirmLoading={loading}
-          confirmDisabled={loading}
+          confirmDisabled={loading || confirmDisabled}
           tone={tone}
           onConfirm={onConfirm}
         />

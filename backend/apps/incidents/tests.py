@@ -120,15 +120,17 @@ class IncidentGroupingTests(IncidentTestBase):
         self.assertEqual(Incident.objects.count(), 2)
         self.assertEqual(Notification.objects.count(), 2)
 
-    def test_repeat_detection_of_other_type_creates_separate_incident(self):
-        self.detect(self.camera, incident_type="Fire")
+    def test_repeat_detection_of_other_type_folds_into_open_incident(self):
+        first = self.detect(self.camera, incident_type="Fire")
         res = self.detect(self.camera, incident_type="Vehicle_Accident")
 
-        # Grouping is per incident type, not per camera: a different type
-        # opens its own incident and its own alert.
-        self.assertFalse(res.data["grouped"])
-        self.assertEqual(Incident.objects.count(), 2)
-        self.assertEqual(Notification.objects.count(), 2)
+        # A camera slot holds one open incident at a time regardless of type.
+        # A Vehicle_Accident detection while a Fire incident is open is grouped
+        # into the existing incident — no second alert fires.
+        self.assertTrue(res.data["grouped"])
+        self.assertEqual(res.data["id"], first.data["id"])
+        self.assertEqual(Incident.objects.count(), 1)
+        self.assertEqual(Notification.objects.count(), 1)
 
     # --- re-arming -------------------------------------------------------
 
@@ -138,7 +140,7 @@ class IncidentGroupingTests(IncidentTestBase):
 
         self.client.patch(
             STATUS_URL.format(id=incident_id),
-            {"status": "Dismissed"},
+            {"status": "Dismissed", "dismiss_reason": "false_positive"},
             format="json",
         )
 
@@ -267,14 +269,20 @@ class IncidentGroupingTests(IncidentTestBase):
 
     @patch("apps.incidents.views.create_incident_notification")
     @patch("apps.incidents.views.broadcast_incident")
-    def test_grouped_detection_broadcasts_nothing(self, mock_broadcast, mock_notify):
+    def test_grouped_detection_broadcasts_update(self, mock_broadcast, mock_notify):
         self.detect()
         mock_broadcast.reset_mock()
         mock_notify.reset_mock()
 
         self.detect()
 
-        mock_broadcast.assert_not_called()
+        # Grouped detections now broadcast an incident_update so the PWA
+        # reflects the rising detection count in real time instead of waiting
+        # for the next poll cycle.
+        mock_broadcast.assert_called_once()
+        call_args = mock_broadcast.call_args
+        self.assertEqual(call_args[0][0], "incident_update")
+        # Notification is NOT re-fired for grouped hits (only for new incidents).
         mock_notify.assert_not_called()
 
     # --- every detection hit is listed -----------------------------------
@@ -432,7 +440,7 @@ class IncidentGroupingTests(IncidentTestBase):
         first = self.detect(self.camera)
         self.client.patch(
             STATUS_URL.format(id=first.data["id"]),
-            {"status": "Dismissed"},
+            {"status": "Dismissed", "dismiss_reason": "false_positive"},
             format="json",
         )
         second = self.detect(self.camera)
@@ -443,7 +451,7 @@ class IncidentGroupingTests(IncidentTestBase):
 
     def test_by_camera_omits_closed_incidents(self):
         incident = self.detect(self.camera).data["id"]
-        self.client.patch(STATUS_URL.format(id=incident), {"status": "Dismissed"}, format="json")
+        self.client.patch(STATUS_URL.format(id=incident), {"status": "Dismissed", "dismiss_reason": "false_positive"}, format="json")
 
         res = self.client.get(BY_CAMERA_URL)
         self.assertEqual(res.data, [])
@@ -496,16 +504,21 @@ class IncidentGroupingTests(IncidentTestBase):
 
         res = self.client.get(BY_CAMERA_URL)
         row = res.data[0]
-        # Grouping is per incident type now, so the newest incident carries only
-        # its own type.
-        self.assertEqual(row["incident_types"], ["Vehicle_Accident"])
+        # All three detections are folded into one incident (one slot per camera).
+        # The incident_types list shows all distinct types seen on that incident.
+        self.assertEqual(len(res.data), 1)
+        self.assertIn("Fire", row["incident_types"])
+        self.assertIn("Smoke", row["incident_types"])
+        self.assertIn("Vehicle_Accident", row["incident_types"])
 
     def test_by_camera_never_exceeds_three_types(self):
         for incident_type in ("Fire", "Smoke", "Vehicle_Accident"):
             self.detect(self.camera, incident_type=incident_type)
 
         res = self.client.get(BY_CAMERA_URL)
-        self.assertEqual(len(res.data[0]["incident_types"]), 1)
+        # Still one camera row; all three types visible.
+        self.assertEqual(len(res.data), 1)
+        self.assertEqual(len(res.data[0]["incident_types"]), 3)
 
     def test_by_camera_falls_back_to_incident_type_with_no_detections(self):
         self.detect(source="simulation")
@@ -536,7 +549,7 @@ class IncidentGroupingTests(IncidentTestBase):
     def test_delete_by_camera_leaves_closed_incidents_untouched(self):
         closed = self.detect().data["id"]
         self.client.patch(
-            STATUS_URL.format(id=closed), {"status": "Dismissed"}, format="json"
+            STATUS_URL.format(id=closed), {"status": "Dismissed", "dismiss_reason": "false_positive"}, format="json"
         )
         self.detect(source="simulation")
 
@@ -586,7 +599,7 @@ class DashboardStatsTests(IncidentTestBase):
         self.detect(camera=self.other_camera, incident_type="Smoke", source="simulation")
         closed = self.detect(source="simulation").data["id"]
         self.client.patch(
-            STATUS_URL.format(id=closed), {"status": "Dismissed"}, format="json"
+            STATUS_URL.format(id=closed), {"status": "Dismissed", "dismiss_reason": "false_positive"}, format="json"
         )
 
         res = self.client.get(DASHBOARD_URL)
@@ -774,7 +787,7 @@ class CameraDeletionCascadeTests(IncidentTestBase):
         # Detections arrive via create-from-detection, which writes no timeline
         # row; a status transition does. Detected -> Dismissed is allowed.
         res = self.client.patch(
-            STATUS_URL.format(id=incident), {"status": "Dismissed"}, format="json"
+            STATUS_URL.format(id=incident), {"status": "Dismissed", "dismiss_reason": "false_positive"}, format="json"
         )
         self.assertEqual(res.status_code, 200)
 
@@ -931,3 +944,48 @@ class CameraBulkDeletionTests(IncidentTestBase):
 
         self.assertEqual(res.status_code, 404)
         self.assertEqual(Camera.objects.count(), 2)
+
+
+class DismissalReasonTests(IncidentTestBase):
+    """Dismissing an incident records why it was closed."""
+
+    def test_dismissal_requires_a_reason(self):
+        incident = self.detect().data["id"]
+
+        res = self.client.patch(
+            STATUS_URL.format(id=incident), {"status": "Dismissed"}, format="json"
+        )
+
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("dismiss_reason", res.data)
+
+    def test_dismissal_stores_reason_and_notes(self):
+        incident = self.detect().data["id"]
+
+        res = self.client.patch(
+            STATUS_URL.format(id=incident),
+            {
+                "status": "Dismissed",
+                "dismiss_reason": "camera_issue",
+                "dismiss_notes": "Lens is fogged",
+            },
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, 200)
+        row = Incident.objects.get(pk=incident)
+        self.assertEqual(row.dismiss_reason, "camera_issue")
+        self.assertEqual(row.dismiss_notes, "Lens is fogged")
+        self.assertEqual(res.data["dismiss_reason"], "camera_issue")
+
+    def test_other_reason_requires_a_description(self):
+        incident = self.detect().data["id"]
+
+        res = self.client.patch(
+            STATUS_URL.format(id=incident),
+            {"status": "Dismissed", "dismiss_reason": "other"},
+            format="json",
+        )
+
+        self.assertEqual(res.status_code, 400)
+        self.assertIn("dismiss_notes", res.data)

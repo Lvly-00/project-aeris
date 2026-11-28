@@ -1,7 +1,7 @@
 {
   "name": "aeris-cctv",
   "private": true,
-  "version": "1.0.1",
+  "version": "1.0.15",
   "description": "AERIS — AI-Powered Incident Detection System",
   "author": "AERIS Team",
   "type": "module",
@@ -45,7 +45,7 @@
     "@types/react-dom": "^18.3.5",
     "@vitejs/plugin-react": "^4.3.4",
     "concurrently": "^10.0.7",
-    "electron": "^43.1.0",
+    "electron": "^43.8.1",
     "electron-builder": "^26.18.0",
     "shadcn": "^4.23.0",
     "typescript": "~5.6.2",

@@ -118,7 +118,6 @@ def _auto_register_cameras():
     from .core.camera_manager import CameraManager
     manager = CameraManager()
 
-    import threading
     for cam in cameras:
         cam_id = cam.get("id")
         stream_url = cam.get("stream_url") or ""
@@ -137,18 +136,11 @@ def _auto_register_cameras():
 
         elif stream_type == "MP4":
             try:
-                # Register in uploaded-frame mode (FrameReader will wait for frames).
+                # register_camera starts the feeder that loops the file into the
+                # uploaded-frame reader; starting another one here would double
+                # every frame and every detection.
                 manager.register_camera(cam_id, stream_url, "MP4")
                 logger.info("Auto-registered MP4 camera %d (file=%s)", cam_id, stream_url)
-                # Spin up a feeder thread that loops the video file forever.
-                from .core.mp4_feeder import start_mp4_feeder
-                t = threading.Thread(
-                    target=start_mp4_feeder,
-                    args=(cam_id, stream_url, manager),
-                    name=f"mp4-feeder-{cam_id}",
-                    daemon=True,
-                )
-                t.start()
             except Exception as exc:
                 logger.warning("Failed to register MP4 camera %d: %s", cam_id, exc)
 
@@ -218,6 +210,25 @@ def create_app() -> FastAPI:
     @application.on_event("startup")
     def on_startup():
         logger.info("AI service starting up — initialising singletons")
+
+        # Fail-loud check: without a matching key the backend will reject
+        # every incident push with 403 and detections will never create
+        # incidents, while everything else (detection, streaming) still works.
+        # Log a highly-visible warning so the misconfiguration is easy to find.
+        if not AI_SERVICE_API_KEY:
+            logger.error(
+                "╔══════════════════════════════════════════════════════════╗\n"
+                "║  AI_SERVICE_API_KEY IS NOT SET                           ║\n"
+                "║  Incident pushes to the backend WILL be rejected (403).  ║\n"
+                "║  Set AI_SERVICE_API_KEY to the same value as the backend ║\n"
+                "║  environment variable with the same name.                ║\n"
+                "╚══════════════════════════════════════════════════════════╝"
+            )
+        else:
+            logger.info(
+                "AI_SERVICE_API_KEY is set (len=%d) — incident pushes are armed",
+                len(AI_SERVICE_API_KEY),
+            )
         # Importing the singletons here triggers their __init__ (model loading etc.)
         from .core.camera_manager import CameraManager
         from .core.model_registry import ModelRegistry

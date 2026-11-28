@@ -15,6 +15,8 @@ from rest_framework_simplejwt.authentication import JWTAuthentication
 from rest_framework_simplejwt.exceptions import TokenError
 from rest_framework_simplejwt.tokens import RefreshToken
 
+from config.auth_cookies import delete_refresh_cookie, get_refresh_token, set_refresh_cookie
+
 from apps.audit.models import AuditLog
 from apps.audit.services import write_audit
 from apps.incidents.views import broadcast_stats_changed
@@ -22,6 +24,7 @@ from apps.incidents.views import broadcast_stats_changed
 from .models import PasswordResetCode, EmailChangeCode, TwoFactorCode, TrustedDevice
 from .permissions import CanManageUsers
 from .email import send_email
+from .email_templates import render_code_email
 from .serializers import (
     UserSerializer,
     RegisterSerializer,
@@ -50,6 +53,12 @@ def _hash_code(code: str) -> str:
 
 def _generate_code() -> str:
     return f"{secrets.randbelow(1_000_000):06d}"
+
+
+def _remember_requested(request) -> bool:
+    """`remember` is a client hint, not part of the login serializers."""
+    data = request.data
+    return bool(data.get("remember")) if hasattr(data, "get") else False
 
 
 class LoginRateThrottle(AnonRateThrottle):
@@ -356,11 +365,18 @@ class UserViewSet(viewsets.ModelViewSet):
     def get_throttles(self):
         # Stricter per-client rate limit on authentication endpoints (FR-LG-009,
         # NFR-LG-007) — protects against brute force and credential stuffing.
-        if self.action == "verify_password":
-            # Admin verification has its own independent 5/min bucket.
+        if self.action in (
+            # Admin verification and every endpoint that checks a 6-digit code
+            # share one IP-keyed 5/min bucket: a wrong code is cheap to try, so
+            # guessing must cost the same as guessing a password.
+            "verify_password",
+            "two_factor_verify",
+            "email_change_verify",
+        ):
             return [VerifyPasswordRateThrottle()]
         if self.action in (
             "login",
+            "login_verify_2fa",
             "password_reset",
             "password_reset_verify",
             "password_reset_confirm",
@@ -382,7 +398,7 @@ class UserViewSet(viewsets.ModelViewSet):
         if not serializer.is_valid():
             return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
-        email = serializer.validated_data["email"].strip().lower()
+        email = serializer.validated_data["email"].strip()
         password = serializer.validated_data["password"]
 
         user = authenticate(request, email=email, password=password)
@@ -393,7 +409,9 @@ class UserViewSet(viewsets.ModelViewSet):
             # limit (5 requests/minute → HTTP 429 "time out").
             known_user = User.objects.filter(email__iexact=email).first()
             _audit_action(known_user, request, AuditLog.Action.LOGIN_FAILED, {"email": email})
-            # NFR-LG-009 — identical response whether the email or password is wrong
+            # Enumeration-safe response: an unknown email and a wrong password
+            # are indistinguishable to the caller. The failed attempt is still
+            # audited above with the submitted address for internal review.
             return Response(
                 {"detail": "Invalid email or password."},
                 status=status.HTTP_401_UNAUTHORIZED,
@@ -423,11 +441,9 @@ class UserViewSet(viewsets.ModelViewSet):
                     last_used_at=timezone.now()
                 )
                 _audit_action(user, request, AuditLog.Action.LOGIN, {"method": "trusted_device"})
-                return Response({
-                    "refresh": str(refresh),
-                    "access": str(refresh.access_token),
-                    "user": UserSerializer(user, context={"request": request}).data,
-                })
+                response = Response({"access": str(refresh.access_token)})
+                set_refresh_cookie(response, refresh, _remember_requested(request))
+                return response
 
             # New device — require 2FA.
             # Invalidate any outstanding 2FA codes.
@@ -445,33 +461,39 @@ class UserViewSet(viewsets.ModelViewSet):
                 logger.info("[DEV] 2FA login code for %s: %s", user.email, code)
 
             try:
-                html_body = (
-                    "<p>Hello,</p>"
-                    "<p>Use the verification code below to complete your login:</p>"
-                    f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
-                    f'margin:16px 0">{code}</p>'
-                    f"<p>This code expires in "
-                    f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
-                    "If you did not attempt to log in, you can safely "
-                    "ignore this email.</p>"
+                html_body, text_body = render_code_email(
+                    first_name=user.first_name,
+                    intro=(
+                        "Enter this code to continue logging in without a "
+                        "password:"
+                    ),
+                    code=code,
+                    expiry_minutes=self.TWO_FACTOR_CODE_TTL_SECONDS // 60,
+                    ignore_note=(
+                        "If you didn't attempt to log in, you can safely "
+                        "ignore this email."
+                    ),
                 )
-                text_body = (
-                    "Hello,\n\n"
-                    "Use the verification code below to complete your login:\n\n"
-                    f"{code}\n\n"
-                    f"This code expires in "
-                    f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
-                    "If you did not attempt to log in, you can safely "
-                    "ignore this email.\n"
-                )
-                send_email(
+                sent = send_email(
                     to_email=user.email,
-                    subject="Your AERIS login verification code",
+                    subject=f"{code} - Your AERIS login code",
                     html_content=html_body,
                     text_content=text_body,
                 )
             except Exception:
-                logger.warning("2FA login email failed for %s", user.email)
+                logger.exception("2FA login email failed for %s", user.email)
+                sent = False
+
+            if not sent:
+                return Response(
+                    {
+                        "detail": (
+                            "We could not send the verification code to your email. "
+                            "Please try again in a moment."
+                        )
+                    },
+                    status=status.HTTP_503_SERVICE_UNAVAILABLE,
+                )
 
             _audit_action(user, request, AuditLog.Action.TWO_FACTOR_ENABLED, {"phase": "login_code_sent"})
 
@@ -485,18 +507,18 @@ class UserViewSet(viewsets.ModelViewSet):
         refresh = RefreshToken.for_user(user)
         _audit_action(user, request, AuditLog.Action.LOGIN, {})
 
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": UserSerializer(user, context={"request": request}).data,
-        })
+        response = Response({"access": str(refresh.access_token)})
+        set_refresh_cookie(response, refresh, _remember_requested(request))
+        return response
 
     @action(detail=False, methods=["POST"], url_path="logout")
     def logout(self, request):
         # FR-LG-012 — invalidate the session: blacklist the refresh token so it
         # can never be exchanged for a new access token again. Remaining access
         # tokens expire naturally (30-minute lifetime).
-        refresh_token = (
+        # Prefer the HttpOnly cookie; accept the old JSON field for existing
+        # clients. A missing/invalid token must never break logout.
+        refresh_token = get_refresh_token(request) or (
             request.data.get("refresh") if isinstance(request.data, dict) else None
         )
         if refresh_token:
@@ -504,9 +526,13 @@ class UserViewSet(viewsets.ModelViewSet):
                 RefreshToken(refresh_token).blacklist()
             except TokenError:
                 pass  # token already expired/blacklisted — nothing to invalidate
+            except Exception:
+                logger.warning("Could not blacklist refresh token on logout")
 
         _audit_action(request.user, request, AuditLog.Action.LOGOUT, {})
-        return Response({"detail": "Logged out successfully"})
+        response = Response({"detail": "Logged out successfully"})
+        delete_refresh_cookie(response)
+        return response
 
     @action(
         detail=False,
@@ -533,23 +559,18 @@ class UserViewSet(viewsets.ModelViewSet):
             user = User.objects.filter(email__iexact=requested_for).first()
 
         if user is None:
-            # No registered account for this email — surface an error instead of
-            # silently sending a (non-existent) code (FR-LG-003).
+            # Enumeration-safe: always answer as if the reset was accepted.
+            # Record the reason internally for audit, but never disclose
+            # whether the address exists.
             _audit_action(
                 None,
                 request,
                 AuditLog.Action.PASSWORD_RESET_REQUESTED,
                 {"requested_for": requested_for, "reason": "account_not_found"},
             )
-            return Response(
-                {
-                    "detail": (
-                        "No account is registered with that email address. "
-                        "Please check the email or create an account first."
-                    )
-                },
-                status=status.HTTP_404_NOT_FOUND,
-            )
+            return Response({
+                "detail": "Password reset instructions have been sent to your email address."
+            })
 
         # Invalidate any outstanding codes before issuing a fresh one.
         user.password_reset_codes.filter(is_used=False).update(is_used=True)
@@ -566,33 +587,36 @@ class UserViewSet(viewsets.ModelViewSet):
         if settings.DEBUG:
             logger.info("[DEV] Password reset code for %s: %s", user.email, code)
         try:
-            html_body = (
-                "<p>Hello,</p>"
-                "<p>Use the verification code below to reset your AERIS password:</p>"
-                f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
-                f'margin:16px 0">{code}</p>'
-                f"<p>This code expires in "
-                f"{PASSWORD_RESET_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request a password reset, you can safely "
-                "ignore this email.</p>"
+            html_body, text_body = render_code_email(
+                first_name=user.first_name,
+                intro="Enter this code to reset your AERIS password:",
+                code=code,
+                expiry_minutes=PASSWORD_RESET_CODE_TTL_SECONDS // 60,
+                ignore_note=(
+                    "If you didn't request a password reset, you can safely "
+                    "ignore this email."
+                ),
             )
-            text_body = (
-                "Hello,\n\n"
-                "Use the verification code below to reset your AERIS password:\n\n"
-                f"{code}\n\n"
-                f"This code expires in "
-                f"{PASSWORD_RESET_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request a password reset, you can safely "
-                "ignore this email.\n"
-            )
-            send_email(
+            sent = send_email(
                 to_email=user.email,
-                subject="Your AERIS password reset code",
+                subject=f"{code} - Your AERIS password reset code",
                 html_content=html_body,
                 text_content=text_body,
             )
         except Exception:
-            logger.warning("Password reset email failed for %s", user.email)
+            logger.exception("Password reset email failed for %s", user.email)
+            sent = False
+
+        if not sent:
+            return Response(
+                {
+                    "detail": (
+                        "We could not send the password reset email. "
+                        "Please try again in a moment."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         _audit_action(user, request, AuditLog.Action.PASSWORD_RESET_REQUESTED, {"requested_for": requested_for})
 
@@ -828,11 +852,9 @@ class UserViewSet(viewsets.ModelViewSet):
         _audit_action(user, request, AuditLog.Action.LOGIN, {"method": "2fa"})
         _audit_action(user, request, AuditLog.Action.TWO_FACTOR_VERIFIED, {})
 
-        return Response({
-            "refresh": str(refresh),
-            "access": str(refresh.access_token),
-            "user": UserSerializer(user, context={"request": request}).data,
-        })
+        response = Response({"access": str(refresh.access_token)})
+        set_refresh_cookie(response, refresh, _remember_requested(request))
+        return response
 
     @action(detail=False, methods=["POST"], url_path="verify-password")
     def verify_password(self, request):
@@ -918,33 +940,36 @@ class UserViewSet(viewsets.ModelViewSet):
             logger.info("[DEV] Email change code for %s: %s", user.email, code)
 
         try:
-            html_body = (
-                "<p>Hello,</p>"
-                "<p>Use the verification code below to confirm your email address change:</p>"
-                f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
-                f'margin:16px 0">{code}</p>'
-                f"<p>This code expires in "
-                f"{self.EMAIL_CHANGE_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request this change, you can safely "
-                "ignore this email.</p>"
+            html_body, text_body = render_code_email(
+                first_name=user.first_name,
+                intro="Enter this code to confirm your AERIS email change:",
+                code=code,
+                expiry_minutes=self.EMAIL_CHANGE_CODE_TTL_SECONDS // 60,
+                ignore_note=(
+                    "If you didn't request this change, you can safely "
+                    "ignore this email."
+                ),
             )
-            text_body = (
-                "Hello,\n\n"
-                "Use the verification code below to confirm your email address change:\n\n"
-                f"{code}\n\n"
-                f"This code expires in "
-                f"{self.EMAIL_CHANGE_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request this change, you can safely "
-                "ignore this email.\n"
-            )
-            send_email(
+            sent = send_email(
                 to_email=user.email,
-                subject="Verify your AERIS email change",
+                subject=f"{code} - Verify your AERIS email change",
                 html_content=html_body,
                 text_content=text_body,
             )
         except Exception:
-            logger.warning("Email change verification email failed for %s", user.email)
+            logger.exception("Email change verification email failed for %s", user.email)
+            sent = False
+
+        if not sent:
+            return Response(
+                {
+                    "detail": (
+                        "We could not send the verification code to your email. "
+                        "Please try again in a moment."
+                    )
+                },
+                status=status.HTTP_503_SERVICE_UNAVAILABLE,
+            )
 
         _audit_action(
             user, request, AuditLog.Action.EMAIL_CHANGE_REQUESTED,
@@ -1123,33 +1148,30 @@ class UserViewSet(viewsets.ModelViewSet):
             logger.info("[DEV] 2FA code for %s: %s", user.email, code)
 
         try:
-            html_body = (
-                "<p>Hello,</p>"
-                "<p>Use the verification code below to verify your identity:</p>"
-                f'<p style="font-size:24px;font-weight:bold;letter-spacing:4px;'
-                f'margin:16px 0">{code}</p>'
-                f"<p>This code expires in "
-                f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request this, you can safely "
-                "ignore this email.</p>"
+            html_body, text_body = render_code_email(
+                first_name=user.first_name,
+                intro=(
+                    "Enter this code to finish turning on two-factor "
+                    "authentication:"
+                ),
+                code=code,
+                expiry_minutes=self.TWO_FACTOR_CODE_TTL_SECONDS // 60,
+                ignore_note=(
+                    "If you didn't request this, you can safely ignore this "
+                    "email."
+                ),
             )
-            text_body = (
-                "Hello,\n\n"
-                "Use the verification code below to verify your identity:\n\n"
-                f"{code}\n\n"
-                f"This code expires in "
-                f"{self.TWO_FACTOR_CODE_TTL_SECONDS // 60} minutes. "
-                "If you did not request this, you can safely "
-                "ignore this email.\n"
-            )
-            send_email(
+            sent = send_email(
                 to_email=user.email,
-                subject="Your AERIS verification code",
+                subject=f"{code} - Your AERIS verification code",
                 html_content=html_body,
                 text_content=text_body,
             )
         except Exception:
-            logger.warning("2FA verification email failed for %s", user.email)
+            logger.exception("2FA verification email failed for %s", user.email)
+            sent = False
+
+        if not sent:
             return Response(
                 {"detail": "We could not send the verification code. Please try again."},
                 status=status.HTTP_500_INTERNAL_SERVER_ERROR,

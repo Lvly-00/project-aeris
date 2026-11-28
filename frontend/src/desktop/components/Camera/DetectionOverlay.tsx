@@ -93,12 +93,16 @@ export function DetectionOverlay({
     const video = videoRef.current;
     const canvas = canvasRef.current;
     if (!canvas) return;
-    const isRtsp = streamType === 'RTSP';
+    // RTSP and MP4 both render through the canvas-based JPEG poller
+    // (RTSPCameraFeed) with no <video> element, so they share the same
+    // cache-read path: detectOnCamera() reads the server-side detection
+    // cache and getFrame() fetches the evidence image.
+    const isCachedFeed = streamType === 'RTSP' || streamType === 'MP4';
 
-    if (!isRtsp && (!video || video.readyState < 2)) return;
+    if (!isCachedFeed && (!video || video.readyState < 2)) return;
 
-    const w = isRtsp ? canvas.clientWidth : video!.videoWidth || video!.clientWidth;
-    const h = isRtsp ? canvas.clientHeight : video!.videoHeight || video!.clientHeight;
+    const w = isCachedFeed ? canvas.clientWidth : video!.videoWidth || video!.clientWidth;
+    const h = isCachedFeed ? canvas.clientHeight : video!.videoHeight || video!.clientHeight;
     if (w === 0 || h === 0) return;
     canvas.width = w;
     canvas.height = h;
@@ -106,7 +110,7 @@ export function DetectionOverlay({
     try {
       let allDetections: any[] = [];
 
-      if (isRtsp) {
+      if (isCachedFeed) {
         const res = await aiAPI.detectOnCamera(cameraId);
         allDetections = res.data || [];
         if (Array.isArray(allDetections) && allDetections.length > 0 && allDetections[0].detections) {
@@ -134,7 +138,7 @@ export function DetectionOverlay({
 
       let evidenceBlob: Blob | null = null;
 
-      if (isRtsp) {
+      if (isCachedFeed) {
         const frameRes = await aiAPI.getFrame(cameraId);
         const rawBlob = frameRes.data as Blob;
         const img = await createImageBitmap(rawBlob);
@@ -198,11 +202,19 @@ export function DetectionOverlay({
               cameraName: cameraName || `Camera #${cameraId}`,
             });
           }
-        } catch (err) {
+        } catch (err: any) {
           // Allow an immediate retry on the next poll instead of waiting out
           // the throttle window.
           lastReportedAt.current.delete(key);
-          console.warn('Failed to create incident from detection:', err);
+          // Log the full response so DevTools (F12) shows exactly why it failed
+          // (401 expired token, 403 wrong role/key, 400 bad data, 404 camera, etc.)
+          const status = err?.response?.status;
+          const detail = err?.response?.data?.detail || err?.response?.data?.error || err?.message;
+          console.error(
+            `[DetectionOverlay] createFromDetection failed — camera=${cameraId} type=${d.incident_type} ` +
+            `status=${status ?? 'network error'} detail=${JSON.stringify(detail)}`,
+            err?.response?.data ?? err,
+          );
         }
       }
     } catch {

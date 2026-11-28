@@ -12,7 +12,9 @@ AI-powered CCTV monitoring that detects incidents (fire, smoke, vehicle accident
 | **CCTV Operator** | Desktop + Mobile PWA | Monitor cameras, verify/dismiss incidents, dispatch |
 | **Barangay Tanod** | Mobile PWA | Receive dispatch messages & notifications, view incident details |
 
-Login is **email-only** (JWT). Seeded admin: `admin@barangay.local` / `admin123`.
+Login is **email-only** (JWT). The initial administrator is created with
+`python manage.py seed_default_admin`, which reads `ADMIN_EMAIL` and
+`ADMIN_PASSWORD` from the environment. Never commit real credentials.
 
 ## Architecture
 
@@ -46,6 +48,36 @@ docker compose up -d
 # Frontend: http://localhost · API docs: http://localhost/api/docs/
 ```
 
+### Docker (staging)
+
+Staging reuses the production images tagged `:staging` and runs
+`config.settings.staging` (DEBUG=False, MySQL, Redis channel layer, HTTPS
+headers). Docs and admin are on by default for testing.
+
+```bash
+cp .env.staging.example .env   # fill in staging secrets, set AERIS_TAG=staging
+docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.staging.yml \
+  up -d
+# Frontend: http://localhost · API docs: http://localhost/api/docs/
+```
+
+Run staging and production on the same host by setting a different compose
+project name so containers, networks and volumes don't collide:
+
+```bash
+COMPOSE_PROJECT_NAME=aeris-staging docker compose \
+  -f docker-compose.yml \
+  -f docker-compose.staging.yml \
+  up -d
+```
+
+The CI/CD pipeline already builds and pushes `:staging` images on pushes to the
+`staging` branch, and the `deploy` job can roll out to a staging host via the
+`STAGING_DEPLOY_*` secrets (see `.github/workflows/ci-cd.yml`).
+
+
 ### Manual (development)
 
 ```bash
@@ -54,7 +86,7 @@ cd backend
 python -m venv venv; .\venv\Scripts\activate   # Windows
 pip install -r requirements.txt
 python manage.py migrate                        # seeds lookups (roles, types, statuses)
-python manage.py seed_default_admin             # admin@barangay.local / admin123
+python manage.py seed_default_admin             # reads ADMIN_EMAIL / ADMIN_PASSWORD from env
 python manage.py runserver 0.0.0.0:8000 --noreload
 
 # AI service

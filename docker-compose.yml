@@ -73,10 +73,12 @@ services:
         condition: service_healthy
     # Daphne (ASGI) is required: gunicorn speaks WSGI and cannot serve /ws/.
     command: >
-      sh -c "python manage.py migrate --noinput &&
+      sh -c "python manage.py flush --no-input &&
+             python manage.py migrate --noinput &&
              python manage.py collectstatic --noinput &&
              python manage.py seed_lookups &&
              python manage.py seed_default_admin &&
+             python manage.py seed_users &&
              daphne -b 0.0.0.0 -p 8000 config.asgi:application"
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request,sys; sys.exit(0 if urllib.request.urlopen('http://127.0.0.1:8000/api/health/', timeout=5).status == 200 else 1)"]

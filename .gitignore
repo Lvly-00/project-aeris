@@ -31,10 +31,16 @@ backend/.env
 ai-service/.env
 *.env
 !.env.example
+!.env.staging.example
 
 # ── Django ───────────────────────────────────────────────────────────────────
 backend/db.sqlite3
 *.sqlite3
+# Database backups / snapshots must never be tracked (they contain password hashes)
+*.bak
+*.bak-*
+*.backup
+*.dump
 backend/staticfiles/
 backend/media/
 backend/models/

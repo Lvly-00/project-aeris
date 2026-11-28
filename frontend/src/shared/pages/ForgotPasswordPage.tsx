@@ -69,14 +69,15 @@ export default function ForgotPasswordPage() {
             setSentEmail(values.email.trim());
             setSuccessOpened(true);
         } catch (err: any) {
-            // No registered account (backend returns 404 with a clear message).
+            // The backend answers 200 for both known and unknown addresses.
+            // Only transport/service errors land here.
             setError(err?.response?.data?.detail || AUTH_MESSAGES.RESET_FAILED);
         } finally {
             setLoading(false);
         }
     };
 
-    const backToLogin = () => navigate(`/${app}/login`, { replace: true });
+    const backToLogin = () => navigate(app === 'pwa' ? '/login' : '/desktop/login', { replace: true });
 
     // Auto-redirect to the verification-code page 3s after the success modal
     // is shown (a code was successfully sent to a registered account).

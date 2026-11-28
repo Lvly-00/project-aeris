@@ -1,7 +1,7 @@
 import React from 'react';
 import {
   Modal, Stack, Group, TextInput, PasswordInput, Select, Button, Box,
-  LoadingOverlay, Title, ActionIcon, Text
+  Title, ActionIcon, Text
 } from '@mantine/core';
 import { useForm } from '@mantine/form';
 import { Envelope, Edit, Lock, ShieldAlt, User,  UserPlus, X } from '@boxicons/react';
@@ -14,15 +14,18 @@ const SUBMIT = '#FF5722';
 interface UserFormModalProps {
     opened: boolean;
     onClose: () => void;
-    onSubmit: (values: any) => Promise<void>;
+    /** Returns a field-error map when the server responds with field-level errors; void on success. */
+    onSubmit: (values: any) => Promise<Record<string, string> | void>;
     initialValues?: any;
     loading: boolean;
     isEdit?: boolean;
     isView?: boolean;
     onEdit?: () => void;
+    /** Field-level errors returned by the server (e.g. duplicate email). Displayed beside each input. */
+    serverFieldErrors?: Record<string, string>;
 }
 
-export function UserFormModal({ opened, onClose, onSubmit, initialValues, loading, isEdit, isView, onEdit }: UserFormModalProps) {
+export function UserFormModal({ opened, onClose, onSubmit, initialValues, loading, isEdit, isView, onEdit, serverFieldErrors = {} }: UserFormModalProps) {
     const form = useForm({
         initialValues: isView ? { ...(initialValues || {}), password: '', password2: '' } : initialValues || {
             first_name: '',
@@ -47,6 +50,22 @@ export function UserFormModal({ opened, onClose, onSubmit, initialValues, loadin
             else form.reset();
         }
     }, [opened, initialValues]);
+
+    // Merge server-side field errors into the form's error state
+    React.useEffect(() => {
+        if (!opened) return;
+        if (Object.keys(serverFieldErrors).length === 0) return;
+        form.setErrors(serverFieldErrors);
+    }, [serverFieldErrors, opened]);
+
+    const handleSubmit = async (values: any) => {
+        const result = await onSubmit(values);
+        // If the parent returned field errors, they are already applied via
+        // the useEffect above. Nothing further needed here.
+        if (result && typeof result === 'object') {
+            form.setErrors(result);
+        }
+    };
 
     return (
         <Modal
@@ -109,9 +128,8 @@ export function UserFormModal({ opened, onClose, onSubmit, initialValues, loadin
             </Group>
             <hr style={{ border: '0.5px solid #eee', marginBottom: '25px' }} />
 
-            <Box pos="relative">
-                <LoadingOverlay visible={loading} />
-                <form onSubmit={form.onSubmit(onSubmit)}>
+            <Box>
+                <form onSubmit={form.onSubmit(handleSubmit)}>
                     <Stack gap="lg">
                         <Group grow>
                             <TextInput

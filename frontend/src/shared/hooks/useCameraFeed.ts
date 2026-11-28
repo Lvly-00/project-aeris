@@ -1,9 +1,10 @@
-import { getAccessToken } from '../utils/tokenStorage';
 /**
  * useCameraFeed — manages stream URL state and retry logic for HTTP/MP4 feeds.
  * Extracted from CameraFeed so the state logic is testable independently.
  */
 import { useState, useRef, useEffect } from 'react';
+
+import { camerasAPI } from '../services/api';
 
 interface UseCameraFeedOptions {
   cameraId: number;
@@ -24,8 +25,13 @@ export function useCameraFeed({ cameraId, streamType }: UseCameraFeedOptions): U
   const [errorMsg, setErrorMsg] = useState('');
   const retryRef = useRef(0);
 
-  const buildStreamUrl = () => {
-    const token = getAccessToken();
+  /**
+   * A media element cannot send an Authorization header, so the URL carries a
+   * ticket that is scoped to this camera and expires in two minutes instead of
+   * the account's access token. A copied stream URL is therefore worthless
+   * beyond that camera and that window.
+   */
+  const buildStreamUrl = async (): Promise<string> => {
     // The stream lives on the Django backend. In the PWA/dev this is the same
     // origin behind the Vite/nginx proxy, but in the packaged desktop app the
     // SPA is served by the local AI service, so a relative /api path would hit
@@ -33,14 +39,30 @@ export function useCameraFeed({ cameraId, streamType }: UseCameraFeedOptions): U
     // the configured backend origin (same source as resolveMediaUrl).
     const base =
       (import.meta.env.VITE_BACKEND_URL as string | undefined) || 'http://localhost:8000';
-    return `${base.replace(/\/$/, '')}/api/cameras/${cameraId}/stream/?token=${encodeURIComponent(token || '')}`;
+
+    try {
+      const res = await camerasAPI.streamTicket(cameraId);
+      const ticket = res.data?.ticket;
+      if (!ticket) return '';
+      return `${base.replace(/\/$/, '')}/api/cameras/${cameraId}/stream/?ticket=${encodeURIComponent(ticket)}`;
+    } catch {
+      return '';
+    }
   };
 
   useEffect(() => {
-    setStreamUrl(buildStreamUrl());
+    let active = true;
     retryRef.current = 0;
     setHasError(false);
     setErrorMsg('');
+
+    buildStreamUrl().then((url) => {
+      if (active) setStreamUrl(url);
+    });
+
+    return () => {
+      active = false;
+    };
   }, [cameraId]);
 
   const handleError = async (e?: any) => {
@@ -62,7 +84,11 @@ export function useCameraFeed({ cameraId, streamType }: UseCameraFeedOptions): U
     }
     if (retryRef.current < 2) {
       retryRef.current += 1;
-      setTimeout(() => setStreamUrl(buildStreamUrl()), 1000 * retryRef.current);
+      const attempt = retryRef.current;
+      setTimeout(async () => {
+        const url = await buildStreamUrl();
+        setStreamUrl(url);
+      }, 1000 * attempt);
     } else {
       setHasError(true);
       setErrorMsg(details);
@@ -73,7 +99,7 @@ export function useCameraFeed({ cameraId, streamType }: UseCameraFeedOptions): U
     retryRef.current = 0;
     setHasError(false);
     setErrorMsg('');
-    setStreamUrl(buildStreamUrl());
+    buildStreamUrl().then(setStreamUrl);
   };
 
   return { streamUrl, hasError, errorMsg, handleError, retry };

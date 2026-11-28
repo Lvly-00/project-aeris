@@ -3,20 +3,35 @@ Incident Pusher - Bridges DetectionWorker results to the Django backend.
 
 Called from DetectionWorker after every detection batch. For each
 incident-worthy detection (Fire, Smoke, Vehicle_Accident) it fires a
-POST to /api/incidents/create-from-detection/ with source="ai" so that
-Django can create or update an Incident row and broadcast it over
-WebSocket to the PWA.
+multipart POST to /api/ai/incidents/create/ so that Django can create or
+update an Incident row and broadcast it over WebSocket to the PWA.
 
-A per-camera, per-type cooldown (PUSH_COOLDOWN_SECONDS) prevents the
-pusher from flooding Django while the same detection stays in frame.
-Django's create-from-detection view handles its own grouping/dedup on
-top of this, so the cooldown is just a "don't hammer the API" guard.
+That route is the public twin of /internal/incidents/create/: nginx refuses
+/internal/ from outside the Docker subnet, which is exactly what a desktop
+install is, so the sidecar authenticates with X-API-Key (AI_SERVICE_API_KEY)
+instead of X-Internal-Key.
+
+Deduplication strategy (two layers):
+  1. Per-camera, per-type open-incident tracking: once the backend confirms an
+     incident is open (grouped=true), the pusher suppresses further pushes for
+     that (camera, type) pair for OPEN_INCIDENT_RECHECK_SECONDS. This avoids
+     hammering the backend while an incident is actively being handled.
+  2. PUSH_COOLDOWN_SECONDS acts as a short gate for the first push and for
+     re-arm attempts after the longer suppression window expires. The backend's
+     own select_for_update dedup is the final safety net for race conditions.
+
+An incident slot is re-armed (pusher starts sending again) only after:
+  - The long suppression window expires AND the backend returns grouped=false
+    (meaning the previous incident was closed and a new one was created), OR
+  - The incident is explicitly dismissed/resolved on the backend (the slot
+    clears naturally once the suppression window expires and the next push
+    creates a fresh incident).
 """
 import logging
 import threading
 import time
 import cv2
-from typing import Dict, Tuple
+from typing import Dict, Set, Tuple
 
 import requests
 
@@ -28,8 +43,15 @@ logger = logging.getLogger(__name__)
 # Incident types that should be pushed to Django.
 INCIDENT_TYPES = {"Fire", "Smoke", "Vehicle_Accident"}
 
-# Minimum seconds between pushes for the same (camera, incident_type) pair.
-PUSH_COOLDOWN_SECONDS = 10.0
+# Short cooldown (seconds) between push attempts when no open incident exists.
+# This is the cadence for the *first* detection and for re-arm probes.
+PUSH_COOLDOWN_SECONDS = 15.0
+
+# How long to suppress pushes after the backend confirms an incident is already
+# open (grouped=true). The backend still handles the incident; we just stop
+# sending redundant frames until the suppression window expires, at which point
+# we probe once to see if the slot was cleared (dismissed/resolved).
+OPEN_INCIDENT_RECHECK_SECONDS = 60.0
 
 # Connection / read timeouts for the POST call (seconds).
 REQUEST_TIMEOUT = (5, 10)
@@ -42,31 +64,37 @@ class IncidentPusher:
     One shared instance is held by CameraManager and injected into every
     DetectionWorker. The underlying requests.Session is re-used across
     cameras so connections stay alive.
+
+    Deduplication:
+      • _open_incidents: set of (camera_id, incident_type) pairs that the
+        backend has confirmed are currently open. While a pair is in this set
+        the pusher applies a long suppression window (OPEN_INCIDENT_RECHECK_SECONDS)
+        instead of the short cooldown, so the backend isn't flooded for the
+        duration of an ongoing incident.
+      • When the backend returns grouped=false (new incident created), the pair
+        is removed from _open_incidents, signalling that the slot was re-armed.
     """
 
     def __init__(self):
         self._lock = threading.Lock()
         # Maps (camera_id, incident_type) -> last push timestamp
         self._last_push: Dict[Tuple[int, str], float] = {}
+        # (camera_id, incident_type) pairs the backend confirmed are still open.
+        self._open_incidents: Set[Tuple[int, str]] = set()
 
         self._session = requests.Session()
-        # Prefer INTERNAL_API_KEY so we get the same auth the camera
-        # auto-register flow uses; fall back to the public AI key.
-        key = INTERNAL_API_KEY or AI_SERVICE_API_KEY
+        # /internal/ is restricted to the Docker network, so a desktop install
+        # (whose AI service runs on the operator's PC) is refused there with
+        # 403. The public /api/ai/ endpoints accept the service key instead and
+        # still work inside Docker, so always use those.
+        key = AI_SERVICE_API_KEY or INTERNAL_API_KEY
         self._session.headers.update({
-            "X-Internal-Key": key,
+            "X-API-Key": key,
             "Accept": "application/json",
         })
-        # Base URL without trailing slash so we can append paths cleanly.
-        # The internal endpoint lives at /internal/ (no /api/ prefix).
-        base = BACKEND_API_URL.rstrip("/")
-        # Strip /api suffix if present to get the Django root, then point
-        # at the internal path.  e.g. http://localhost:8000/api → http://localhost:8000
-        if base.endswith("/api"):
-            django_root = base[:-4]
-        else:
-            django_root = base
-        self._incident_url = f"{django_root}/internal/incidents/create/"
+        # BACKEND_API_URL already includes the /api prefix, so paths append to it.
+        # e.g. https://host/api → https://host/api/ai/incidents/create/
+        self._incident_url = f"{BACKEND_API_URL.rstrip('/')}/ai/incidents/create/"
 
     # ------------------------------------------------------------------
     # Public API
@@ -76,7 +104,7 @@ class IncidentPusher:
         """
         Called from DetectionWorker after a frame is processed.
         Filters to incident-worthy types and pushes each one that
-        passes the cooldown gate.
+        passes the cooldown / open-incident gate.
         """
         for det in detections:
             if det.incident_type not in INCIDENT_TYPES:
@@ -90,12 +118,25 @@ class IncidentPusher:
     # ------------------------------------------------------------------
 
     def _should_push(self, camera_id: int, incident_type: str) -> bool:
-        """Return True if the cooldown has expired for this pair."""
+        """
+        Return True if this (camera, type) pair is eligible for a push.
+
+        Uses two cooldown tiers:
+          - OPEN_INCIDENT_RECHECK_SECONDS while the backend reports an open
+            incident for this pair (grouped=true), so we only probe
+            occasionally to detect when the incident was closed.
+          - PUSH_COOLDOWN_SECONDS otherwise, as a standard anti-flood guard.
+        """
         key = (camera_id, incident_type)
         with self._lock:
-            last = self._last_push.get(key, 0.0)
             now = time.time()
-            if now - last < PUSH_COOLDOWN_SECONDS:
+            last = self._last_push.get(key, 0.0)
+            cooldown = (
+                OPEN_INCIDENT_RECHECK_SECONDS
+                if key in self._open_incidents
+                else PUSH_COOLDOWN_SECONDS
+            )
+            if now - last < cooldown:
                 return False
             # Mark as "about to push" while still holding the lock
             # so concurrent workers don't double-push.
@@ -103,7 +144,7 @@ class IncidentPusher:
             return True
 
     def _do_push(self, det: Detection) -> None:
-        """POST a single detection to Django's internal incident-create endpoint."""
+        """POST a single detection to Django's incident-create endpoint."""
         url = self._incident_url
 
         # Build multipart form data: small JPEG snapshot if a frame is available.
@@ -142,18 +183,37 @@ class IncidentPusher:
                 body = resp.json()
                 grouped = body.get("grouped", False)
                 incident_id = body.get("id")
-                logger.info(
-                    "Camera %d: pushed %s (conf=%.2f) → incident #%s (%s)",
-                    det.camera_id,
-                    det.incident_type,
-                    det.confidence,
-                    incident_id,
-                    "grouped" if grouped else "new",
-                )
-            elif resp.status_code == 401:
+                key = (det.camera_id, det.incident_type)
+
+                if grouped:
+                    # Backend folded this into an existing open incident.
+                    # Mark the slot as occupied so we apply the longer
+                    # suppression window until the incident is closed.
+                    with self._lock:
+                        self._open_incidents.add(key)
+                    logger.info(
+                        "Camera %d: %s grouped into open incident #%s — "
+                        "suppressing pushes for %ds",
+                        det.camera_id, det.incident_type, incident_id,
+                        OPEN_INCIDENT_RECHECK_SECONDS,
+                    )
+                else:
+                    # Backend created a new incident — the previous slot was
+                    # closed (dismissed/resolved) or this is the first detection.
+                    # Remove from open set so the short cooldown applies next.
+                    with self._lock:
+                        self._open_incidents.discard(key)
+                    logger.info(
+                        "Camera %d: new incident #%s created for %s (conf=%.2f)",
+                        det.camera_id, incident_id,
+                        det.incident_type, det.confidence,
+                    )
+
+            elif resp.status_code in (401, 403):
                 logger.warning(
-                    "Camera %d: incident push returned 401 — check INTERNAL_API_KEY",
-                    det.camera_id,
+                    "Camera %d: incident push returned %d — the backend rejected the "
+                    "service key; AI_SERVICE_API_KEY must match on both sides",
+                    det.camera_id, resp.status_code,
                 )
             else:
                 logger.warning(

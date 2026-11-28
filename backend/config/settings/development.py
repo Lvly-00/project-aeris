@@ -64,3 +64,7 @@ DEFAULT_FROM_EMAIL = config("DEFAULT_FROM_EMAIL", default="Aeris <lovelypintes@g
 
 # ── Throttling — relax for local dev ─────────────────────────────────────────
 REST_FRAMEWORK["DEFAULT_THROTTLE_CLASSES"] = []  # noqa: F405
+
+# Docs and admin are developer conveniences locally; production leaves them off.
+EXPOSE_API_DOCS = True
+EXPOSE_DJANGO_ADMIN = True

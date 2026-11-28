@@ -76,12 +76,37 @@ export default function LoginPage() {
         };
     }, []);
 
+    // Detect iOS Safari — it never fires beforeinstallprompt
+    const isIos = typeof window !== 'undefined' &&
+        /iphone|ipad|ipod/i.test(navigator.userAgent) &&
+        !(window as any).MSStream;
+    const isInStandaloneMode = typeof window !== 'undefined' &&
+        window.matchMedia('(display-mode: standalone)').matches;
+
+    // On iOS, auto-show the install guide unless the user dismissed it before
+    // or they've already installed (running in standalone mode).
+    const [showIosDrawer, setShowIosDrawer] = useState(() => {
+        if (typeof window === 'undefined') return false;
+        if (window.matchMedia('(display-mode: standalone)').matches) return false;
+        if (!/iphone|ipad|ipod/i.test(navigator.userAgent)) return false;
+        return localStorage.getItem('aeris-ios-prompt-dismissed') !== '1';
+    });
+
+    const dismissIosDrawer = () => {
+        localStorage.setItem('aeris-ios-prompt-dismissed', '1');
+        setShowIosDrawer(false);
+    };
+
     const handleDownloadApp = async () => {
         if (installPrompt) {
             installPrompt.prompt();
             const choice = await installPrompt.userChoice;
             if (choice?.outcome === 'accepted') setInstalled(true);
             setInstallPrompt(null);
+        } else if (isIos && !isInStandaloneMode) {
+            // Show the iOS drawer if dismissed earlier
+            localStorage.removeItem('aeris-ios-prompt-dismissed');
+            setShowIosDrawer(true);
         } else {
             setShowHint(true);
         }
@@ -119,9 +144,8 @@ export default function LoginPage() {
                 return;
             }
 
-            navigate('/pwa', {
-                replace: true,
-            });
+            // No navigate() needed — setUser() inside login() flips
+            // isAuthenticated and the router redirects automatically.
         } catch (err: any) {
             const mapped = mapLoginError(err);
             if (mapped.fieldError) {
@@ -154,9 +178,9 @@ export default function LoginPage() {
     return (
         <Box
             style={{
-                height: '100dvh', // Use Dynamic Viewport Height to prevent mobile scroll
+                height: '100dvh',
                 width: '100%',
-                overflow: 'hidden', // Disable scrolling
+                overflow: 'hidden',
                 display: 'flex',
                 flexDirection: 'column',
                 backgroundColor: 'var(--mantine-color-body)',
@@ -364,11 +388,13 @@ export default function LoginPage() {
                                         </UnstyledButton>
                                     )}
 
-                                    {showHint && !installed && (
+                                    {showHint && !installed && !isIos && (
                                         <Text fz={11} c="dimmed" ta="center">
-                                            Open your browser menu and choose{' '}
-                                            <b>&quot;Add to Home Screen&quot;</b> /{' '}
-                                            <b>&quot;Install app&quot;</b> to install AERIS.
+                                            Open your browser menu and tap{' '}
+                                            <Text span fw={700}>"Add to Home Screen"</Text>
+                                            {' '}or{' '}
+                                            <Text span fw={700}>"Install app"</Text>
+                                            {' '}to install AERIS.
                                         </Text>
                                     )}
                                 </Stack>
@@ -393,13 +419,204 @@ export default function LoginPage() {
                 onVerify={async (code) => {
                     await verify2FALogin(twoFAEmail, code, rememberMe);
                 }}
-                onVerified={() => navigate('/pwa', { replace: true })}
+            onVerified={() => { /* verify2FALogin() already called setUser() — router handles redirect. */ }}
                 title="Verify it's you"
                 subtitle="You're verified. Opening your dashboard."
                 verifyLabel="Continue to dashboard"
+                cancelLabel="Back to Log in"
                 codeSentOnOpen
                 resendable={false}
             />
+
+            {/* ── iOS "Add to Home Screen" bottom drawer ───────────────────── */}
+            {showIosDrawer && (
+                <Box
+                    style={{
+                        position: 'fixed',
+                        inset: 0,
+                        zIndex: 9999,
+                        display: 'flex',
+                        flexDirection: 'column',
+                        justifyContent: 'flex-end',
+                    }}
+                >
+                    {/* Dimmed backdrop — tap to dismiss */}
+                    <Box
+                        onClick={dismissIosDrawer}
+                        style={{
+                            position: 'absolute',
+                            inset: 0,
+                            backgroundColor: 'rgba(0,0,0,0.45)',
+                        }}
+                    />
+
+                    {/* Drawer panel */}
+                    <Box
+                        style={{
+                            position: 'relative',
+                            backgroundColor: 'var(--mantine-color-body)',
+                            borderRadius: '20px 20px 0 0',
+                            padding: `${rem(24)} ${rem(20)} calc(${rem(28)} + env(safe-area-inset-bottom))`,
+                            boxShadow: '0 -4px 32px rgba(0,0,0,0.18)',
+                        }}
+                    >
+                        {/* Drag handle */}
+                        <Box
+                            style={{
+                                width: rem(40),
+                                height: rem(4),
+                                borderRadius: rem(2),
+                                backgroundColor: 'var(--mantine-color-gray-4)',
+                                margin: `0 auto ${rem(20)}`,
+                            }}
+                        />
+
+                        {/* Header */}
+                        <Stack gap="xs" align="center" mb="md">
+                            <Box
+                                style={{
+                                    width: rem(56),
+                                    height: rem(56),
+                                    borderRadius: rem(14),
+                                    overflow: 'hidden',
+                                    boxShadow: '0 2px 8px rgba(0,0,0,0.15)',
+                                }}
+                            >
+                                <img src="/icons/icon-180.png" alt="AERIS" width={56} height={56} style={{ display: 'block' }} />
+                            </Box>
+                            <Text fw={700} fz={18} ta="center">Install AERIS</Text>
+                            <Text fz={13} c="dimmed" ta="center" lh={1.4}>
+                                Add to your Home Screen for quick access — works offline too.
+                            </Text>
+                        </Stack>
+
+                        {/* Steps */}
+                        <Stack gap="sm" mb="lg">
+                            {/* Step 1 */}
+                            <Box
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: rem(12),
+                                    padding: `${rem(12)} ${rem(14)}`,
+                                    backgroundColor: 'var(--mantine-color-orange-light)',
+                                    borderRadius: rem(12),
+                                }}
+                            >
+                                <Box
+                                    style={{
+                                        minWidth: rem(28),
+                                        height: rem(28),
+                                        borderRadius: '50%',
+                                        backgroundColor: PRIMARY_ORANGE,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#fff',
+                                        fontWeight: 700,
+                                        fontSize: rem(13),
+                                    }}
+                                >
+                                    1
+                                </Box>
+                                <Stack gap={2}>
+                                    <Text fz={13} fw={600}>Tap the Share button</Text>
+                                    <Text fz={12} c="dimmed" lh={1.4}>
+                                        Tap{' '}
+                                        <Text span fw={700} c={PRIMARY_ORANGE}>
+                                            {/* iOS share icon in Unicode */}
+                                            ⎙ Share
+                                        </Text>
+                                        {' '}at the bottom of your Safari screen
+                                    </Text>
+                                </Stack>
+                            </Box>
+
+                            {/* Step 2 */}
+                            <Box
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: rem(12),
+                                    padding: `${rem(12)} ${rem(14)}`,
+                                    backgroundColor: 'var(--mantine-color-orange-light)',
+                                    borderRadius: rem(12),
+                                }}
+                            >
+                                <Box
+                                    style={{
+                                        minWidth: rem(28),
+                                        height: rem(28),
+                                        borderRadius: '50%',
+                                        backgroundColor: PRIMARY_ORANGE,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#fff',
+                                        fontWeight: 700,
+                                        fontSize: rem(13),
+                                    }}
+                                >
+                                    2
+                                </Box>
+                                <Stack gap={2}>
+                                    <Text fz={13} fw={600}>Tap "Add to Home Screen"</Text>
+                                    <Text fz={12} c="dimmed" lh={1.4}>
+                                        Scroll down in the share menu and tap{' '}
+                                        <Text span fw={700} c={PRIMARY_ORANGE}>"Add to Home Screen"</Text>
+                                    </Text>
+                                </Stack>
+                            </Box>
+
+                            {/* Step 3 */}
+                            <Box
+                                style={{
+                                    display: 'flex',
+                                    alignItems: 'flex-start',
+                                    gap: rem(12),
+                                    padding: `${rem(12)} ${rem(14)}`,
+                                    backgroundColor: 'var(--mantine-color-orange-light)',
+                                    borderRadius: rem(12),
+                                }}
+                            >
+                                <Box
+                                    style={{
+                                        minWidth: rem(28),
+                                        height: rem(28),
+                                        borderRadius: '50%',
+                                        backgroundColor: PRIMARY_ORANGE,
+                                        display: 'flex',
+                                        alignItems: 'center',
+                                        justifyContent: 'center',
+                                        color: '#fff',
+                                        fontWeight: 700,
+                                        fontSize: rem(13),
+                                    }}
+                                >
+                                    3
+                                </Box>
+                                <Stack gap={2}>
+                                    <Text fz={13} fw={600}>Tap "Add"</Text>
+                                    <Text fz={12} c="dimmed" lh={1.4}>
+                                        AERIS will appear on your Home Screen like a native app
+                                    </Text>
+                                </Stack>
+                            </Box>
+                        </Stack>
+
+                        {/* Dismiss button */}
+                        <Button
+                            fullWidth
+                            variant="default"
+                            radius="md"
+                            size="md"
+                            onClick={dismissIosDrawer}
+                        >
+                            Maybe later
+                        </Button>
+                    </Box>
+                </Box>
+            )}
         </Box>
     );
 }

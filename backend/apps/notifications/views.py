@@ -1,13 +1,188 @@
+import json
 import logging
 import django.db.models as models
+from django.conf import settings
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.response import Response
 from rest_framework.permissions import IsAuthenticated
-from .models import Notification
+from rest_framework.views import APIView
+
+from .models import Notification, PushSubscription
 from .serializers import NotificationSerializer, NotificationMarkReadSerializer
 
 logger = logging.getLogger(__name__)
+
+
+# ── Web Push helpers ──────────────────────────────────────────────────────────
+
+def _load_vapid_private_key() -> str:
+    """Return the VAPID private key PEM string with actual newlines."""
+    raw = getattr(settings, "VAPID_PRIVATE_KEY", "")
+    # Support both literal \n (from .env files) and real newlines
+    return raw.replace("\\n", "\n")
+
+
+def send_push_notification(subscription: "PushSubscription", payload: dict) -> bool:
+    """
+    Send a single Web Push notification to one subscription.
+
+    Returns True on success, False on failure.
+    On a 410 Gone response the subscription is deleted automatically
+    (the user revoked permission or the browser recycled the endpoint).
+    """
+    private_key_pem = _load_vapid_private_key()
+    public_key = getattr(settings, "VAPID_PUBLIC_KEY", "")
+    claims_sub = getattr(settings, "VAPID_CLAIMS_SUB", "mailto:admin@example.com")
+
+    if not private_key_pem or not public_key:
+        logger.warning("[PUSH] VAPID keys not configured — skipping push")
+        return False
+
+    try:
+        from pywebpush import webpush, WebPushException
+
+        webpush(
+            subscription_info={
+                "endpoint": subscription.endpoint,
+                "keys": {
+                    "p256dh": subscription.p256dh,
+                    "auth": subscription.auth,
+                },
+            },
+            data=json.dumps(payload),
+            vapid_private_key=private_key_pem,
+            vapid_claims={
+                "sub": claims_sub,
+            },
+        )
+        return True
+
+    except Exception as exc:
+        # 410 Gone — subscription is no longer valid; remove it.
+        gone = False
+        try:
+            from pywebpush import WebPushException
+            if isinstance(exc, WebPushException) and exc.response is not None:
+                gone = exc.response.status_code in (404, 410)
+        except Exception:
+            pass
+
+        if gone:
+            logger.info(
+                "[PUSH] Subscription %s gone (410) — deleting", subscription.endpoint[:60]
+            )
+            subscription.delete()
+        else:
+            logger.warning("[PUSH] Push failed for %s: %s", subscription.endpoint[:60], exc)
+        return False
+
+
+def push_to_user(user, payload: dict) -> int:
+    """
+    Deliver a push notification to every active subscription for `user`.
+    Returns the number of successful deliveries.
+    """
+    subs = PushSubscription.objects.filter(user=user)
+    if not subs.exists():
+        return 0
+
+    delivered = 0
+    for sub in subs:
+        if send_push_notification(sub, payload):
+            delivered += 1
+    return delivered
+
+
+# ── REST views ────────────────────────────────────────────────────────────────
+
+class VapidPublicKeyView(APIView):
+    """
+    GET /api/notifications/vapid-public-key/
+    Returns the VAPID public key so the frontend can subscribe.
+    No auth required — the key is public by design.
+    """
+    permission_classes = []
+
+    def get(self, request):
+        return Response({"vapid_public_key": getattr(settings, "VAPID_PUBLIC_KEY", "")})
+
+
+class TestPushView(APIView):
+    """
+    POST /api/notifications/test-push/
+    Sends a test push notification to all subscriptions for the authenticated
+    user. Used for debugging — remove or restrict in production.
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        from .models import PushSubscription
+        subs = PushSubscription.objects.filter(user=request.user)
+        if not subs.exists():
+            return Response(
+                {"error": "No push subscriptions found for your account. Enable notifications from your profile first."},
+                status=404,
+            )
+        delivered = 0
+        for sub in subs:
+            ok = send_push_notification(sub, {
+                "title": "AERIS Test Push",
+                "message": "Push notifications are working correctly!",
+                "priority": "High",
+                "url": "/pwa",
+            })
+            if ok:
+                delivered += 1
+        return Response({
+            "subscriptions_found": subs.count(),
+            "delivered": delivered,
+        })
+
+
+class PushSubscriptionView(APIView):
+    """
+    POST   /api/notifications/push-subscription/   — save a subscription
+    DELETE /api/notifications/push-subscription/   — remove a subscription
+    """
+    permission_classes = [IsAuthenticated]
+
+    def post(self, request):
+        endpoint = request.data.get("endpoint")
+        p256dh = request.data.get("p256dh")
+        auth = request.data.get("auth")
+
+        if not endpoint or not p256dh or not auth:
+            return Response({"error": "endpoint, p256dh and auth are required"}, status=400)
+
+        sub, created = PushSubscription.objects.update_or_create(
+            endpoint=endpoint,
+            defaults={
+                "user": request.user,
+                "p256dh": p256dh,
+                "auth": auth,
+            },
+        )
+        status_code = 201 if created else 200
+        logger.info(
+            "[PUSH] Subscription %s for user %s",
+            "created" if created else "updated",
+            request.user.email,
+        )
+        return Response({"status": "ok"}, status=status_code)
+
+    def delete(self, request):
+        endpoint = request.data.get("endpoint")
+        if not endpoint:
+            return Response({"error": "endpoint is required"}, status=400)
+
+        deleted, _ = PushSubscription.objects.filter(
+            user=request.user, endpoint=endpoint
+        ).delete()
+        logger.info(
+            "[PUSH] Deleted %d subscription(s) for user %s", deleted, request.user.email
+        )
+        return Response({"deleted": deleted})
 
 
 class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
@@ -20,8 +195,7 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
             "incident", "incident__camera", "incident__incident_type"
         ).all()
         user = self.request.user
-        # Strictly role-scoped: users only see notifications addressed to
-        # them. Admin/operator and tanod notifications never overlap.
+        # Strictly role-scoped: users only see notifications addressed to them.
         qs = qs.filter(models.Q(recipient=user))
         is_read = self.request.query_params.get("is_read")
         if is_read is not None:
@@ -61,5 +235,3 @@ class NotificationViewSet(viewsets.ReadOnlyModelViewSet):
         notification.is_read = True
         notification.save()
         return Response(NotificationSerializer(notification).data)
-
-

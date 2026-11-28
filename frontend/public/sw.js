@@ -1,4 +1,4 @@
-/* AERIS service worker — PWA installability + offline shell.
+/* AERIS service worker — PWA installability + offline shell + Web Push.
  *
  * Strategy:
  *   - SPA navigations: network-first, fall back to the cached copy of the
@@ -8,17 +8,38 @@
  *     cross-origin request always go straight to the network.
  *   - Every respondWith() is guaranteed to resolve to a Response so a
  *     missed cache never rejects the FetchEvent ("network error response").
+ *   - Push notifications: show a system notification even when every tab
+ *     is closed. Tapping opens the relevant incident detail page.
  */
 
-const CACHE_NAME = 'aeris-static-v1';
+// Bump this whenever the API origin or app shell changes. Old caches are
+// deleted in activate(), so clients stop serving stale bundles/HTML that may
+// still point at a retired backend.
+const CACHE_NAME = 'aeris-static-v4';
 
 const APP_SHELL = [
   '/',
   '/pwa',
   '/manifest.webmanifest',
   '/index.html',
+  '/offline.html',
+  '/icons/icon-120.png',
+  '/icons/icon-152.png',
+  '/icons/icon-167.png',
+  '/icons/icon-180.png',
   '/icons/icon-192.png',
   '/icons/icon-512.png',
+  '/splash/splash-1170x2532.png',
+  '/splash/splash-1179x2556.png',
+  '/splash/splash-1284x2778.png',
+  '/splash/splash-1290x2796.png',
+  '/splash/splash-828x1792.png',
+  '/splash/splash-750x1334.png',
+  '/splash/splash-640x1136.png',
+  '/splash/splash-2048x2732.png',
+  '/splash/splash-1668x2388.png',
+  '/splash/splash-1668x2224.png',
+  '/splash/splash-1536x2048.png',
 ];
 
 const BYPASS_PREFIXES = ['/api/', '/ws/', '/ai/', '/media/', '/admin/'];
@@ -51,16 +72,78 @@ self.addEventListener('activate', (event) => {
 
 async function offlineResponse() {
   const cache = await caches.open(CACHE_NAME);
+  // Try to serve the full React app shell first (best case — React mounts
+  // and the OfflineOverlay component takes over).  Fall back to the
+  // standalone offline.html which provides the same visual offline screen
+  // without needing React, for the rare case where index.html was never
+  // cached (e.g. very first install with no prior network visit).
   return (
     (await cache.match('/index.html')) ||
     (await cache.match('/')) ||
-    new Response('Offline', {
-      status: 503,
-      statusText: 'Offline',
-      headers: { 'Content-Type': 'text/plain; charset=utf-8' },
-    })
+    (await cache.match('/offline.html')) ||
+    new Response(
+      '<!DOCTYPE html><html><body style="font-family:sans-serif;display:flex;align-items:center;justify-content:center;height:100vh;margin:0"><p>You are currently offline.</p></body></html>',
+      { status: 503, headers: { 'Content-Type': 'text/html; charset=utf-8' } }
+    )
   );
 }
+
+// ── Web Push ──────────────────────────────────────────────────────────────────
+// Receives background push payloads from the backend (pywebpush / VAPID).
+// Fires even when every tab is closed.
+self.addEventListener('push', (event) => {
+  let data = {};
+  try {
+    data = event.data ? event.data.json() : {};
+  } catch {
+    /* non-JSON payload — treat as empty */
+  }
+
+  const title = data.title || 'AERIS Alert';
+  const options = {
+    body: data.message || '',
+    icon: '/icons/icon-192.png',
+    badge: '/icons/icon-192.png',
+    // Use a stable tag per notification so duplicate pushes collapse on
+    // the device instead of stacking, then re-notify so the alert fires.
+    tag: data.notification_id ? `notif-${data.notification_id}` : 'aeris-notif',
+    renotify: true,
+    data: {
+      incident_id: data.incident_id ?? null,
+      notification_id: data.notification_id ?? null,
+      // Deep-link URL is computed by the backend based on the recipient's role.
+      // Falls back to /pwa if the payload doesn't include one.
+      url: data.url || (data.incident_id ? `/pwa/admin/incidents/${data.incident_id}` : '/pwa'),
+    },
+  };
+
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
+// Tapping the notification opens (or focuses) the incident detail page.
+self.addEventListener('notificationclick', (event) => {
+  event.notification.close();
+
+  const targetUrl = event.notification.data?.url || '/pwa';
+
+  event.waitUntil(
+    self.clients
+      .matchAll({ type: 'window', includeUncontrolled: true })
+      .then((clientList) => {
+        // Reuse an existing tab if one already has the app open.
+        for (const client of clientList) {
+          if ('focus' in client) {
+            client.navigate(targetUrl);
+            return client.focus();
+          }
+        }
+        // No existing tab — open a new one.
+        if (self.clients.openWindow) {
+          return self.clients.openWindow(targetUrl);
+        }
+      })
+  );
+});
 
 self.addEventListener('fetch', (event) => {
   const request = event.request;

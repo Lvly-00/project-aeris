@@ -6,7 +6,7 @@
     The desktop app is a BUNDLE: it loads the local ai-service origin
     (http://localhost:8005), which serves BOTH the built SPA and /ai/*.
     The API and WebSocket point at the deployed backend
-    (https://project-aeris.onrender.com).
+    (https://project-aeris-09w4.onrender.com).
 
     This script:
       1. Bakes electron/server-url.json        -> { url, backendUrl }
@@ -19,7 +19,7 @@
 
 .PARAMETER BackendUrl
     The deployed backend origin for /api + WebSocket/media. Default
-    https://project-aeris.onrender.com.
+    https://project-aeris-09w4.onrender.com.
 
 .PARAMETER IncludeAi
     Also build the AI service into a self-contained PyInstaller sidecar and
@@ -42,6 +42,8 @@ param(
     [string]$ServerUrl = "",
     [string]$BackendUrl = "",
     [switch]$IncludeAi,
+    [switch]$Publish,
+    [string]$Compression = "",
     [switch]$Local
 )
 
@@ -49,7 +51,7 @@ $ErrorActionPreference = "Stop"
 
 # Bundled deployment values.
 $DefaultBundleUrl = "http://localhost:8005"              # local ai-service origin (SPA + /ai)
-$DefaultBackendUrl = "https://project-aeris.onrender.com" # deployed API/WS backend
+$DefaultBackendUrl = "https://project-aeris-09w4.onrender.com" # deployed API/WS backend
 
 $rootDir = Split-Path -Parent (Split-Path -Parent $PSCommandPath)
 $frontendDir = Join-Path $rootDir "frontend"
@@ -138,10 +140,32 @@ try {
         Copy-Item -Path (Join-Path $buildOut "*") -Destination $staged -Recurse -Force
 
         # Runtime files that ultralytics/torch load as files (never embedded).
-        Copy-Item -LiteralPath (Join-Path $aiDir "yolo11n.pt") -Destination $staged -Force
+        # *.pt is gitignored: fetch the base YOLO weights if this checkout has
+        # none (ultralytics downloads them on first use).
+        $yoloPath = Join-Path $aiDir "yolo11n.pt"
+        if (-not (Test-Path -LiteralPath $yoloPath)) {
+            Write-Host "  yolo11n.pt missing; fetching with ultralytics..." -ForegroundColor DarkYellow
+            Push-Location $aiDir
+            try {
+                & $venvPy -c "from ultralytics import YOLO; YOLO('yolo11n.pt')"
+                if ($LASTEXITCODE -ne 0) { throw "Could not obtain yolo11n.pt" }
+            }
+            finally {
+                Pop-Location
+            }
+        }
+        Copy-Item -LiteralPath $yoloPath -Destination $staged -Force
+
+        # Accident-detector weights are gitignored too. Ship them when present;
+        # without them the sidecar still runs, just without accident detection.
+        $accidentWeights = Join-Path $aiDir "models\accident_detector\weights\best.pt"
         $weightsDir = Join-Path $staged "models\accident_detector\weights"
         New-Item -ItemType Directory -Path $weightsDir -Force | Out-Null
-        Copy-Item -LiteralPath (Join-Path $aiDir "models\accident_detector\weights\best.pt") -Destination $weightsDir -Force
+        if (Test-Path -LiteralPath $accidentWeights) {
+            Copy-Item -LiteralPath $accidentWeights -Destination $weightsDir -Force
+        } else {
+            Write-Host "  WARNING: accident weights (best.pt) not found; bundling without them" -ForegroundColor DarkYellow
+        }
 
         # The SPA the sidecar serves as the app origin (<staged>\frontend\dist).
         New-Item -ItemType Directory -Path (Join-Path $staged "frontend") -Force | Out-Null
@@ -149,15 +173,36 @@ try {
 
         # Write a production .env beside the exe (source: repo .env keys,
         # backend overridden with the baked deployment backend).
+        # ai-service\.env is gitignored, so a CI checkout has none. Read it when
+        # present, otherwise fall back to the environment/defaults.
         $srcEnv = @{}
-        foreach ($line in Get-Content -LiteralPath (Join-Path $aiDir ".env")) {
-            if ($line -match '^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$') {
-                $srcEnv[$matches[1]] = $matches[2].Trim()
+        $envPath = Join-Path $aiDir ".env"
+        if (Test-Path -LiteralPath $envPath) {
+            foreach ($line in Get-Content -LiteralPath $envPath) {
+                if ($line -match '^\s*([A-Za-z0-9_]+)\s*=\s*(.*)$') {
+                    $srcEnv[$matches[1]] = $matches[2].Trim()
+                }
             }
+        } else {
+            Write-Host "  No ai-service\.env found; using environment/defaults" -ForegroundColor DarkYellow
         }
-        $aiKey = if ($srcEnv["AI_SERVICE_API_KEY"]) { $srcEnv["AI_SERVICE_API_KEY"] } else { "ai-service-key" }
-        $internalKey = if ($srcEnv["INTERNAL_API_KEY"]) { $srcEnv["INTERNAL_API_KEY"] } else { $aiKey }
-        $backendApi = "$($bakedBackendUrl.TrimEnd('/'))/api"
+        $aiKey = if ($env:AI_SERVICE_API_KEY) { $env:AI_SERVICE_API_KEY } else { $srcEnv["AI_SERVICE_API_KEY"] }
+        $internalKey = if ($env:INTERNAL_API_KEY) { $env:INTERNAL_API_KEY } else { $srcEnv["INTERNAL_API_KEY"] }
+
+        # Never ship the placeholder key: the bundled sidecar authenticates to
+        # the backend with these, and a guess silently breaks detection posting.
+        $missingKeys = @()
+        if (-not $aiKey) { $missingKeys += "AI_SERVICE_API_KEY" }
+        if (-not $internalKey) { $missingKeys += "INTERNAL_API_KEY" }
+        if ($missingKeys.Count -gt 0) {
+            throw (
+                "Missing required key(s): " + ($missingKeys -join ", ") +
+                ". Set them in ai-service\.env or as environment variables; " +
+                "refusing to bundle the placeholder key."
+            )
+        }
+        # Normalise to exactly one /api suffix: -BackendUrl may be given with it.
+        $backendApi = "$($bakedBackendUrl.TrimEnd('/') -replace '/api$', '')/api"
         $envLines = @(
             "AI_SERVICE_HOST=127.0.0.1",
             "AI_SERVICE_PORT=8005",
@@ -177,9 +222,23 @@ try {
             "RECONNECT_BASE_DELAY=1.0",
             "RECONNECT_MAX_DELAY=30.0"
         )
-        Set-Content -LiteralPath (Join-Path $staged ".env") -Value $envLines -Encoding ascii
+        # UTF-8 without BOM: the keys are opaque strings, and an OS-generated
+        # secret is not guaranteed to be pure ASCII. run_sidecar.py reads the
+        # file with utf-8-sig, so a BOM (Windows PowerShell 5.1) is tolerated
+        # too, but there is no reason to write one.
+        $sidecarEnv = Join-Path $staged ".env"
+        [System.IO.File]::WriteAllLines(
+            $sidecarEnv,
+            [string[]]$envLines,
+            (New-Object System.Text.UTF8Encoding($false))
+        )
+        # Lengths only — never print the keys themselves into the CI log.
+        Write-Host (
+            "  Sidecar .env: AI_SERVICE_API_KEY ($($aiKey.Length) chars), " +
+            "INTERNAL_API_KEY ($($internalKey.Length) chars), BACKEND_API_URL=$backendApi"
+        ) -ForegroundColor Green
 
-        # Convenience lamag uncher (used by main.cjs candidates if the exe name differs).
+        # Convenience launcher (used by main.cjs candidates if the exe name differs).
         Set-Content -LiteralPath (Join-Path $staged "start-ai.cmd") -Value "@echo off`r`ncd /d `"%~dp0`"`r`nai-server.exe" -Encoding ascii
 
         Write-Host "  Sidecar staged to ai-bundle\" -ForegroundColor Green
@@ -203,7 +262,10 @@ try {
             Write-Host "  If packaging fails with 'Insufficient system resources', install 7-Zip or set ELECTRON_BUILDER_COMPRESSION_LEVEL=1" -ForegroundColor DarkYellow
         }
     }
-    npx electron-builder --config electron-builder.yml
+    $builderArgs = @("--config", "electron-builder.yml")
+    if ($Compression) { $builderArgs += "--config.compression=$Compression" }
+    if ($Publish) { $builderArgs += @("--publish", "always") }
+    npx electron-builder @builderArgs
     if ($LASTEXITCODE -ne 0) { throw "Desktop build failed" }
 
     Write-Host ""

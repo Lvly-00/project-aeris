@@ -82,7 +82,7 @@ export default function ChangeEmailModal({
       onEmailChanged?.();
       setTimeout(() => {
         logout();
-        navigate('/pwa/login', { replace: true });
+        navigate('/login', { replace: true });
       }, 2000);
     } catch (err: any) {
       const data = err?.response?.data;

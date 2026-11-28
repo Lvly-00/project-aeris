@@ -23,10 +23,68 @@ import type { IncidentDetectedData } from './DetectionOverlay';
  */
 const FIRST_FRAME_TIMEOUT_MS = 25000;
 
+/**
+ * MP4 files are local: if the AI service cannot open one it 404s on every
+ * frame request straight away, so there is no reason to make the operator wait
+ * the full RTSP grace period before saying so.
+ */
+const MP4_FIRST_FRAME_TIMEOUT_MS = 10000;
+
+/**
+ * Why a feed failed, so the overlay can say something true:
+ *   unreachable — the request never got an answer (sidecar stopped, proxy 404)
+ *   no-frames   — the AI service answered and blamed the source file itself
+ *   http        — the AI service answered but produced no frame for another
+ *                 reason (its explanation travels in `detail`)
+ *   timeout     — nothing arrived before the first-frame deadline
+ */
+export type FeedFailureKind = 'unreachable' | 'no-frames' | 'http' | 'timeout';
+
 interface FeedStatus {
   state: 'connecting' | 'live' | 'error';
   detail?: string;
+  kind?: FeedFailureKind;
 }
+
+/**
+ * Decode the AI service's 404 body for /cameras/{id}/frame:
+ *   { message: "No frame available", reason, reason_kind: "file" | "service" }
+ * `file` means the service tried to read the video and could not — the only
+ * case where naming the path helps. `service` means the service itself could
+ * not produce a frame (e.g. its backend lookup failed). A body that is not this
+ * JSON did not come from the AI service at all.
+ */
+function parseFrameErrorBody(
+  raw: string,
+): { reason: string; reasonKind: 'file' | 'service' } | null {
+  const text = raw.trim();
+  if (!text) return null;
+  let body: any;
+  try {
+    body = JSON.parse(text);
+  } catch {
+    return null;
+  }
+  const detail = body?.detail ?? body;
+  if (detail && typeof detail === 'object' && detail.message === 'No frame available') {
+    return {
+      reason: typeof detail.reason === 'string' ? detail.reason : '',
+      reasonKind: detail.reason_kind === 'service' ? 'service' : 'file',
+    };
+  }
+  // Older sidecars answer with a plain string detail and no explanation.
+  if (typeof detail === 'string' && /^No frame available/i.test(detail)) {
+    return { reason: '', reasonKind: 'file' };
+  }
+  return null;
+}
+
+// Registering a camera restarts the AI service's reader for it, so remember
+// what this page already registered instead of doing it on every remount.
+const registeredSources = new Map<number, string>();
+
+/** How often a camera with no frames may be re-registered. */
+const REGISTER_RETRY_MS = 10000;
 
 // ── RtspCanvas — inner polling component ─────────────────────────────────────
 
@@ -34,21 +92,38 @@ interface RtspCanvasProps {
   canvasRef: React.RefObject<HTMLCanvasElement | null>;
   cameraId: number;
   baseUrl: string;
+  /** Camera source, so the AI service can be told what to read. */
+  source?: string;
+  streamType?: string;
   onFrame?: () => void;
   onStatus?: (status: FeedStatus) => void;
   /** Fires when the decoder reports a new pixel size. */
   onSize?: (size: { width: number; height: number }) => void;
+  /** Overrides how long to wait for a first frame before reporting failure. */
+  firstFrameTimeoutMs?: number;
 }
 
-export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, onSize }: RtspCanvasProps) {
+export function RtspCanvas({
+  canvasRef,
+  cameraId,
+  baseUrl,
+  onFrame,
+  onStatus,
+  onSize,
+  source = '',
+  streamType = 'RTSP',
+  firstFrameTimeoutMs = FIRST_FRAME_TIMEOUT_MS,
+}: RtspCanvasProps) {
   const mountedRef = useRef(true);
   const hasDrawnRef = useRef(false);
   const lastErrorRef = useRef('');
+  const lastKindRef = useRef<FeedFailureKind | undefined>(undefined);
 
   useEffect(() => {
     mountedRef.current = true;
     hasDrawnRef.current = false;
     lastErrorRef.current = '';
+    lastKindRef.current = undefined;
     let abortCtrl: AbortController | null = null;
     let watchdog: ReturnType<typeof setTimeout> | null = null;
 
@@ -67,18 +142,50 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, on
         if (!mountedRef.current || hasDrawnRef.current) return;
         onStatus?.({
           state: 'error',
+          kind: lastKindRef.current ?? 'timeout',
           detail:
             lastErrorRef.current ||
-            `No frames received within ${FIRST_FRAME_TIMEOUT_MS / 1000}s. ` +
-            `Check that the AI service is running and the camera source is reachable.`,
+            `No answer from the AI service within ${firstFrameTimeoutMs / 1000}s ` +
+            `at ${baseUrl}. It may not be running, or it may still be opening the source.`,
         });
-      }, FIRST_FRAME_TIMEOUT_MS);
+      }, firstFrameTimeoutMs);
     };
 
     const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+    // The AI service learns a camera's source either from the backend's
+    // /internal/ endpoint — restricted to the Docker network, so a desktop
+    // install polling the hosted backend is refused with 403 — or from this
+    // page, which already holds the config. Register here so the desktop no
+    // longer depends on that lookup.
+    const registrationKey = `${baseUrl}|${source}`;
+    let lastRegisterAt = 0;
+    const ensureRegistered = async () => {
+      const sourceValue = source.trim();
+      if (!sourceValue) return;
+      if (registeredSources.get(cameraId) === registrationKey) return;
+      if (Date.now() - lastRegisterAt < REGISTER_RETRY_MS) return;
+      lastRegisterAt = Date.now();
+      try {
+        const res = await fetch(`${baseUrl}/cameras/register`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            camera_id: cameraId,
+            source: sourceValue,
+            stream_type: streamType,
+          }),
+        });
+        if (res.ok) registeredSources.set(cameraId, registrationKey);
+        else registeredSources.delete(cameraId);
+      } catch {
+        // Service still starting; the next 404 tries again.
+      }
+    };
+
     const fetchAndDraw = async () => {
       armWatchdog();
+      await ensureRegistered();
       while (mountedRef.current) {
         try {
           abortCtrl = new AbortController();
@@ -87,7 +194,48 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, on
             { signal: abortCtrl.signal },
           );
           if (!res.ok) {
-            lastErrorRef.current = `Frame request failed: HTTP ${res.status} ${res.statusText}`.trim();
+            // Only the AI service's own frame answer says anything about the
+            // source file. A 404 from anything else (stopped sidecar behind a
+            // proxy, router/SPA catch-all) means the request never reached the
+            // service, and a thrown fetch above never reached it either —
+            // neither may be blamed on the file path.
+            const raw = await res.text().catch(() => '');
+            const answer = res.status === 404 ? parseFrameErrorBody(raw) : null;
+            const plain = raw.trim();
+            const reason =
+              answer?.reason ||
+              (/^<(!doctype|html)/i.test(plain) ? '' : plain.slice(0, 300));
+
+            if (answer?.reasonKind === 'file') {
+              lastKindRef.current = 'no-frames';
+              lastErrorRef.current =
+                reason || `The AI service has no frame for this file (HTTP ${res.status}).`;
+            } else if (answer) {
+              lastKindRef.current = 'http';
+              lastErrorRef.current = `HTTP ${res.status} ${res.statusText}: ${reason}`.trim();
+            } else if (res.status === 404) {
+              lastKindRef.current = 'unreachable';
+              lastErrorRef.current =
+                `HTTP 404 from ${baseUrl} — the request never reached the AI service` +
+                (reason ? ` (${reason})` : '');
+            } else if (/AI service unavailable/i.test(plain)) {
+              // Django's /ai proxy answers this when the sidecar is down.
+              lastKindRef.current = 'unreachable';
+              lastErrorRef.current = `The AI service did not answer: ${plain}`;
+            } else {
+              lastKindRef.current = 'http';
+              lastErrorRef.current =
+                `HTTP ${res.status} ${res.statusText}`.trim() +
+                (reason ? ` — ${reason}` : '');
+            }
+            // A 404 means the service has no frame for this camera — which is
+            // also what a restarted sidecar reports, since it forgets every
+            // registration. Drop the cached one so the throttled retry can
+            // re-register instead of leaving the feed offline until a reload.
+            if (res.status === 404) {
+              registeredSources.delete(cameraId);
+              await ensureRegistered();
+            }
             await sleep(1000);
             continue;
           }
@@ -117,9 +265,10 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, on
           if (onFrame) onFrame();
         } catch (e: any) {
           if (e?.name === 'AbortError') break;
+          lastKindRef.current = 'unreachable';
           lastErrorRef.current = e?.message
-            ? `Frame request error: ${e.message}`
-            : 'Frame request error';
+            ? `Could not reach the AI service at ${baseUrl}: ${e.message}`
+            : `Could not reach the AI service at ${baseUrl}`;
           await sleep(500);
         }
       }
@@ -132,7 +281,7 @@ export function RtspCanvas({ canvasRef, cameraId, baseUrl, onFrame, onStatus, on
       clearWatchdog();
       abortCtrl?.abort();
     };
-  }, [cameraId, baseUrl, canvasRef, onFrame, onStatus, onSize]);
+  }, [cameraId, baseUrl, canvasRef, onFrame, onStatus, onSize, source, streamType, firstFrameTimeoutMs]);
 
   return null;
 }
@@ -222,6 +371,59 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
 
   const failed = stalled || feed.state === 'error';
 
+  // A local MP4 that the AI service cannot open is a very different failure
+  // from an unreachable RTSP url: the operator can fix it by correcting the
+  // path, so name the file instead of showing the generic offline state — but
+  // only when the service actually answered. A stopped sidecar must not send
+  // anyone hunting for a file that is fine.
+  const isMp4 = camera.stream_type === 'MP4';
+  const mp4Path =
+    typeof camera.stream_url === 'string' ? camera.stream_url.trim() : '';
+
+  const mp4Failure =
+    feed.kind === 'unreachable'
+      ? {
+          title: 'AI service unreachable',
+          body:
+            'Aeris could not reach the local AI service on this PC, so this ' +
+            'video is not being read — the file itself is not the problem. ' +
+            'Start (or restart) the app and try again.',
+          showPath: false,
+        }
+      : feed.kind === 'no-frames'
+        ? {
+            title: 'Video file could not be opened',
+            body:
+              'The AI service is running but cannot read this file. The reason ' +
+              'below comes from the AI service.',
+            showPath: true,
+          }
+        : feed.kind === 'http'
+          ? {
+              title: 'AI service error',
+              body:
+                'The AI service answered but did not produce a frame for this ' +
+                'video. The reason below comes from the service, not from the file.',
+              showPath: false,
+            }
+          : feed.kind === 'timeout'
+            ? {
+                title: 'No answer from the AI service',
+                body:
+                  'The AI service did not deliver a frame in time, so Aeris ' +
+                  'cannot tell whether the file is readable. Check that the ' +
+                  'service is running, then try again.',
+                showPath: false,
+              }
+            : {
+                title: 'Connecting to the AI service failed',
+                body:
+                  'Aeris never got an answer for this video, so it cannot tell ' +
+                  'whether the file is readable. Check that the AI service is ' +
+                  'running, then try again.',
+                showPath: false,
+              };
+
   return (
     <Box
       ref={containerRef}
@@ -242,9 +444,12 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
         canvasRef={canvasRef}
         cameraId={camera.id}
         baseUrl={baseUrl}
+        source={camera.stream_url}
+        streamType={camera.stream_type}
         onFrame={tick}
         onStatus={handleStatus}
         onSize={handleSize}
+        firstFrameTimeoutMs={isMp4 ? MP4_FIRST_FRAME_TIMEOUT_MS : undefined}
       />
       {!failed && (
         <DetectionOverlay
@@ -273,12 +478,39 @@ export function RTSPCameraFeed({ camera, onIncidentDetected, onStats }: RTSPCame
           }}
         >
           <VideoSlash width={40} height={40} color="var(--mantine-color-dimmed)" />
-          <Text fw={700} size="md" c="white" mt="xs">Connection failure</Text>
-          <Text size="sm" c="var(--mantine-color-dimmed)" mt={4} w="90%" lh={1.5}>
-            {feed.state === 'error' && feed.detail
-              ? feed.detail
-              : 'Unable to connect to the camera source. Verify the configuration and connection.'}
+          <Text fw={700} size="md" c="white" mt="xs">
+            {isMp4 ? mp4Failure.title : 'Connection failure'}
           </Text>
+          {isMp4 ? (
+            <>
+              {mp4Failure.showPath && (
+                <Text
+                  size="sm"
+                  c="white"
+                  mt={4}
+                  w="90%"
+                  lh={1.5}
+                  style={{ wordBreak: 'break-all', fontFamily: 'monospace' }}
+                >
+                  {mp4Path || '(no path saved for this camera)'}
+                </Text>
+              )}
+              <Text size="xs" c="var(--mantine-color-dimmed)" mt={4} w="90%" lh={1.5}>
+                {mp4Failure.body}
+              </Text>
+              {feed.detail && (
+                <Text size="xs" c="var(--mantine-color-dimmed)" mt={2} w="90%" lh={1.5}>
+                  {feed.detail}
+                </Text>
+              )}
+            </>
+          ) : (
+            <Text size="sm" c="var(--mantine-color-dimmed)" mt={4} w="90%" lh={1.5}>
+              {feed.state === 'error' && feed.detail
+                ? feed.detail
+                : 'Unable to connect to the camera source. Verify the configuration and connection.'}
+            </Text>
+          )}
         </Box>
       ) : null}
     </Box>

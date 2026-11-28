@@ -2,12 +2,17 @@ import { Box, Card, Group, Text, ThemeIcon, rem, useComputedColorScheme } from '
 import { CheckCircle, XCircle } from '@boxicons/react';
 
 import { formatDate } from '../../../shared/utils/helpers';
+import { dismissReasonLabel } from './dismissReasons';
 
 interface IncidentClosedNoticeProps {
   status: 'Resolved' | 'Dismissed';
   statusColor: string;
   /** resolved_at or dismissed_at, whichever matches the status. */
   closedAt: string | null;
+  /** Dismissal reason code, shown when the incident was dismissed. */
+  reason?: string | null;
+  /** Optional free-text detail captured with the reason. */
+  notes?: string | null;
 }
 
 /**
@@ -18,9 +23,12 @@ export const IncidentClosedNotice = ({
   status,
   statusColor,
   closedAt,
+  reason,
+  notes,
 }: IncidentClosedNoticeProps) => {
   const isDark = useComputedColorScheme('light', { getInitialValueInEffect: true }) === 'dark';
   const isResolved = status === 'Resolved';
+  const reasonLabel = isResolved ? null : dismissReasonLabel(reason);
 
   const detail = closedAt
     ? `${isResolved ? 'Closed' : 'Dismissed'} ${formatDate(closedAt)}`
@@ -53,6 +61,15 @@ export const IncidentClosedNotice = ({
           <Text fz={rem(13)} c="dimmed" lh={1.4} mt={rem(2)}>
             {detail}
           </Text>
+          {reasonLabel && (
+            <Text fz={rem(13)} c="dimmed" lh={1.4} mt={rem(4)}>
+              Reason:{' '}
+              <Text span fw={600} c="var(--mantine-color-text)">
+                {reasonLabel}
+              </Text>
+              {notes ? ` — ${notes}` : ''}
+            </Text>
+          )}
         </Box>
       </Group>
     </Card>

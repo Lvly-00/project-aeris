@@ -6,13 +6,13 @@ from pathlib import Path
 from typing import List
 from datetime import datetime
 from django.conf import settings
+from django.core import signing
 from django.http import FileResponse, HttpResponse, StreamingHttpResponse
 from rest_framework import viewsets, status
 from rest_framework.decorators import action
 from rest_framework.response import Response
-from rest_framework.permissions import AllowAny
+from rest_framework.permissions import AllowAny, IsAuthenticated
 from rest_framework_simplejwt.authentication import JWTAuthentication
-from rest_framework_simplejwt.tokens import AccessToken
 from apps.lookups.models import CameraStatus
 from apps.accounts.permissions import IsAdminOrReadOnly
 from apps.audit.models import AuditLog
@@ -20,6 +20,33 @@ from apps.audit.services import write_audit
 from apps.incidents.views import broadcast_camera_changed, broadcast_stats_changed
 from .models import Camera
 from .serializers import CameraSerializer, CameraStatusSerializer
+
+
+# A camera stream is requested by a <video>/<img> element, which cannot send an
+# Authorization header. Rather than putting the account's access token in the
+# URL — where it survives in browser history, proxy logs and any copied link —
+# the client exchanges its token for a ticket scoped to one camera that expires
+# after two minutes and is useless for every other request.
+STREAM_TICKET_SALT = "aeris.cameras.stream-ticket"
+STREAM_TICKET_MAX_AGE = 120
+
+
+def _issue_stream_ticket(user_id: int, camera_id: int) -> str:
+    return signing.dumps(
+        {"uid": user_id, "cid": camera_id}, salt=STREAM_TICKET_SALT, compress=True
+    )
+
+
+def _stream_ticket_user_id(ticket: str, camera_id: int):
+    try:
+        payload = signing.loads(
+            ticket, salt=STREAM_TICKET_SALT, max_age=STREAM_TICKET_MAX_AGE
+        )
+    except signing.BadSignature:  # includes SignatureExpired
+        return None
+    if payload.get("cid") != camera_id:
+        return None
+    return payload.get("uid")
 
 
 def _is_subpath(child: Path, parent: Path) -> bool:
@@ -224,6 +251,22 @@ class CameraViewSet(viewsets.ModelViewSet):
             status=status.HTTP_201_CREATED,
         )
 
+    @action(
+        detail=True,
+        methods=["post"],
+        url_path="stream-ticket",
+        permission_classes=[IsAuthenticated],
+    )
+    def stream_ticket(self, request, pk=None):
+        """Exchange the caller's session for a short-lived, camera-scoped ticket."""
+        camera = self.get_object()
+        return Response(
+            {
+                "ticket": _issue_stream_ticket(request.user.id, camera.id),
+                "expires_in": STREAM_TICKET_MAX_AGE,
+            }
+        )
+
     @action(detail=True, methods=["get"], url_path="stream", permission_classes=[AllowAny])
     def stream(self, request, pk=None) -> HttpResponse:
         camera = self.get_object()
@@ -233,18 +276,21 @@ class CameraViewSet(viewsets.ModelViewSet):
         desktop_mode = getattr(settings, "DESKTOP_MODE", False)
         if not desktop_mode:
             user = None
-            jwt_auth = JWTAuthentication()
             try:
-                user, _ = jwt_auth.authenticate(request)
+                user, _ = JWTAuthentication().authenticate(request)
             except Exception:
-                token = request.query_params.get("token")
-                if token:
-                    try:
-                        validated = AccessToken(token)
-                        from django.contrib.auth import get_user_model
-                        user = get_user_model().objects.get(id=validated["user_id"])
-                    except Exception:
-                        pass
+                user = None
+
+            if not user or not user.is_authenticated:
+                ticket = request.query_params.get("ticket")
+                user_id = _stream_ticket_user_id(ticket, camera.id) if ticket else None
+                if user_id:
+                    from django.contrib.auth import get_user_model
+
+                    user = get_user_model().objects.filter(
+                        id=user_id, is_active=True
+                    ).first()
+
             if not user or not user.is_authenticated:
                 return Response({"detail": "Authentication required"}, status=401)
         filepath = _resolve_video_path(camera.stream_url)

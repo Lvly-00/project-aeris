@@ -65,7 +65,7 @@ export function AppModal({
     >
       {/* A firm dark veil: the page behind must read as inactive, not as a
           washed-out white sheet showing through the dialog. */}
-      <Modal.Overlay color="#000" backgroundOpacity={0.72} blur={2} />
+      <Modal.Overlay color="#000" backgroundOpacity={0.72} />
 
       <Modal.Content
         role="dialog"

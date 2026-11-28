@@ -93,15 +93,40 @@ CSRF_COOKIE_SECURE = True
 CSRF_COOKIE_HTTPONLY = True
 CSRF_COOKIE_SAMESITE = "Lax"
 
-# ── Channel layers — use Redis in production (not in-memory) ──────────────────
-CHANNEL_LAYERS = {
-    "default": {
-        "BACKEND": "channels_redis.core.RedisChannelLayer",
-        "CONFIG": {
-            "hosts": [config("REDIS_URL", default="redis://redis:6379/0")],
+# ── Channel layers ─────────────────────────────────────────────────────────────
+# A single Daphne process serves both HTTP and WebSocket traffic on Render, so
+# the in-memory layer is enough and needs no Redis add-on. Redis is opt-in for
+# deployments that actually run multiple backend instances/workers; otherwise a
+# missing/unreachable Redis (or missing channels_redis package) makes every
+# /ws/ handshake fail with HTTP 500 before the consumer can accept the socket.
+USE_REDIS_CHANNEL_LAYER = config("USE_REDIS_CHANNEL_LAYER", default=False, cast=bool)
+
+if USE_REDIS_CHANNEL_LAYER:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels_redis.core.RedisChannelLayer",
+            "CONFIG": {
+                "hosts": [config("REDIS_URL", default="redis://redis:6379/0")],
+            },
         },
-    },
-}
+    }
+else:
+    CHANNEL_LAYERS = {
+        "default": {
+            "BACKEND": "channels.layers.InMemoryChannelLayer",
+        },
+    }
+
+# ── Email — Brevo Transactional Email API v3 (free-tier compatible) ──────────
+# 2FA codes, password resets and email changes go through the Brevo REST API
+# (apps/accounts/email.py), NOT Django's SMTP backend. Without this key the
+# helper logs "BREVO_API_KEY is not configured" and returns False without
+# raising, so the login endpoint still answers "code sent" while nothing is
+# delivered. Set BREVO_API_KEY in the deployed environment.
+BREVO_API_KEY = config("BREVO_API_KEY", default="")
+DEFAULT_FROM_EMAIL = config(
+    "DEFAULT_FROM_EMAIL", default="Aeris <lovelypintes@gmail.com>"
+)
 
 # ── Upload limits ────────────────────────────────────────────────────────────
 # nginx already caps request bodies at 50 MB; these keep a single oversized

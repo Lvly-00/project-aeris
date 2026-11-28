@@ -83,7 +83,7 @@ export default function ResetPasswordPage() {
         }
     };
 
-    const backToLogin = () => navigate(`/${app}/login`, { replace: true });
+    const backToLogin = () => navigate(app === 'pwa' ? '/login' : '/desktop/login', { replace: true });
 
     // Auto-redirect to the login page 3s after the success modal is shown.
     useEffect(() => {

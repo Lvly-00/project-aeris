@@ -118,6 +118,41 @@ class InternalAPIKeyPermission(BasePermission):
         return True
 
 
+class AIServiceKeyPermission(BasePermission):
+    """X-API-Key check for AI services that cannot reach /internal/.
+
+    /internal/ is restricted to the Docker network, so a desktop install — whose
+    AI service runs on the operator's PC and calls the deployed backend over the
+    internet — is refused there. The /api/ai/ routes serve the same need and are
+    authenticated with the AI service key (the same value nginx injects for /ai),
+    so they must fail closed like the internal endpoints do.
+    """
+
+    message = "Invalid or missing X-API-Key."
+
+    def has_permission(self, request, view) -> bool:
+        expected: str = getattr(settings, "AI_SERVICE_API_KEY", "")
+
+        if not expected:
+            if getattr(settings, "DEBUG", False):
+                return True
+            logger.error(
+                "AI_SERVICE_API_KEY is not set on this server. "
+                "All /api/ai/ requests will be rejected."
+            )
+            return False
+
+        provided = request.headers.get("X-API-Key", "")
+        if not hmac.compare_digest(provided, expected):
+            logger.warning(
+                "AI ingest rejected bad X-API-Key from %s",
+                request.META.get("REMOTE_ADDR", "unknown"),
+            )
+            return False
+
+        return True
+
+
 # ── Throttle ──────────────────────────────────────────────────────────────────
 
 class InternalScopedThrottle(ScopedRateThrottle):
@@ -244,7 +279,7 @@ class InternalIncidentCreateView(APIView):
 
         with transaction.atomic():
             open_incident = find_open_incident(
-                camera, lock=True, incident_type=type_obj
+                camera, lock=True
             )
 
             if open_incident is not None:
@@ -279,6 +314,13 @@ class InternalIncidentCreateView(APIView):
                 data = IncidentSerializer(
                     open_incident, context={"request": request}
                 ).data
+
+                # Broadcast the update so connected clients (PWA/desktop)
+                # see the rising detection count and confidence in real
+                # time instead of waiting for the next poll.
+                broadcast_incident("incident_update", data)
+                broadcast_stats_changed()
+
                 return Response({**data, "grouped": True}, status=200)
 
             # New incident. The message names the place, and an unlabelled
@@ -301,6 +343,15 @@ class InternalIncidentCreateView(APIView):
                 evidence_image=evidence,
             )
 
+            # The Incident save above reads the file to upload it to Cloudinary.
+            # Seek back to 0 so record_detection_hit can upload the same bytes
+            # for the Detection snapshot without getting an empty stream.
+            if evidence is not None and hasattr(evidence, 'seek'):
+                try:
+                    evidence.seek(0)
+                except Exception:
+                    evidence = None
+
             record_detection_hit(
                 incident, type_obj, camera, confidence, evidence, bbox_raw
             )
@@ -309,7 +360,10 @@ class InternalIncidentCreateView(APIView):
 
         broadcast_incident("incident_created", data)
         broadcast_stats_changed()
-        create_incident_notification(incident)
+        try:
+            create_incident_notification(incident)
+        except Exception as e:
+            logger.error(f"create_incident_notification failed (incident {incident.pk}): {e}")
 
         logger.info(
             "[Internal] Created new AI incident #%s (type=%s, camera=%s, conf=%.2f)",
@@ -347,6 +401,16 @@ class CameraListView(APIView):
             return Response({"error": "Internal server error"}, status=500)
 
         return Response(cameras)
+
+
+class AIPublicIncidentCreateView(InternalIncidentCreateView):
+    """Incident ingest for AI services outside the Docker network.
+
+    Identical handling to the /internal/ endpoint; only the credential differs,
+    because a desktop sidecar can reach /api/ but never /internal/.
+    """
+
+    permission_classes = [AIServiceKeyPermission]
 
 
 # ── URL patterns — mounted at /internal/ by config/urls/main.py ───────────────
