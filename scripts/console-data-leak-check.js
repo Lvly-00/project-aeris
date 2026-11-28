@@ -38,7 +38,7 @@
   };
 
   // 5) Probe public endpoints with GET only, no credentials sent.
-  const api = 'https://project-aeris.onrender.com';
+  const api = 'https://project-aeris-09w4.onrender.com';
   const paths = [
     '/api/schema/', '/api/docs/', '/api/redoc/', '/admin/', '/api/health/',
     '/internal/cameras/list/', '/api/ai/incidents/create/'

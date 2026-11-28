@@ -5,7 +5,7 @@
 #>
 $ErrorActionPreference = 'SilentlyContinue'
 $Web  = 'https://project-aeris-pearl.vercel.app'
-$Api  = 'https://project-aeris.onrender.com'
+$Api  = 'https://project-aeris-09w4.onrender.com'
 $Repo = Split-Path -Parent $PSScriptRoot
 $rows = @()
 
