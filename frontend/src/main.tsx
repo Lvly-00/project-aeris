@@ -56,9 +56,18 @@ const isElectron = Boolean((window as any).electronAPI?.isDesktop);
 // change `import.meta.env.PROD` to `true` here, but revert before committing.
 if (import.meta.env.PROD && 'serviceWorker' in navigator && !isElectron) {
   window.addEventListener('load', () => {
-    navigator.serviceWorker.register('/sw.js').catch(() => {
-      /* SW registration is best-effort; app works without it */
-    });
+    navigator.serviceWorker
+      // Always fetch the latest sw.js so a bumped CACHE_NAME takes effect
+      // promptly instead of waiting for the browser's SW HTTP cache.
+      .register('/sw.js', { updateViaCache: 'none' })
+      .then((registration) => {
+        registration.update().catch(() => {
+          /* best-effort update check */
+        });
+      })
+      .catch(() => {
+        /* SW registration is best-effort; app works without it */
+      });
   });
 }
 

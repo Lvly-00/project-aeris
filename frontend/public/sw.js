@@ -12,7 +12,10 @@
  *     is closed. Tapping opens the relevant incident detail page.
  */
 
-const CACHE_NAME = 'aeris-static-v3';
+// Bump this whenever the API origin or app shell changes. Old caches are
+// deleted in activate(), so clients stop serving stale bundles/HTML that may
+// still point at a retired backend.
+const CACHE_NAME = 'aeris-static-v4';
 
 const APP_SHELL = [
   '/',

@@ -40,7 +40,7 @@ $hsts = if ($h -match '(?mi)^strict-transport-security') { 'present' } else { 'M
 Record 'HSTS' $hsts 'Strict-Transport-Security on Vercel host'
 
 Write-Host "`n=== 3. API docs / schema exposure ===" -ForegroundColor Cyan
-foreach ($p in @('/api/schema/','/api/docs/','/api/redoc/','/admin/','/api/health/')) {
+foreach ($p in @('/api/schema/','/api/docs/','/api/redoc/','/admin/','/api/health/','/api/auth/token/')) {
   $head = Head ($Api + $p)
   $status = [regex]::Match($head, '(?m)^HTTP/\S+\s+(\d{3})')
   $code = if ($status.Success) { $status.Groups[1].Value } else { '?' }
@@ -74,12 +74,19 @@ $reset = curl.exe -sS --max-time 20 -H "Content-Type: application/json" `
 Record 'Reset enumeration' $(if ($reset -match 'No account is registered') { 'LEAK' } else { 'OK' }) (Clean $reset 110)
 
 Write-Host "`n=== 7. Frontend JavaScript bundle ===" -ForegroundColor Cyan
-$js = Body ($Web + '/assets/index-F4_12mxw.js')
-$urls = ([regex]::Matches($js, 'https://[A-Za-z0-9./_-]+') | ForEach-Object { $_.Value } | Sort-Object -Unique) -join ', '
-Record 'Bundle endpoints' 'INFO' (Clean $urls 180)
-$secs = [regex]::Matches($js, 'API_KEY|SECRET_KEY|BEGIN (RSA|OPENSSH|PRIVATE)|DATABASE_URL') |
-        Select-Object -First 5 | ForEach-Object { $_.Value }
-Record 'Bundle secrets' $(if ($secs) { 'LEAK' } else { 'PASS' }) $(if ($secs) { $secs -join ', ' } else { 'none found' })
+$indexHtml = Body ($Web + '/')
+$bundleMatch = [regex]::Match($indexHtml, '/assets/[A-Za-z0-9._-]+\.js')
+$bundlePath = if ($bundleMatch.Success) { $bundleMatch.Value } else { '' }
+if (-not $bundlePath) {
+  Record 'Bundle secrets' 'CHECK' 'Could not discover the current JS bundle from index.html'
+} else {
+  $js = Body ($Web + $bundlePath)
+  $urls = ([regex]::Matches($js, 'https://[A-Za-z0-9./_-]+') | ForEach-Object { $_.Value } | Sort-Object -Unique) -join ', '
+  Record 'Bundle endpoints' 'INFO' (Clean ("{0}: {1}" -f $bundlePath, $urls) 180)
+  $secs = [regex]::Matches($js, 'API_KEY|SECRET_KEY|BEGIN (RSA|OPENSSH|PRIVATE)|DATABASE_URL') |
+          Select-Object -First 5 | ForEach-Object { $_.Value }
+  Record 'Bundle secrets' $(if ($secs) { 'LEAK' } else { 'PASS' }) $(if ($secs) { $secs -join ', ' } else { 'none found' })
+}
 
 Write-Host "`n=== 8. Git repository ===" -ForegroundColor Cyan
 Push-Location $Repo
@@ -91,7 +98,7 @@ $susp = @($tracked -split "`n" | ForEach-Object { $_.Trim() } | Where-Object {
 # report them for manual review rather than treating them as leaked secrets.
 $templates = @($susp | Where-Object {
   $_ -match '(^|/)\.env\.(example|sample|template)$' -or
-  $_ -match '\.env\.example$' -or
+  $_ -match '\.env\.[A-Za-z0-9_-]+\.(example|sample|template)$' -or
   $_ -match '(^|/)frontend/\.env\.[A-Za-z0-9_-]+$'
 })
 $real = @($susp | Where-Object { $templates -notcontains $_ })
